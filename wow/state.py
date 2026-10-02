@@ -33,7 +33,7 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
     steps: List[dict] = []
     blockers: List[str] = []
     sources = {"jira": "ok" if jira is not None else "not_configured"}
-    plan = {"id": None, "phase": 3, "stale_packets": [], "missing": []}
+    plan = {"id": None, "phase": 3, "stale_packets": [], "missing": [], "parked": False}
     epics_out: List[dict] = []
 
     # Phase 0: context pack. Open owner items block phase 0 but planning continues in parallel.
@@ -88,9 +88,11 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
                                f"readiness verdict is {doc['plan']['readiness']['verdict']}"))
         # Phase 2: packets carry the current manifest hash. Draft epics are not sent to Product Brain.
         epic_ids = [e["id"] for e in doc["epics"] if e.get("status") != "draft"]
+        # A plan whose epics are all draft is parked: nothing goes to Product Brain, not even its PRD or RFC.
+        plan["parked"] = not epic_ids
         packets = repo.packet_status(project, manifest.manifest_hash(project), epic_ids)
-        named = [("prd", "prd", None), ("rfc", "rfc", None)] + \
-                [(f"epic-{eid}", "epic", eid) for eid in epic_ids]
+        named = [] if plan["parked"] else \
+            [("prd", "prd", None), ("rfc", "rfc", None)] + [(f"epic-{eid}", "epic", eid) for eid in epic_ids]
         for name, kind, eid in named:
             status = packets["epics"][eid] if eid else packets[name]
             if status == "ok":

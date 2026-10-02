@@ -87,6 +87,16 @@ class DraftEpicTest(unittest.TestCase):
         e2 = next(e for e in result["epics"] if e["id"] == "E2")
         self.assertEqual((e2["phase"], e2["missing"]), ("draft", []))
 
+    def test_plan_with_only_draft_epics_is_parked_without_packet_steps(self):
+        p = project_at_phase_3()
+        doc = manifest.load(p)
+        doc["epics"][0]["status"] = "draft"
+        manifest.save(p, doc)  # the hash changes, so prd and rfc would otherwise be stale
+        result = state.compute_state(p, CFG)
+        self.assertTrue(result["plan"]["parked"])
+        self.assertEqual((result["plan"]["missing"], result["plan"]["stale_packets"]), ([], []))
+        self.assertEqual(result["next_steps"], [])
+
 
 class PlanPhasesTest(unittest.TestCase):
     def test_fresh_project_is_phase_0_with_context_step(self):
