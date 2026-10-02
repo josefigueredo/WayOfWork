@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import shlex
 import sys
 from pathlib import Path
 from typing import List
@@ -15,6 +16,7 @@ import manifest
 import packets
 import review as review_mod
 import reviewers
+import runwu
 import snapshot as snapshot_mod
 import state as state_mod
 import usage as usage_mod
@@ -150,6 +152,26 @@ def _cmd_usage(args) -> int:
     return exitcodes.OK
 
 
+def _cmd_run_wu(args) -> int:
+    project = _project(args)
+    try:
+        cfg = config.load_config(project)
+    except config.ConfigError as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    model = args.model or cfg["models"]["cursor_generate"]
+    if args.dry_run:
+        print(shlex.join(runwu.build_command(args.wu, model, args.worktree)))
+        return exitcodes.OK
+    try:
+        code, path = runwu.run(project, args.wu, model, epic=args.epic, worktree=args.worktree)
+    except FileNotFoundError:
+        sys.stderr.write("wow: cursor-agent not found on PATH\n")
+        return exitcodes.CANNOT_EVALUATE
+    print(f"run recorded: {path.relative_to(project)}")
+    return exitcodes.OK if code == 0 else exitcodes.FINDINGS
+
+
 def _cmd_review(args) -> int:
     project = _project(args)
     try:
@@ -261,6 +283,14 @@ def build_parser() -> argparse.ArgumentParser:
     rv.set_defaults(handler=_cmd_review)
 
     with_project(sub.add_parser("usage", help="summarize LLM usage by vendor and model")).set_defaults(handler=_cmd_usage)
+
+    rw = with_project(sub.add_parser("run-wu", help="run /spec-kit.implement headless and record usage"))
+    rw.add_argument("wu")
+    rw.add_argument("--model", default=None)
+    rw.add_argument("--epic", default=None)
+    rw.add_argument("--worktree", action="store_true")
+    rw.add_argument("--dry-run", action="store_true")
+    rw.set_defaults(handler=_cmd_run_wu)
     return parser
 
 

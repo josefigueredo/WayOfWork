@@ -214,6 +214,13 @@ class UsageCommandTest(unittest.TestCase):
         self.assertEqual(saved["usage"][0]["model"], "composer-2.5")
 
 
+class RunWuCommandTest(unittest.TestCase):
+    def test_dry_run_prints_command_with_default_model(self):
+        code, out, _ = run_cli(["run-wu", "WU-008", "--dry-run", "--project", str(make_project())])
+        self.assertEqual(code, 0)
+        self.assertIn("cursor-agent -p '/spec-kit.implement WU-008 --max-iterations 5' --model composer-2.5", out)
+
+
 class ReviewSkillContractTest(unittest.TestCase):
     def test_review_skill_frontmatter(self):
         text = (ROOT / "skills/wow-review/SKILL.md").read_text(encoding="utf-8")
