@@ -11,6 +11,7 @@ from typing import List
 import json
 
 import config
+import contextpack
 import exitcodes
 import manifest
 import pack
@@ -338,6 +339,22 @@ def _cmd_pbchat_audit(args) -> int:
     return exitcodes.OK if result["verdict"] == "approved" else exitcodes.FINDINGS
 
 
+def _cmd_context_scan(args) -> int:
+    result = contextpack.scan(_project(args))
+    print(f"children: {', '.join(result['children']) or '-'}")
+    print(f"docs: {len(result['docs'])}")
+    for path in result["created"]:
+        print(f"created {path}")
+    return exitcodes.OK
+
+
+def _cmd_context_check(args) -> int:
+    findings = contextpack.check(_project(args))
+    for line in findings:
+        print(line)
+    return exitcodes.FINDINGS if findings else exitcodes.OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="wow", description="WayOfWork CLI")
     parser.add_argument("--version", action="store_true", help="print the version and exit")
@@ -386,6 +403,11 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("doc", help="prd | rfc | epic-E<n>")
     pa.add_argument("--deep", action="store_true", help="also ask an independent reviewer")
     pa.set_defaults(handler=_cmd_pbchat_audit)
+
+    cx = sub.add_parser("context", help="inventory and validate the context pack")
+    cxsub = cx.add_subparsers(dest="context_command", parser_class=_Parser)
+    with_project(cxsub.add_parser("scan")).set_defaults(handler=_cmd_context_scan)
+    with_project(cxsub.add_parser("check")).set_defaults(handler=_cmd_context_check)
 
     with_project(sub.add_parser("usage", help="summarize LLM usage by vendor and model")).set_defaults(handler=_cmd_usage)
 

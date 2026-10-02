@@ -305,5 +305,16 @@ class PbchatDeepAuditCommandTest(unittest.TestCase):
         self.assertFalse((project / "wow/pb/chats/prd.audit.json").exists())
 
 
+class ContextCommandTest(unittest.TestCase):
+    def test_scan_then_check_codes(self):
+        project = make_project()
+        self.assertEqual(run_cli(["context", "scan", "--project", str(project)])[0], 0)
+        self.assertEqual(run_cli(["context", "check", "--project", str(project)])[0], 0)
+        write(project, "wow/context-pack/facts.md", "- C1: x [MEDIDO]\n")
+        code, out, _ = run_cli(["context", "check", "--project", str(project)])
+        self.assertEqual(code, 1)
+        self.assertIn("C1 needs a source", out)
+
+
 if __name__ == "__main__":
     unittest.main()

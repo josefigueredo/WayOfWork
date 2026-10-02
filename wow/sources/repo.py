@@ -29,3 +29,13 @@ def packet_status(project: Path, mhash: str, epic_ids: List[str]) -> dict:
     base = project / "wow" / "pb"
     epics: Dict[str, str] = {eid: _packet(base / f"epic-{eid}.md", mhash) for eid in epic_ids}
     return {"prd": _packet(base / "prd.md", mhash), "rfc": _packet(base / "rfc.md", mhash), "epics": epics}
+
+
+_SUBMODULE_RE = re.compile(r"^\s*path\s*=\s*(.+?)\s*$")
+
+
+def submodule_paths(project: Path) -> List[str]:
+    path = project / ".gitmodules"
+    if not path.is_file():
+        return []
+    return [m.group(1) for m in map(_SUBMODULE_RE.match, path.read_text(encoding="utf-8").splitlines()) if m]

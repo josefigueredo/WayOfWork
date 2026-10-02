@@ -32,5 +32,13 @@ class PacketTest(unittest.TestCase):
                          {"prd": "ok", "rfc": "stale", "epics": {"E1": "ok", "E2": "missing"}})
 
 
+class SubmoduleTest(unittest.TestCase):
+    def test_submodule_paths(self):
+        project = make_project()
+        write(project, ".gitmodules", '[submodule "a"]\n\tpath = mfe-x\n[submodule "b"]\n  path = bff-x\n')
+        self.assertEqual(repo.submodule_paths(project), ["mfe-x", "bff-x"])
+        self.assertEqual(repo.submodule_paths(make_project()), [])
+
+
 if __name__ == "__main__":
     unittest.main()
