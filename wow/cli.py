@@ -13,6 +13,7 @@ import json
 import config
 import exitcodes
 import manifest
+import pack
 import packets
 import review as review_mod
 import reviewers
@@ -272,6 +273,42 @@ def _cmd_review(args) -> int:
     return exitcodes.OK if summary["final"] == "approved" else exitcodes.FINDINGS
 
 
+def _cmd_pack(args) -> int:
+    project = _project(args)
+    try:
+        doc = manifest.load(project)
+    except manifest.ManifestError as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    if manifest.validate(doc):
+        sys.stderr.write("wow: manifest is invalid; run wow manifest validate\n")
+        return exitcodes.CANNOT_EVALUATE
+    plan_md = project / "wow" / "plan" / "PLAN.md"
+    brief = pack.parse_brief(plan_md.read_text(encoding="utf-8") if plan_md.is_file() else "")
+    mhash = manifest.manifest_hash(project)
+    try:
+        if args.kind == "epic":
+            if not args.id:
+                sys.stderr.write("wow: pack epic needs --id E<n>\n")
+                return exitcodes.CANNOT_EVALUATE
+            name, text = f"epic-{args.id}", pack.render_epic(doc, args.id, mhash)
+        elif args.kind == "prd":
+            name, text = "prd", pack.render_prd(doc, brief, mhash)
+        else:
+            name, text = "rfc", pack.render_rfc(doc, brief, mhash)
+    except ValueError as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    try:
+        pack.write_packet(project, name, text, force=args.force)
+    except FileExistsError:
+        sys.stderr.write(f"wow: wow/pb/{name}.md exists; --force overwrites it (filled sections are lost)\n")
+        return exitcodes.FINDINGS
+    pack.ensure_preamble(project)
+    print(f"wrote wow/pb/{name}.md")
+    return exitcodes.OK
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="wow", description="WayOfWork CLI")
     parser.add_argument("--version", action="store_true", help="print the version and exit")
@@ -307,6 +344,12 @@ def build_parser() -> argparse.ArgumentParser:
     rv.add_argument("--base", default="main", help="git base for story/epic diffs (default: main)")
     rv.add_argument("--doc", default=None, help="claims document (required for --set claims)")
     rv.set_defaults(handler=_cmd_review)
+
+    pk = with_project(sub.add_parser("pack", help="render Product Brain packets from the manifest"))
+    pk.add_argument("kind", choices=["prd", "rfc", "epic"])
+    pk.add_argument("--id", default=None, help="epic id for kind 'epic'")
+    pk.add_argument("--force", action="store_true", help="overwrite an existing packet")
+    pk.set_defaults(handler=_cmd_pack)
 
     with_project(sub.add_parser("usage", help="summarize LLM usage by vendor and model")).set_defaults(handler=_cmd_usage)
 

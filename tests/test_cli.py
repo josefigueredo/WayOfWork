@@ -255,5 +255,26 @@ class ReviewSkillContractTest(unittest.TestCase):
         self.assertLessEqual(len(text.splitlines()), 80)
 
 
+
+class PackCommandTest(unittest.TestCase):
+    def test_pack_epic_writes_and_refuses_second_time(self):
+        project = make_project()
+        _manifest.save(project, valid_doc())
+        args = ["pack", "epic", "--id", "E1", "--project", str(project)]
+        code, out, _ = run_cli(args)
+        self.assertEqual(code, 0)
+        self.assertIn("wrote wow/pb/epic-E1.md", out)
+        self.assertTrue((project / "wow/pb/preamble.md").is_file())
+        self.assertEqual(run_cli(args)[0], 1)
+        self.assertEqual(run_cli(args + ["--force"])[0], 0)
+
+    def test_pack_epic_needs_valid_id_and_manifest(self):
+        project = make_project()
+        self.assertEqual(run_cli(["pack", "prd", "--project", str(project)])[0], 2)
+        _manifest.save(project, valid_doc())
+        self.assertEqual(run_cli(["pack", "epic", "--project", str(project)])[0], 2)
+        self.assertEqual(run_cli(["pack", "epic", "--id", "E9", "--project", str(project)])[0], 2)
+
+
 if __name__ == "__main__":
     unittest.main()
