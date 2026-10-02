@@ -135,10 +135,15 @@ estructura, no veracidad; por eso sigue haciendo falta `wow pbchat audit`.
 Si `refresh.sh` trae un commit distinto, compará `upstream/base-templates.ts` con las plantillas copiadas en esos prompts
 y actualizalos antes de usarlos.
 
-## Pendiente (Plan 5 propuesto)
+## Implementado en WayOfWork (Plan 5, `docs/superpowers/plans/2026-10-02-wow-pb-alignment.md`)
 
-- **Encabezados de `wow pack`:** hoy no coinciden con estas plantillas, así que el paquete no llega al 100% en el primer
-  pegado. Hay que realinearlo.
-- **`wow pack check`:** portar las reglas de `completion.ts` para predecir localmente el % antes de pegar.
-- **Modo del plan:** `wow plan init --mode greenfield|brownfield`.
-- **Lista semilla de inventos:** sumar "circuit breaker" y el SLA de la plantilla.
+- **Plantillas copiadas** en `wow/templates/pb-prd.md` y `pb-rfc.md`; un test verifica que siguen iguales a `upstream/`.
+- **`wow pack prd|rfc|epic`** renderiza con la forma de PB y deja `{{campo}}` donde falta el dato. El paquete de épica
+  usa los campos del schema EPIC con etiquetas `Etiqueta (campo)`.
+- **`wow pack check`** porta `completion.ts`, `open-questions-validation.ts` y la detección de grupos para predecir el %.
+  En la épica valida enums, fechas, Fibonacci, Gherkin, DoR y DoD.
+- **Modo `greenfield|brownfield`** en el manifiesto. En brownfield, la guía pide `/spec-kit.discovery`, que escribe en
+  **`.spec-kit/discovery/architecture.md`** (verificado en `scripts/bash/spec-kit-discovery-orchestrator.sh`).
+- **La auditoría** ignora encabezados y cláusulas negadas, y suma "circuit breaker" y "Kong" a la lista semilla.
+- **Límite conocido:** la predicción lee el paquete alineado por secciones; PB lo mapea con Gemini. Si Gemini mapea
+  distinto puede haber diferencias chicas, y la cifra autoritativa sigue siendo `**Completitud del documento:** N%`.

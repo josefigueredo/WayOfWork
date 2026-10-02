@@ -410,5 +410,18 @@ class PackCheckCommandTest(unittest.TestCase):
         self.assertEqual(run_cli(["pack", "check", "epic", "--project", str(project)])[0], 2)
 
 
+class ReferencesContractTest(unittest.TestCase):
+    def test_prompts_exist_follow_the_packet_and_cite_the_real_discovery_path(self):
+        base = ROOT / "skills/wow-pack/references"
+        for name in ("brownfield-prd.md", "brownfield-rfc.md", "greenfield-prd.md", "greenfield-rfc.md", "epic.md"):
+            text = (base / name).read_text(encoding="utf-8")
+            self.assertIn("wow pack check", text, name)
+            self.assertNotIn("discovery/architecture.md`", text.replace(".spec-kit/discovery/architecture.md`", ""), name)
+            self.assertNotIn("TEMPLATE (fill it)", text, name)
+        skill = (ROOT / "skills/wow-pack/SKILL.md").read_text(encoding="utf-8")
+        for name in ("brownfield-prd.md", "greenfield-prd.md", "epic.md"):
+            self.assertIn(name, skill)
+
+
 if __name__ == "__main__":
     unittest.main()

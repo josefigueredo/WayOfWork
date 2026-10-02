@@ -32,7 +32,15 @@ wow context scan | wow context check                        # context pack con a
 wow pack prd | wow pack rfc | wow pack epic --id E1         # paquetes para Product Brain
 wow pbchat audit prd --deep                                 # auditar la copia del chat de PB
 wow plan guard                                              # ¿se puede editar el manifiesto?
+wow plan init 0001-x --title "X" --mode brownfield         # el modo cambia la fase 0 y los prompts
+wow manifest lint --pb                                      # lo que Product Brain exige por historia
+wow pack check prd | wow pack check epic --id E1           # predicción local del % de Product Brain
 ```
+
+Los paquetes de `wow pack` tienen la forma exacta de las plantillas de Product Brain y dejan `{{campo}}` donde falta
+el dato. Los prompts para completarlos están en `skills/wow-pack/references/` (brownfield, greenfield y épica).
+`wow pack check` predice el porcentaje que va a marcar Product Brain con sus mismas reglas
+(`reference/product-brain/README.md`).
 
 ## Dashboard
 

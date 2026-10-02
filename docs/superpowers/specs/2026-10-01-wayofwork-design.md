@@ -366,3 +366,21 @@ nombres que ya usa `ic`. Orden de resolución: entorno del shell → `.env.local
 - `SPECKIT/docs/site/index.html` (evidencia de Spec-Kit, telemetría, Jira, Product Brain) y `way-of-work.html` (workflow).
 - `~/CurrentCode/individual-contributor-v2/docs/superpowers/specs/2026-10-01-ic-v2-design.md`.
 - `~/CurrentCode/individual-contributor/skills/ic/references/reviewer-matrix.md` y `jira-sync.md`.
+
+## 17. Adaptación a Product Brain real (2026-10-02)
+
+El código fuente de Product Brain (`josefigueredo/acme-agent`, ver `reference/product-brain/README.md`) cambió varias
+decisiones de este diseño. Las implementa el Plan 5 (`docs/superpowers/plans/2026-10-02-wow-pb-alignment.md`):
+
+- **Completitud determinista:** el backend calcula el % por campo de la plantilla. Cualquier texto llena un campo, una
+  tabla es una unidad y cada pregunta abierta necesita owner y estado. `wow pack check` lo replica localmente.
+- **Paquetes con la forma exacta de PB:** PRD de 49 unidades y RFC de 35; la épica es un JSON de 26 campos con historias
+  de 20. La tarea del manifiesto es la historia de PB y la subtarea, su task.
+- **Manifiesto:** suma `plan.mode`, `product` por épica, y `component` y `story` por tarea. Los criterios van en Gherkin
+  y las estimaciones en Fibonacci (`wow manifest lint --pb`).
+- **Fase 2 lista** = hash vigente, plantilla vigente y predicción del 100% sin errores.
+- **Brownfield** suma `/spec-kit.discovery` (`.spec-kit/discovery/architecture.md`) y prompts que citan el código.
+  **Greenfield** marca los baselines como `[SIN DEFINIR]` hasta el lanzamiento.
+- **Origen de los inventos:** la plantilla del PRD tiene filas de marketplace y su ejemplo es un marketplace; la del RFC
+  trae secciones fijas API Gateway y SLA, y su checklist pide un circuit breaker. El preámbulo y la auditoría lo
+  contemplan.
