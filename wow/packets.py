@@ -1,0 +1,133 @@
+"""Anchors and review content for each anchor set (spec 9.1)."""
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import subprocess
+from pathlib import Path
+from typing import Callable, Dict
+
+import manifest
+
+READINESS: Dict[str, str] = {
+    "R1": "every task has at least one verifiable acceptance criterion",
+    "R2": "depends_on forms a DAG over existing task ids",
+    "R3": "the Brief has no blocking open question",
+    "R4": "every epic has done_when criteria",
+    "R5": "every task has estimate, priority and labels",
+}
+_AC_RE = re.compile(r"\b(AC[0-9]+):\s*(.+?)\s*$")
+_CLAIM_RE = re.compile(r"^\s*(?:[-*]\s*)?\**(C[0-9]+)\**\s*[:.)]\s*(.+?)\s*$")
+_HEADER_RE = re.compile(r"^(#+)\s")
+
+
+class PacketError(Exception):
+    """The packet cannot be built (no anchors, no diff, git failure)."""
+
+
+def diff_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def git_diff(repo: Path, base: str, runner: Callable = subprocess.run) -> str:
+    proc = runner(["git", "-C", str(repo), "diff", base], capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise PacketError(f"git diff {base} failed in {repo}: {proc.stderr.strip()[:200]}")
+    if not proc.stdout.strip():
+        raise PacketError(f"empty diff against {base} in {repo}")
+    return proc.stdout
+
+
+def _story_anchors(project: Path, key: str) -> Dict[str, str]:
+    anchors: Dict[str, str] = {}
+    for spec in sorted((project / "specs").glob("*/spec.md")):
+        level = None
+        for line in spec.read_text(encoding="utf-8").splitlines():
+            header = _HEADER_RE.match(line)
+            if header:
+                if level is not None and len(header.group(1)) <= level:
+                    level = None
+                if key in line:
+                    level = len(header.group(1))
+                continue
+            if level is not None:
+                match = _AC_RE.search(line)
+                if match:
+                    anchors.setdefault(match.group(1), match.group(2))
+    return anchors
+
+
+def story_packet(project: Path, key: str, repo: Path, base: str, runner: Callable = subprocess.run) -> dict:
+    anchors = _story_anchors(project, key)
+    if not anchors:
+        raise PacketError(f"no acceptance criteria with AC ids found for {key} in specs/*/spec.md")
+    return {"anchor_set": "story", "ref": key, "anchors": anchors,
+            "body": git_diff(repo, base, runner), "cwd": repo}
+
+
+def epic_packet(project: Path, epic_id: str, repo: Path, base: str, runner: Callable = subprocess.run) -> dict:
+    doc = manifest.load(project)
+    epic = next((e for e in doc["epics"] if e["id"] == epic_id), None)
+    if epic is None:
+        raise PacketError(f"epic {epic_id} not found in the manifest")
+    anchors = {item.split(":", 1)[0]: item.split(":", 1)[1].strip() for item in epic["done_when"]}
+    if not anchors:
+        raise PacketError(f"epic {epic_id} has no done_when criteria")
+    return {"anchor_set": "epic", "ref": epic_id, "anchors": anchors,
+            "body": git_diff(repo, base, runner), "cwd": repo}
+
+
+def readiness_packet(project: Path) -> dict:
+    doc = manifest.load(project)
+    # plan.readiness is review state written by every round: excluding it keeps the diff hash stable.
+    doc = dict(doc, plan={k: v for k, v in doc["plan"].items() if k != "readiness"})
+    plan_md = project / "wow" / "plan" / "PLAN.md"
+    body = (plan_md.read_text(encoding="utf-8") if plan_md.is_file() else "(no PLAN.md)") + \
+        "\n\n--- manifest.json ---\n" + json.dumps(doc, indent=2, ensure_ascii=False)
+    return {"anchor_set": "readiness", "ref": "plan", "anchors": dict(READINESS), "body": body, "cwd": project}
+
+
+def claims_packet(doc: Path, repo: Path) -> dict:
+    text = doc.read_text(encoding="utf-8")
+    anchors: Dict[str, str] = {}
+    for line in text.splitlines():
+        match = _CLAIM_RE.match(line)
+        if match:
+            anchors.setdefault(match.group(1), match.group(2))
+    if not anchors:
+        raise PacketError(f"no claim ids (C1, C2, …) found in {doc}")
+    return {"anchor_set": "claims", "ref": doc.stem, "anchors": anchors, "body": text, "cwd": repo}
+
+
+_PROMPT = """You are an independent reviewer. Review the CONTENT below ONLY against these anchors:
+{anchors}
+
+{task}
+
+Output format, exactly, with no other text:
+VERDICT: APPROVED | CHANGES_REQUIRED
+BLOCKER <anchor-id> <path:line> — <what fails and why it breaks the anchor>
+WARNING <path:line> — <...>
+NIT — <...>
+
+A finding that breaks no listed anchor is a WARNING or a NIT, never a BLOCKER.
+Do not modify any file.
+
+--- CONTENT ({anchor_set} {ref}) ---
+{body}
+"""
+
+_TASKS = {
+    "story": "The content is the diff of one Work Unit. Check that it satisfies each acceptance criterion.",
+    "epic": "The content is the cumulative diff of an epic. Check each done_when criterion.",
+    "readiness": "The content is a plan (Brief + manifest). Check each readiness criterion.",
+    "claims": "The content is a document of claims. Verify each claim against the code in the current "
+              "directory; a false or unsupported claim is a BLOCKER on its id.",
+}
+
+
+def build_prompt(packet: dict) -> str:
+    anchors = "\n".join(f"- {key}: {text}" for key, text in packet["anchors"].items())
+    return _PROMPT.format(anchors=anchors, task=_TASKS[packet["anchor_set"]], anchor_set=packet["anchor_set"],
+                          ref=packet["ref"], body=packet["body"])
