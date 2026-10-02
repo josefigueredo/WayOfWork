@@ -30,15 +30,16 @@ def summary(key, stories, done):
             "story_keys": [], "url": f"https://acme.atlassian.net/browse/{key}"}
 
 
-def project_at_phase_3():
-    """Context pack done, readiness approved, packets fresh, manifest frozen with E1=IRIS-40."""
+def project_at_phase_3(frozen=True):
+    """Context pack done, readiness approved, packets fresh, manifest frozen with E1=IRIS-40 (unless frozen=False)."""
     p = make_project()
     write(p, "wow/context-pack/facts.md", "- C1: hecho de prueba [MEDIDO] (fuente: README.md)\n")
     write(p, "wow/context-pack/pending-owner.md", "- [x] North Star\n")
     write(p, ".spec-kit/discovery/architecture.md", "# Arquitectura\n")
     doc = pb_ready_doc()
     doc["plan"]["readiness"] = {"verdict": "approved", "rounds": 1}
-    doc = manifest.freeze(doc, {"E1": "IRIS-40"}, "2026-10-02T10:00:00Z")
+    if frozen:
+        doc = manifest.freeze(doc, {"E1": "IRIS-40"}, "2026-10-02T10:00:00Z")
     manifest.save(p, doc)
     h = manifest.manifest_hash(p)
     brief = pack.parse_brief("## Brief\n- Goal: x\n- Open questions: none\n")
@@ -98,6 +99,21 @@ class DraftEpicTest(unittest.TestCase):
         self.assertEqual(result["next_steps"], [])
 
 
+class ExportedPacketsTest(unittest.TestCase):
+    def test_after_export_only_unexported_epics_need_packets(self):
+        p = project_at_phase_3()  # E1 exported as IRIS-40; its packets were written before this change
+        doc = manifest.load(p)
+        later = json.loads(json.dumps(doc["epics"][0]))
+        later.update({"id": "E2", "title": "Later", "done_when": ["E2.C1: later"]})
+        for n, task in enumerate(later["tasks"], 1):
+            task["id"], task["depends_on"] = f"2.{n}", []
+        doc["epics"].append(later)
+        manifest.save(p, doc)  # the hash changes, as it does when freeze records a key
+        result = state.compute_state(p, CFG)
+        self.assertEqual(result["plan"]["stale_packets"], [])
+        self.assertEqual(result["plan"]["missing"], ["generate the epic-E2 packet"])
+
+
 class PlanPhasesTest(unittest.TestCase):
     def test_fresh_project_is_phase_0_with_context_step(self):
         result = state.compute_state(make_project(), CFG)
@@ -125,7 +141,7 @@ class PlanPhasesTest(unittest.TestCase):
         self.assertEqual(result["next_steps"][0]["command"], "wow review --set readiness --ref plan")
 
     def test_stale_packet_is_phase_2(self):
-        p = project_at_phase_3()
+        p = project_at_phase_3(frozen=False)  # before export; an exported epic's packet is never re-asked
         write(p, "wow/pb/epic-E1.md", "<!-- wow: manifest-hash=ffffffffffffffff -->\n")
         result = state.compute_state(p, CFG)
         self.assertEqual(result["plan"]["phase"], 2)

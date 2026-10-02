@@ -87,8 +87,13 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
         # A plan whose epics are all draft is parked: nothing goes to Product Brain, not even its PRD or RFC.
         plan["parked"] = not epic_ids
         packets = repo.packet_status(project, manifest.manifest_hash(project), epic_ids)
+        # Once exported, Jira rules: a packet already in Product Brain is never asked for again. The PRD and RFC
+        # went with the first export; only epics without a Jira key still need theirs.
+        export = doc["plan"]["export"]
+        pending_ids = [eid for eid in epic_ids if not export["epics"].get(eid)]
         named = [] if plan["parked"] else \
-            [("prd", "prd", None), ("rfc", "rfc", None)] + [(f"epic-{eid}", "epic", eid) for eid in epic_ids]
+            ([] if export["frozen"] else [("prd", "prd", None), ("rfc", "rfc", None)]) + \
+            [(f"epic-{eid}", "epic", eid) for eid in pending_ids]
         for name, kind, eid in named:
             status = packets["epics"][eid] if eid else packets[name]
             if status == "ok":
