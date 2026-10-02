@@ -4,12 +4,18 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Tuple
 
 import schema as schema_mod
 
 MANIFEST_REL = Path("wow/plan/manifest.json")
+MODES = ("greenfield", "brownfield")
+FIBONACCI = (1, 2, 3, 5, 8, 13)
+COMPONENTS = ("FE", "BE", "BO", "QA", "DEVOPS", "INFRA", "BFF", "AI")
+_GHERKIN_RE = re.compile(r"\b(dado|given)\b.*\b(cuando|when)\b.*\b(entonces|then)\b", re.IGNORECASE | re.DOTALL)
+_STORY_RE = re.compile(r"^\s*como\b.*\bquiero\b.*\bpara\b", re.IGNORECASE | re.DOTALL)
 
 
 class ManifestError(Exception):
@@ -119,7 +125,37 @@ def lint(doc: dict) -> List[str]:
     return findings
 
 
-def new_manifest(plan_id: str, title: str, created: str) -> dict:
+def pb_lint(doc: dict) -> List[str]:
+    """What Product Brain needs that the base schema does not enforce (reference/product-brain/README.md)."""
+    findings: List[str] = []
+    if doc["plan"].get("mode") not in MODES:
+        findings.append("plan: no mode; set plan.mode to greenfield or brownfield (wow plan init --mode)")
+    for epic, task in _tasks(doc):
+        ref = f"{epic['id']}/{task['id']}"
+        estimate = task["estimate"]
+        if estimate is not None and estimate not in FIBONACCI:
+            findings.append(f"{ref}: estimate {estimate} is not Fibonacci (1, 2, 3, 5, 8, 13)")
+        elif estimate is not None and estimate > 8:
+            findings.append(f"{ref}: estimate {estimate} is above 8; Product Brain suggests splitting the story")
+        if not task.get("component"):
+            findings.append(f"{ref}: no component (FE, BE, BO, QA, DEVOPS, INFRA, BFF, AI)")
+        if not _STORY_RE.match((task.get("story") or {}).get("user_story_text", "")):
+            findings.append(f"{ref}: no user story text (Como … quiero … para …)")
+        for item in task["acceptance"]:
+            anchor, _, text = item.partition(": ")
+            if not _GHERKIN_RE.search(text):
+                findings.append(f"{ref}: {anchor} is not Gherkin (Dado … Cuando … Entonces …)")
+    return findings
+
+
+def new_manifest(plan_id: str, title: str, created: str, mode: Optional[str] = None) -> dict:
+    doc = _new_manifest(plan_id, title, created)
+    if mode:
+        doc["plan"]["mode"] = mode
+    return doc
+
+
+def _new_manifest(plan_id: str, title: str, created: str) -> dict:
     return {
         "schema_version": 1,
         "plan": {"id": plan_id, "title": title, "created": created,

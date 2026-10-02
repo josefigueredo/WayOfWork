@@ -78,6 +78,8 @@ def _cmd_manifest_lint(args) -> int:
             print(line)
         return exitcodes.FINDINGS
     findings = manifest.lint(doc)
+    if getattr(args, "pb", False):
+        findings += manifest.pb_lint(doc)
     for line in findings:
         print(line)
     return exitcodes.FINDINGS if findings else exitcodes.OK
@@ -88,7 +90,7 @@ def _cmd_plan_init(args) -> int:
     if (project / manifest.MANIFEST_REL).exists():
         sys.stderr.write(f"wow: {manifest.MANIFEST_REL} already exists\n")
         return exitcodes.FINDINGS
-    manifest.save(project, manifest.new_manifest(args.plan_id, args.title, _now()[:10]))
+    manifest.save(project, manifest.new_manifest(args.plan_id, args.title, _now()[:10], mode=args.mode))
     print(f"created {manifest.MANIFEST_REL}")
     return exitcodes.OK
 
@@ -407,13 +409,16 @@ def build_parser() -> argparse.ArgumentParser:
     m = sub.add_parser("manifest", help="validate or lint the upstream manifest")
     msub = m.add_subparsers(dest="manifest_command", parser_class=_Parser)
     with_project(msub.add_parser("validate")).set_defaults(handler=_cmd_manifest_validate)
-    with_project(msub.add_parser("lint")).set_defaults(handler=_cmd_manifest_lint)
+    ml = with_project(msub.add_parser("lint"))
+    ml.add_argument("--pb", action="store_true", help="also check what Product Brain needs per story")
+    ml.set_defaults(handler=_cmd_manifest_lint)
 
     pl = sub.add_parser("plan", help="create or freeze the upstream plan")
     psub = pl.add_subparsers(dest="plan_command", parser_class=_Parser)
     init = with_project(psub.add_parser("init"))
     init.add_argument("plan_id")
     init.add_argument("--title", required=True)
+    init.add_argument("--mode", choices=list(manifest.MODES), default=None)
     init.set_defaults(handler=_cmd_plan_init)
     fr = with_project(psub.add_parser("freeze"))
     fr.add_argument("--epics", required=True, help="EPIC=KEY pairs, comma separated")

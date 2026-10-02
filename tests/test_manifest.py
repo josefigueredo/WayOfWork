@@ -138,5 +138,67 @@ class LoadSaveFreezeTest(unittest.TestCase):
         self.assertTrue(manifest.lint(doc))
 
 
+def pb_ready_doc() -> dict:
+    doc = valid_doc()
+    doc["plan"]["mode"] = "brownfield"
+    doc["epics"][0]["product"] = {
+        "objective": "Curar casos", "problem": "Hoy se cura a mano", "strategic_objective": "Eficiencia",
+        "expected_impact": "Menos tiempo de curación", "out_of_scope": "Migrar históricos",
+        "insights": ["Los analistas curan 40 casos por día [MEDIDO]"], "assumptions": ["Hay analistas disponibles"],
+        "dependencies": ["Equipo de plataforma"], "related_documents": ["PRD de la iniciativa"],
+        "start_date": "2026-10-05", "end_date_estimated": "2026-12-18", "quarter": "Q4/2026",
+        "criticality": "Alta", "priority": "Alta", "big_move": False, "owner": "Owner de producto",
+        "vertical": "Plataforma", "technical_context": "Python sobre AWS Lambda", "notes": "Sin notas adicionales"}
+    for task in doc["epics"][0]["tasks"]:
+        task["component"] = "BE"
+        task["acceptance"] = [f"{a.split(':')[0]}: Dado un caso Cuando el analista lo cura Entonces queda auditado"
+                              for a in task["acceptance"]]
+        task["story"] = {"user_story_text": "Como analista quiero curar casos para cerrar el ciclo",
+                         "context_and_need": "Hoy se cura a mano [MEDIDO]", "scope": "Curación simple",
+                         "out_of_scope": "Curación masiva", "technical_info": "Endpoint del BFF",
+                         "assumptions": ["Caso existente"], "business_rules": ["Solo analistas"],
+                         "edge_cases": ["Caso ya curado"], "assets": ["Contrato del BFF"]}
+    return doc
+
+
+class PbExtensionTest(unittest.TestCase):
+    def test_extended_doc_validates_and_old_doc_still_validates(self):
+        self.assertEqual(manifest.validate(pb_ready_doc()), [])
+        self.assertEqual(manifest.validate(valid_doc()), [])
+
+    def test_schema_rejects_bad_component_date_and_mode(self):
+        doc = pb_ready_doc()
+        doc["epics"][0]["tasks"][0]["component"] = "Backend"
+        doc["epics"][0]["product"]["start_date"] = "pronto"
+        doc["plan"]["mode"] = "legacy"
+        errors = manifest.validate(doc)
+        self.assertTrue(any("component" in e for e in errors), errors)
+        self.assertTrue(any("start_date" in e for e in errors), errors)
+        self.assertTrue(any("mode" in e for e in errors), errors)
+
+    def test_subtasks_accept_objects(self):
+        doc = pb_ready_doc()
+        doc["epics"][0]["tasks"][0]["subtasks"] = ["write schema", {"title": "[BE] tabla", "purpose": "guardar",
+                                                                     "how_to": "DynamoDB", "component": "BE"}]
+        self.assertEqual(manifest.validate(doc), [])
+
+    def test_pb_lint(self):
+        self.assertEqual(manifest.pb_lint(pb_ready_doc()), [])
+        doc = valid_doc()
+        doc["epics"][0]["tasks"][0]["estimate"] = 4
+        doc["epics"][0]["tasks"][1]["estimate"] = 13
+        self.assertEqual(manifest.pb_lint(doc), [
+            "plan: no mode; set plan.mode to greenfield or brownfield (wow plan init --mode)",
+            "E1/1.1: estimate 4 is not Fibonacci (1, 2, 3, 5, 8, 13)",
+            "E1/1.1: no component (FE, BE, BO, QA, DEVOPS, INFRA, BFF, AI)",
+            "E1/1.1: no user story text (Como … quiero … para …)",
+            "E1/1.1: AC1 is not Gherkin (Dado … Cuando … Entonces …)",
+            "E1/1.2: estimate 13 is above 8; Product Brain suggests splitting the story",
+            "E1/1.2: no component (FE, BE, BO, QA, DEVOPS, INFRA, BFF, AI)",
+            "E1/1.2: no user story text (Como … quiero … para …)",
+            "E1/1.2: AC1 is not Gherkin (Dado … Cuando … Entonces …)",
+        ])
+
+
 if __name__ == "__main__":
     unittest.main()

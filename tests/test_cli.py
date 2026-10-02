@@ -381,5 +381,19 @@ class SnapshotEvidenceTest(unittest.TestCase):
         self.assertEqual(_schema.validate(saved, _schema.load_schema("progress")), [])
 
 
+class PbManifestCommandTest(unittest.TestCase):
+    def test_init_with_mode_and_lint_pb(self):
+        project = make_project()
+        self.assertEqual(run_cli(["plan", "init", "0007-x", "--title", "X", "--mode", "greenfield",
+                                  "--project", str(project)])[0], 0)
+        saved = _json.loads((project / "wow/plan/manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["plan"]["mode"], "greenfield")
+        project2 = make_project()
+        _manifest.save(project2, valid_doc())
+        code, out, _ = run_cli(["manifest", "lint", "--pb", "--project", str(project2)])
+        self.assertEqual(code, 1)
+        self.assertIn("plan: no mode", out)
+
+
 if __name__ == "__main__":
     unittest.main()
