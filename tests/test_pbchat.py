@@ -40,5 +40,11 @@ class StatusTest(unittest.TestCase):
         self.assertEqual(pbchat.chat_status(project, "rfc")["audit"], "unknown")
 
 
+class ClosureTest(unittest.TestCase):
+    def test_bare_hundred_percent_does_not_close(self):
+        self.assertFalse(pbchat.parse_chat("Requerimos 100% de disponibilidad")["closed"])
+        self.assertTrue(pbchat.parse_chat("**Completitud del documento:** 100% (documento completo).")["closed"])
+
+
 if __name__ == "__main__":
     unittest.main()

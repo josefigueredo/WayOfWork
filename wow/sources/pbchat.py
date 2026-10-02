@@ -5,7 +5,10 @@ import json
 import re
 from pathlib import Path
 
-CLOSED_RE = re.compile(r"100\s*%|\b(?:dalo|damos|doy|lo doy)\s+por\s+cerrad[oa]|\bpor\s+cerrad[oa]", re.IGNORECASE)
+CLOSED_RE = re.compile(
+    r"\*\*Completitud del documento:\*\*\s*100\s*%"
+    r"|\b(?:llega|documento|completitud)\b[^\n]{0,20}\b100\s*%"
+    r"|\b(?:dalo|damos|doy|lo doy)\s+por\s+cerrad[oa]|\bpor\s+cerrad[oa]", re.IGNORECASE)
 ANCHOR_RE = re.compile(r"\b(AC[0-9]+|E[0-9]+\.C[0-9]+)\b")
 
 

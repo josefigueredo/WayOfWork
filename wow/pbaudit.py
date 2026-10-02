@@ -23,13 +23,28 @@ KNOWN_INVENTIONS = [
     ("Okta", r"\bokta\b"),
     ("OAuth", r"\boauth\b"),
     ("SLA", r"\bSLAs?\b"),
+    ("circuit breaker", r"\bcircuit[ -]?breakers?\b"),
+    ("Kong", r"\bkong\b"),
 ]
-_NEGATION_RE = re.compile(r"\b(no hay|no es|no existe|no usa|inexistente|sin)\b", re.IGNORECASE)
+_NEGATION_RE = re.compile(r"\b(no hay|no es|no existe|no usa|no aplica|inexistente|sin)\b", re.IGNORECASE)
 _CLAUSE_RE = re.compile(r"[;.!?]")
 _CHECK_RE = re.compile(r"[✅✔]")
 _CITATION_RE = re.compile(r"\(|fuente|source|secci[oó]n|§", re.IGNORECASE)
 _COMPLETION_RE = re.compile(r"(?:llega al|documento al|completitud[^0-9\n]{0,20})\s*(\d{1,3})\s*%", re.IGNORECASE)
 _ITEM_RE = re.compile(r"^\s*(?:\d+[.)]|[-*])\s+(.+?)\s*$")
+
+
+AUTHORITATIVE_RE = re.compile(r"\*\*Completitud del documento:\*\*\s*(\d{1,3})\s*%")
+
+
+def _supporting_text(text: str) -> str:
+    """Text that can support a term: no headings and no negated clauses ("No aplica: no hay API Gateway")."""
+    kept = []
+    for line in text.splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        kept += [c for c in _CLAUSE_RE.split(line.replace("|", ".")) if not _NEGATION_RE.search(c)]
+    return "\n".join(kept)
 
 
 def open_questions(text: str) -> List[str]:
@@ -99,7 +114,7 @@ def audit(project: Path, doc: str, extra_inventions: Optional[List[dict]] = None
     expected = sorted(set(pbchat.ANCHOR_RE.findall(packet.read_text(encoding="utf-8")))) if packet.is_file() else []
     missing = sorted(set(expected) - set(parsed["anchors"]))
 
-    allowed = _allowed_text(project, doc)
+    allowed = _supporting_text(_allowed_text(project, doc))
     inventions: List[dict] = []
     for term, pattern in KNOWN_INVENTIONS:
         regex = re.compile(pattern, re.IGNORECASE)
@@ -113,7 +128,8 @@ def audit(project: Path, doc: str, extra_inventions: Optional[List[dict]] = None
 
     unsupported = [{"line": n, "text": line.strip()[:160]} for n, line in lines
                    if _CHECK_RE.search(line) and not _CITATION_RE.search(line)]
-    percents = [int(m) for m in _COMPLETION_RE.findall(text) if int(m) <= 100]
+    authoritative = [int(m) for m in AUTHORITATIVE_RE.findall(text) if int(m) <= 100]
+    percents = authoritative or [int(m) for m in _COMPLETION_RE.findall(text) if int(m) <= 100]
     verdict = "approved" if not (missing or inventions or unsupported) else "changes_required"
     return {"schema_version": 1, "doc": doc, "verdict": verdict, "closed": parsed["closed"],
             "completion_pct": percents[-1] if percents else None, "open_questions": open_questions(text),

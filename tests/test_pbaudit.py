@@ -97,5 +97,20 @@ class NegationScopeTest(unittest.TestCase):
         self.assertEqual([i["term"] for i in result["inventions"]], ["Okta"])
 
 
+class TemplateAwareAuditTest(unittest.TestCase):
+    def test_template_heading_and_negation_do_not_whitelist(self):
+        packet = "### API Gateway\n| Tecnologia | No aplica: no hay API Gateway |\n### SLA\n[SIN DEFINIR] — no hay SLA acordado\n"
+        project = make_project()
+        write(project, "wow/pb/rfc.md", packet)
+        write(project, "wow/pb/chats/rfc.md", "Usamos Kong como API Gateway con circuit breaker y un SLA de 99,9%.\n")
+        terms = [i["term"] for i in pbaudit.audit(project, "rfc")["inventions"]]
+        self.assertEqual(terms, ["API Gateway", "SLA", "circuit breaker", "Kong"])
+
+    def test_authoritative_completion_wins(self):
+        project = make_project()
+        write(project, "wow/pb/chats/prd.md", "El PRD llega al 100%.\n**Completitud del documento:** 96% · Pendiente: Metadata\n")
+        self.assertEqual(pbaudit.audit(project, "prd")["completion_pct"], 96)
+
+
 if __name__ == "__main__":
     unittest.main()
