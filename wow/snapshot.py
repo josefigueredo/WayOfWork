@@ -10,14 +10,16 @@ PROGRESS_REL = Path("wow/progress.json")
 
 def history_point(state: dict, now: str) -> dict:
     done = total = 0
+    per_epic = {}
     for epic in state["epics"]:
         progress = epic.get("progress")
         if progress:
-            d, t = progress.split("/")
-            done, total = done + int(d), total + int(t)
+            d, t = (int(x) for x in progress.split("/"))
+            done, total = done + d, total + t
+            per_epic[epic["id"]] = {"done": d, "total": t}
     return {"ts": now, "plan_phase": state["plan"]["phase"],
             "phases": {e["id"]: e["phase"] for e in state["epics"]},
-            "tasks_done": done, "tasks_total": total}
+            "tasks_done": done, "tasks_total": total, "epics": per_epic}
 
 
 def build(state: dict, previous: Optional[dict], now: str, usage: Optional[list] = None) -> dict:

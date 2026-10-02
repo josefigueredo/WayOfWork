@@ -363,5 +363,23 @@ class AllSkillsContractTest(unittest.TestCase):
                                  "wow-review", "wow-sk-prep"])
 
 
+class SnapshotEvidenceTest(unittest.TestCase):
+    def test_snapshot_writes_pb_reviews_pricing_and_validates(self):
+        import schema as _schema
+        project = make_project()
+        write(project, ".wow/config.json", _json.dumps({"github": {"enabled": False},
+                                                        "usage": {"claude_root": str(project / "c"),
+                                                                  "codex_root": str(project / "x")}}))
+        write(project, "wow/reviews/plan.json", _json.dumps({"ref": "plan", "anchor_set": "readiness",
+                                                             "rounds": [], "final": None}))
+        self.assertEqual(run_cli(["snapshot", "--project", str(project)])[0], 0)
+        saved = _json.loads((project / "wow/progress.json").read_text(encoding="utf-8"))
+        current = saved["current"]
+        self.assertEqual(list(current["pb"]), ["prd", "rfc"])
+        self.assertEqual(current["reviews"][0]["ref"], "plan")
+        self.assertEqual(current["pricing"], {"as_of": None, "per_mtok": {}})
+        self.assertEqual(_schema.validate(saved, _schema.load_schema("progress")), [])
+
+
 if __name__ == "__main__":
     unittest.main()

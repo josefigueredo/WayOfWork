@@ -21,7 +21,10 @@
           }
         },
         "steps_total": {"type": "integer", "minimum": 0},
-        "sources": {"type": "object"}
+        "sources": {"type": "object"},
+        "pb": {"type": "object"},
+        "reviews": {"type": "array", "items": {"type": "object", "required": ["ref", "rounds", "final", "first_pass"]}},
+        "pricing": {"type": "object", "required": ["as_of", "per_mtok"]}
       }
     },
     "history": {"type": "array", "items": {"type": "object", "required": ["ts", "plan_phase", "phases", "tasks_done", "tasks_total"]}},

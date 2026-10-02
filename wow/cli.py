@@ -12,6 +12,7 @@ import json
 
 import config
 import contextpack
+import evidence
 import exitcodes
 import links
 import manifest
@@ -167,6 +168,9 @@ def _cmd_snapshot(args) -> int:
     result = state_mod.compute_state(project, cfg, _jira_for(project))
     prs, result["sources"]["github"] = _github_prs(project, cfg)
     result = links.build_links(project, result, prs)
+    result["pb"] = evidence.pb_status(project, [e["id"] for e in result["epics"]])
+    result["reviews"] = evidence.review_summaries(project)
+    result["pricing"] = evidence.pricing(cfg)
     records = usage_mod.collect(project, cfg)
     snap = snapshot_mod.build(result, snapshot_mod.load_previous(project), _now(), usage=records)
     snapshot_mod.write(project, snap)

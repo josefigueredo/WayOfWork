@@ -23,7 +23,8 @@ class SnapshotTest(unittest.TestCase):
     def test_history_point_sums_known_progress(self):
         point = snapshot.history_point(fake_state(), "2026-10-02T10:00:00Z")
         self.assertEqual(point, {"ts": "2026-10-02T10:00:00Z", "plan_phase": 3,
-                                 "phases": {"E1": 5, "E2": "unknown"}, "tasks_done": 3, "tasks_total": 4})
+                                 "phases": {"E1": 5, "E2": "unknown"}, "tasks_done": 3, "tasks_total": 4,
+                                 "epics": {"E1": {"done": 3, "total": 4}}})
 
     def test_build_appends_history_and_keeps_usage(self):
         import usage as usage_mod

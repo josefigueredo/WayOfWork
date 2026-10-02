@@ -18,6 +18,7 @@ DEFAULTS: dict = {
         "cursor_reason": "claude-sonnet-5-5-high",
     },
     "github": {"enabled": True},
+    "pricing": {"as_of": None, "per_mtok": {}},
 }
 
 _SPEC_KIT_MAP = {
