@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "required": ["schema_version", "generated_at", "current", "history", "usage"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "generated_at": {"type": "string"},
+    "current": {
+      "type": "object",
+      "required": ["schema_version", "plan", "epics", "blockers", "next_steps", "steps_total", "sources"],
+      "properties": {
+        "plan": {"type": "object", "required": ["id", "phase", "stale_packets", "missing"]},
+        "epics": {"type": "array", "items": {"type": "object", "required": ["id", "phase", "jira", "missing"]}},
+        "blockers": {"type": "array", "items": {"type": "string"}},
+        "next_steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["epic", "phase", "action", "where", "model", "command", "why"],
+            "properties": {"where": {"type": "string", "enum": ["human", "harness", "product-brain", "terminal", "cursor"]}}
+          }
+        },
+        "steps_total": {"type": "integer", "minimum": 0},
+        "sources": {"type": "object"}
+      }
+    },
+    "history": {"type": "array", "items": {"type": "object", "required": ["ts", "plan_phase", "phases", "tasks_done", "tasks_total"]}},
+    "usage": {"type": "array", "items": {"type": "object"}}
+  }
+}

@@ -1,0 +1,187 @@
+from __future__ import annotations
+
+import json
+import unittest
+
+from helpers import make_project, write
+import config
+import manifest
+import state
+from sources import SourceUnavailable
+from test_manifest import valid_doc
+
+CFG = config.DEFAULTS
+
+
+class FakeJira:
+    def __init__(self, summaries=None, error=None):
+        self.summaries, self.error = summaries or {}, error
+
+    def epic_summary(self, key):
+        if self.error:
+            raise SourceUnavailable(self.error)
+        return self.summaries[key]
+
+
+def summary(key, stories, done):
+    return {"key": key, "exists": True, "stories": stories, "done": done,
+            "story_keys": [], "url": f"https://acme.atlassian.net/browse/{key}"}
+
+
+def project_at_phase_3():
+    """Context pack done, readiness approved, packets fresh, manifest frozen with E1=IRIS-40."""
+    p = make_project()
+    write(p, "wow/context-pack/facts.md", "# Facts\n")
+    write(p, "wow/context-pack/pending-owner.md", "- [x] North Star\n")
+    doc = valid_doc()
+    doc["plan"]["readiness"] = {"verdict": "approved", "rounds": 1}
+    doc = manifest.freeze(doc, {"E1": "IRIS-40"}, "2026-10-02T10:00:00Z")
+    manifest.save(p, doc)
+    h = manifest.manifest_hash(p)
+    for name in ("prd", "rfc", "epic-E1"):
+        write(p, f"wow/pb/{name}.md", f"<!-- wow: manifest-hash={h} -->\n")
+    return p
+
+
+def close_chats(p, names=("prd", "rfc", "epic-E1")):
+    for name in names:
+        write(p, f"wow/pb/chats/{name}.md", "llega al 100%")
+        write(p, f"wow/pb/chats/{name}.audit.json", '{"verdict": "approved"}')
+
+
+TASKS_DONE = "- [x] T010 WU-001 model\n  - jira: IRIS-41\n- [x] T011 WU-002 api\n  - jira: IRIS-41\n"
+
+
+def add_feature(p, tasks=TASKS_DONE):
+    write(p, "specs/001-curation/spec.md", "**Jira Epic:** IRIS-40\n")
+    write(p, "specs/001-curation/plan.md", "# Plan\n")
+    write(p, "specs/001-curation/tasks.md", tasks)
+    write(p, "specs/001-curation/work-units.json", '{"work_units": [{"id": "WU-001"}, {"id": "WU-002"}]}')
+
+
+class PlanPhasesTest(unittest.TestCase):
+    def test_fresh_project_is_phase_0_with_context_step(self):
+        result = state.compute_state(make_project(), CFG)
+        self.assertEqual(result["plan"]["phase"], 0)
+        self.assertEqual(result["next_steps"][0]["action"], "build the context pack")
+        self.assertEqual(result["next_steps"][0]["where"], "harness")
+        self.assertEqual(result["sources"]["jira"], "not_configured")
+
+    def test_open_owner_items_are_blockers_and_planning_continues(self):
+        p = make_project()
+        write(p, "wow/context-pack/facts.md", "x")
+        write(p, "wow/context-pack/pending-owner.md", "- [ ] North Star\n- [ ] SLA\n")
+        result = state.compute_state(p, CFG)
+        self.assertEqual(result["plan"]["phase"], 0)
+        self.assertEqual(result["blockers"], ["owner: 2 decision(s) open in wow/context-pack/pending-owner.md"])
+        self.assertEqual(result["next_steps"][0]["command"], "wow-plan")
+
+    def test_readiness_pending_is_phase_1(self):
+        p = make_project()
+        write(p, "wow/context-pack/facts.md", "x")
+        write(p, "wow/context-pack/pending-owner.md", "- [x] ok\n")
+        manifest.save(p, valid_doc())
+        result = state.compute_state(p, CFG)
+        self.assertEqual(result["plan"]["phase"], 1)
+        self.assertEqual(result["next_steps"][0]["command"], "wow review --set readiness --ref plan")
+
+    def test_stale_packet_is_phase_2(self):
+        p = project_at_phase_3()
+        write(p, "wow/pb/epic-E1.md", "<!-- wow: manifest-hash=ffffffffffffffff -->\n")
+        result = state.compute_state(p, CFG)
+        self.assertEqual(result["plan"]["phase"], 2)
+        self.assertEqual(result["plan"]["stale_packets"], ["epic-E1"])
+        self.assertEqual(result["epics"][0]["phase"], 2)
+        self.assertEqual(result["next_steps"][0]["command"], "wow pack epic --id E1")
+
+    def test_invalid_manifest_json_gives_fix_step(self):
+        p = make_project()
+        write(p, "wow/context-pack/facts.md", "x")
+        write(p, "wow/context-pack/pending-owner.md", "")
+        write(p, "wow/plan/manifest.json", "{bad")
+        result = state.compute_state(p, CFG)
+        self.assertEqual(result["plan"]["phase"], 1)
+        self.assertEqual(result["next_steps"][0]["command"], "wow manifest validate")
+
+
+class EpicPhasesTest(unittest.TestCase):
+    def test_phase_3_waits_for_prd_chat_first(self):
+        result = state.compute_state(project_at_phase_3(), CFG, FakeJira({}))
+        epic = result["epics"][0]
+        self.assertEqual(epic["phase"], 3)
+        self.assertEqual(result["next_steps"][0]["where"], "product-brain")
+        self.assertIn("wow/pb/prd.md", result["next_steps"][0]["command"])
+
+    def test_phase_3_unaudited_chat(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        write(p, "wow/pb/chats/rfc.audit.json", '{"verdict": "changes_required"}')
+        result = state.compute_state(p, CFG, FakeJira({}))
+        self.assertEqual(result["next_steps"][0]["action"], "audit the RFC chat")
+
+    def test_jira_unavailable_makes_epic_unknown(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        result = state.compute_state(p, CFG, FakeJira(error="jira: HTTP 401 on /rest/api/3/search/jql"))
+        self.assertEqual(result["epics"][0]["phase"], "unknown")
+        self.assertEqual(result["epics"][0]["reason"], "jira: HTTP 401 on /rest/api/3/search/jql")
+        self.assertEqual(result["sources"]["jira"], "jira: HTTP 401 on /rest/api/3/search/jql")
+
+    def test_jira_not_configured_makes_epic_unknown(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        self.assertEqual(state.compute_state(p, CFG, None)["epics"][0]["phase"], "unknown")
+
+    def test_phase_4_sync_step_uses_cursor(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
+        epic = result["epics"][0]
+        self.assertEqual(epic["phase"], 4)
+        self.assertEqual(epic["jira_url"], "https://acme.atlassian.net/browse/IRIS-40")
+        step = result["next_steps"][0]
+        self.assertEqual((step["where"], step["model"], step["command"]),
+                         ("cursor", "composer-2.5", "wow sk cmd sync --epic IRIS-40"))
+
+    def test_phase_5_pending_work_unit_and_progress(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        add_feature(p, "- [x] T010 WU-001 model\n  - jira: IRIS-41\n- [ ] T011 WU-002 api\n  - jira: IRIS-41\n")
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
+        epic = result["epics"][0]
+        self.assertEqual((epic["phase"], epic["progress"]), (5, "1/2"))
+        self.assertEqual(result["next_steps"][0]["command"], "wow run-wu WU-002")
+
+    def test_phase_5_story_review_before_cursor(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        add_feature(p)
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
+        self.assertEqual(result["epics"][0]["phase"], 5)
+        self.assertEqual(result["next_steps"][0]["command"], "wow review --set story --ref IRIS-41")
+
+    def test_phase_6_and_done(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        add_feature(p)
+        write(p, "wow/reviews/IRIS-41.json", json.dumps({"final": "approved"}))
+        jira = FakeJira({"IRIS-40": summary("IRIS-40", 2, 1)})
+        result = state.compute_state(p, CFG, jira)
+        self.assertEqual(result["epics"][0]["phase"], 6)
+        commands = [s["command"] for s in result["next_steps"]]
+        self.assertIn("spec-kit sync-status specs/001-curation --dry-run", commands)
+        self.assertIn("wow review --set epic --ref E1", commands)
+        write(p, "wow/reviews/E1.json", json.dumps({"final": "approved"}))
+        done = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 2)}))
+        self.assertEqual(done["epics"][0]["phase"], "done")
+
+    def test_at_most_three_steps_and_cursor_last(self):
+        p = make_project()
+        result = state.compute_state(p, CFG)
+        self.assertLessEqual(len(result["next_steps"]), 3)
+        wheres = [s["where"] for s in result["next_steps"]]
+        self.assertEqual(wheres, sorted(wheres, key=lambda w: w == "cursor"))
+
+
+if __name__ == "__main__":
+    unittest.main()
