@@ -47,8 +47,20 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", "".join(c for c in decomposed if not unicodedata.combining(c))).strip().lower()
 
 
+def _norm_heading(text: str) -> str:
+    """Port of detector.ts normalizeHeading: no accents, lowercase, punctuation as spaces."""
+    decomposed = unicodedata.normalize("NFD", text)
+    value = "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
+    value = re.sub(r"[`*_]", "", value)
+    value = re.sub(r"[^a-z0-9\s]", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
 def _cells(line: str) -> List[str]:
-    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+    body = line.strip()
+    body = body[1:] if body.startswith("|") else body
+    body = body[:-1] if body.endswith("|") and not body.endswith("\\|") else body
+    return [cell.strip().replace("\\|", "|") for cell in re.split(r"(?<!\\)\|", body)]
 
 
 def _sections(text: str) -> List[Tuple[str, List[str]]]:
@@ -62,10 +74,20 @@ def _sections(text: str) -> List[Tuple[str, List[str]]]:
 
 
 def _heading_regex(template_heading: str) -> "re.Pattern[str]":
-    parts = re.split(r"(\{\{\s*[a-zA-Z0-9_.-]+\s*\}\})", _norm(template_heading))
-    body = "".join(f"(?P<{re.sub(r'[^a-z0-9_]', '_', p.strip('{} '))}>.*?)" if p.startswith("{{") else re.escape(p)
-                   for p in parts)
-    return re.compile(f"^{body}$")
+    """Regex over _norm_heading(packet heading); placeholders become named groups."""
+    pieces = []  # (is_placeholder, regex)
+    for part in re.split(r"(\{\{\s*[a-zA-Z0-9_.-]+\s*\}\})", template_heading):
+        if part.startswith("{{"):
+            pieces.append((True, f"(?P<{re.sub(r'[^a-z0-9_]', '_', part.strip('{} '))}>.*?)"))
+        elif _norm_heading(part):
+            pieces.append((False, re.escape(_norm_heading(part))))
+    body = ""
+    for index, (is_placeholder, regex) in enumerate(pieces):
+        if index:
+            # Two adjacent placeholders were separated by punctuation ("{{rfc_id}}: {{title}}"): keep a word boundary.
+            body += r"\s+" if is_placeholder and pieces[index - 1][0] else r"\s*"
+        body += regex
+    return re.compile("^" + body + "$")
 
 
 def _level(heading: str) -> int:
@@ -122,7 +144,7 @@ def _find(sections, template_heading: str) -> Optional[Tuple[int, str, List[str]
         return 0, "", sections[0][1]
     regex = _heading_regex(template_heading)
     for index, (heading, body) in enumerate(sections):
-        if heading and regex.match(_norm(heading)):
+        if heading and regex.match(_norm_heading(heading)):
             return index, heading, body
     return None
 
@@ -172,8 +194,11 @@ def predict(kind: str, packet: str) -> dict:
         if found is not None:
             index, heading, body = found
             if info["kind"] == "heading":
-                match = _heading_regex(info["section"]).match(_norm(heading))
-                state = value_state(match.group(re.sub(r"[^a-z0-9_]", "_", name)) if match else "")
+                match = _heading_regex(info["section"]).match(_norm_heading(heading))
+                if re.search(r"\{\{\s*" + re.escape(name) + r"\s*\}\}", heading):
+                    state = "empty"
+                else:
+                    state = value_state(match.group(re.sub(r"[^a-z0-9_]", "_", name)) if match else "")
             elif info["kind"] == "kv":
                 rows = [_cells(l) for l in body if l.strip().startswith("|")]
                 state = next((value_state(r[1]) for r in rows if len(r) > 1 and _norm(r[0]) == info["label"]), "empty")
@@ -181,7 +206,7 @@ def predict(kind: str, packet: str) -> dict:
                 lines = [_LABEL_RE.match(l.strip()) for l in body]
                 state = next((value_state(m.group(2)) for m in lines if m and _norm(m.group(1)) == info["label"]), "empty")
             elif info["kind"] == "open_questions":
-                rows = [r for r in _table_rows(body) if len(r) >= 4]
+                rows = [(r + ["", "", "", ""])[:4] for r in _table_rows(body)]
                 state = _aggregate([_aggregate([value_state(c) for c in r[1:4]]) for r in rows])
             elif re.search(r"\{\{\s*" + re.escape(name) + r"\s*\}\}", clean):
                 state = "empty"

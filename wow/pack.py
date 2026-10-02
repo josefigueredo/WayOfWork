@@ -47,6 +47,11 @@ def _items(value: str) -> List[str]:
     return [p for p in parts if p.lower() not in _NONE]
 
 
+def _cell(value: str) -> str:
+    """Table cells and list items stay on one line, and a literal pipe cannot add a column."""
+    return re.sub(r"\s*\n\s*", " ", str(value)).replace("|", "\\|")
+
+
 def _sub(text: str, values: Dict[str, str]) -> str:
     for name, value in values.items():
         text = re.sub(r"\{\{\s*" + re.escape(name) + r"\s*\}\}", lambda _m, v=value: v, text)
@@ -67,7 +72,7 @@ def _rows(text: str, prefix: str, items: List[Dict[str, str]]) -> str:
     for n, item in enumerate(items, 1):
         def cell(match, n=n, item=item):
             sub = match.group(2) or ""
-            return item.get(sub) or "{{%s_%d%s}}" % (prefix, n, f"_{sub}" if sub else "")
+            return _cell(item[sub]) if item.get(sub) else "{{%s_%d%s}}" % (prefix, n, f"_{sub}" if sub else "")
         rows.append(re.sub(r"^\|\s*1\s*\|", f"| {n} |", pattern.sub(cell, template_row)))
     return "\n".join(lines[:positions[0]] + rows + lines[positions[-1] + 1:])
 
@@ -153,9 +158,10 @@ def render_epic(doc: dict, epic_id: str, mhash: str) -> str:
     lists["components"] = lists["components"] or sorted({t["component"] for t in tasks if t.get("component")})
     lines = [_header(mhash, f"wow pack epic --id {epic_id}"), f"# Épica {epic_id} — {epic['title']}", "",
              "## Datos de la épica", "| Campo | Valor |", "| --- | --- |"]
-    lines += [f"| {label} ({field}) | {scalar.get(field) or _ph(field)} |" for field, label in pbcompletion.EPIC_FIELDS]
+    lines += [f"| {label} ({field}) | {_cell(scalar[field]) if scalar.get(field) else _ph(field)} |"
+              for field, label in pbcompletion.EPIC_FIELDS]
     for field, label in pbcompletion.EPIC_LISTS:
-        lines += ["", f"### {label} ({field})"] + ([f"- {v}" for v in lists[field]] or [f"- {_ph(field)}"])
+        lines += ["", f"### {label} ({field})"] + ([f"- {_cell(v)}" for v in lists[field]] or [f"- {_ph(field)}"])
     lines += ["", "## Historias"]
     for task in tasks:
         story = dict(task.get("story") or {})
@@ -166,7 +172,8 @@ def render_epic(doc: dict, epic_id: str, mhash: str) -> str:
         values.update({k: v for k, v in story.items() if isinstance(v, str)})
         lines += ["", f"### {stories[task['id']]} — [{component}] {task['title']} (tarea {task['id']})",
                   "| Campo | Valor |", "| --- | --- |"]
-        lines += [f"| {label} ({field}) | {values.get(field) or _ph(field)} |" for field, label in pbcompletion.STORY_FIELDS]
+        lines += [f"| {label} ({field}) | {_cell(values[field]) if values.get(field) else _ph(field)} |"
+                  for field, label in pbcompletion.STORY_FIELDS]
         story_lists = {k: list(story.get(k) or []) for k in ("assumptions", "business_rules", "edge_cases", "assets")}
         story_lists["dependencies"] = [f"{stories[d]} (tarea {d})" if d in stories else f"{d} (otra épica)"
                                        for d in task["depends_on"]] or ["Ninguna"]
@@ -180,7 +187,7 @@ def render_epic(doc: dict, epic_id: str, mhash: str) -> str:
                 f"{sub['title']} — Propósito: {sub.get('purpose') or _ph('purpose')} — Cómo: {sub.get('how_to') or _ph('how_to')}"
                 f" — Componente: {sub.get('component') or component} — Estado: todo")
         for field, label in pbcompletion.STORY_LISTS:
-            lines += ["", f"#### {label} ({field})"] + ([f"- {v}" for v in story_lists[field]] or [f"- {_ph(field)}"])
+            lines += ["", f"#### {label} ({field})"] + ([f"- {_cell(v)}" for v in story_lists[field]] or [f"- {_ph(field)}"])
     lines.append("")
     return "\n".join(lines)
 

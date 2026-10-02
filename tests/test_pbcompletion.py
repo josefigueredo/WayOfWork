@@ -85,5 +85,19 @@ class CheckFileTest(unittest.TestCase):
         self.assertEqual(pbcompletion.check_file(project, "prd")["percentage"], 100)
 
 
+class ReviewFixesTest(unittest.TestCase):
+    def test_heading_punctuation_is_normalized_like_pb(self):
+        text = fill(pbtemplate.load("rfc")).replace("### Definicion del Problema", "### Definición del problema:")
+        self.assertEqual(pbcompletion.predict("rfc", text)["percentage"], 100)
+        raw = pbtemplate.load("prd").replace("## Vision y Estrategia", "## Visión y Estrategia:")
+        self.assertEqual(pbcompletion.predict("prd", raw)["percentage"], 0)
+
+    def test_open_question_row_with_missing_cells_is_partial(self):
+        text = fill(pbtemplate.load("prd")).replace("| 1 | dato | Owner de producto | Abierta |",
+                                                    "| 1 | dato | Owner de producto | Abierta |\n| 2 | ¿Quién decide? | Owner de producto |")
+        result = pbcompletion.predict("prd", text)
+        self.assertIn("open_questions", [p["field"] for p in result["pending"]])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -115,5 +115,15 @@ class StateIntegrationTest(unittest.TestCase):
         self.assertEqual(state.compute_state(project, config.DEFAULTS)["plan"]["phase"], 3)
 
 
+class TableCellEscapeTest(unittest.TestCase):
+    def test_pipes_and_newlines_in_cells_do_not_break_rows(self):
+        doc = pb_ready_doc()
+        doc["epics"][0]["title"] = "Auth | Gateway"
+        doc["epics"][0]["done_when"] = ["E1.C1: line one\nline two"]
+        text = pack.render_prd(doc, pack.parse_brief(BRIEF), H)
+        self.assertIn("| 1 | E1: Auth \\| Gateway | E1.C1: line one line two |", text)
+        self.assertEqual(pbcompletion.predict("prd", fill(text))["percentage"], 100)
+
+
 if __name__ == "__main__":
     unittest.main()
