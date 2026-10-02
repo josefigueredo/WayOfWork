@@ -12,6 +12,7 @@ FILES=(
   "modules/documents/completion.ts"
   "modules/documents/pipeline/open-questions-validation.ts"
   "modules/documents/pipeline/field-groups.ts"
+  "modules/documents/pipeline/detector.ts"
   "modules/chat/document-completion-guard.ts"
   "modules/agents/agent-prompts.config.ts"
 )

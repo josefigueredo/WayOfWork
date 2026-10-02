@@ -32,6 +32,7 @@ gh repo clone josefigueredo/acme-agent /tmp/pb -- --depth 1 && rg -n "completion
 | `completion.ts` | `modules/documents/completion.ts` | Cálculo del %: `evaluateFieldState` (l. 72), `evaluateGroupState` (l. 184), `computeCompletion` (l. 220) |
 | `open-questions-validation.ts` | `modules/documents/pipeline/open-questions-validation.ts` | Regla de preguntas abiertas (l. 22) |
 | `field-groups.ts` | `modules/documents/pipeline/field-groups.ts` | Cómo se colapsan los placeholders numerados en tablas |
+| `detector.ts` | `modules/documents/pipeline/detector.ts` | Extracción de campos: `{{campo}}` y también `{campo}`, únicos y en orden, incluidos los de los encabezados |
 | `document-completion-guard.ts` | `modules/chat/document-completion-guard.ts` | El backend corrige al LLM cuando declara otro % (l. 169, l. 286) |
 | `agent-prompts.config.ts` | `modules/agents/agent-prompts.config.ts` | `SHARED_PREAMBLE` (l. 11), `PRD_PROMPT` (l. 172), `RFC_PROMPT` (l. 251), `EPIC_PROMPT` (l. 473), `CASO_PROMPT` (l. 632) |
 
