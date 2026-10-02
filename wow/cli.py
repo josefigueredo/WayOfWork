@@ -18,6 +18,7 @@ import links
 import manifest
 import pack
 import packets
+import pbcompletion
 import pbaudit
 import review as review_mod
 import reviewers
@@ -317,8 +318,28 @@ def _cmd_review(args) -> int:
     return exitcodes.OK if summary["final"] == "approved" else exitcodes.FINDINGS
 
 
+def _cmd_pack_check(args, project: Path) -> int:
+    if args.target is None or (args.target == "epic" and not args.id):
+        sys.stderr.write("wow: pack check needs prd | rfc | epic --id E<n>\n")
+        return exitcodes.CANNOT_EVALUATE
+    name = f"epic-{args.id}" if args.target == "epic" else args.target
+    result = pbcompletion.check_file(project, name)
+    if result is None:
+        sys.stderr.write(f"wow: wow/pb/{name}.md not found; run wow pack {args.target} first\n")
+        return exitcodes.CANNOT_EVALUATE
+    units = f"{result['units']:g}"
+    print(f"predicted completion: {result['percentage']}% ({units}/{result['total']} units)")
+    for item in result["pending"]:
+        print(f"pending: {item['field']} ({item['state']}) in {item['section']}")
+    for error in result["errors"]:
+        print(f"error: {error}")
+    return exitcodes.OK if result["percentage"] == 100 and not result["errors"] else exitcodes.FINDINGS
+
+
 def _cmd_pack(args) -> int:
     project = _project(args)
+    if args.kind == "check":
+        return _cmd_pack_check(args, project)
     try:
         doc = manifest.load(project)
     except manifest.ManifestError as exc:
@@ -440,7 +461,9 @@ def build_parser() -> argparse.ArgumentParser:
     rv.set_defaults(handler=_cmd_review)
 
     pk = with_project(sub.add_parser("pack", help="render Product Brain packets from the manifest"))
-    pk.add_argument("kind", choices=["prd", "rfc", "epic"])
+    pk.add_argument("kind", choices=["prd", "rfc", "epic", "check"])
+    pk.add_argument("target", nargs="?", choices=["prd", "rfc", "epic"], default=None,
+                    help="packet to check, only with kind 'check'")
     pk.add_argument("--id", default=None, help="epic id for kind 'epic'")
     pk.add_argument("--force", action="store_true", help="overwrite an existing packet")
     pk.set_defaults(handler=_cmd_pack)

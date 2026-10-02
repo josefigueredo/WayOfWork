@@ -395,5 +395,20 @@ class PbManifestCommandTest(unittest.TestCase):
         self.assertIn("plan: no mode", out)
 
 
+class PackCheckCommandTest(unittest.TestCase):
+    def test_check_codes(self):
+        import pbtemplate as _pbt
+        from pbfill import fill as _fill
+        project = make_project()
+        self.assertEqual(run_cli(["pack", "check", "prd", "--project", str(project)])[0], 2)
+        write(project, "wow/pb/prd.md", _pbt.load("prd"))
+        code, out, _ = run_cli(["pack", "check", "prd", "--project", str(project)])
+        self.assertEqual(code, 1)
+        self.assertIn("predicted completion: 0% (0/49 units)", out)
+        write(project, "wow/pb/prd.md", _fill(_pbt.load("prd")))
+        self.assertEqual(run_cli(["pack", "check", "prd", "--project", str(project)])[0], 0)
+        self.assertEqual(run_cli(["pack", "check", "epic", "--project", str(project)])[0], 2)
+
+
 if __name__ == "__main__":
     unittest.main()
