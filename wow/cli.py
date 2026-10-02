@@ -332,10 +332,13 @@ def _cmd_pack_check(args, project: Path) -> int:
     units = f"{result['units']:g}"
     print(f"predicted completion: {result['percentage']}% ({units}/{result['total']} units)")
     for item in result["pending"]:
-        print(f"pending: {item['field']} ({item['state']}) in {item['section']}")
+        if item["field"] in pbcompletion.OPTIONAL_FIELDS:
+            print(f"optional: {item['field']} ({item['state']}) — Product Brain can fill it at Jira export")
+        else:
+            print(f"pending: {item['field']} ({item['state']}) in {item['section']}")
     for error in result["errors"]:
         print(f"error: {error}")
-    return exitcodes.OK if result["percentage"] == 100 and not result["errors"] else exitcodes.FINDINGS
+    return exitcodes.OK if pbcompletion.ready(result) else exitcodes.FINDINGS
 
 
 def _cmd_pack(args) -> int:

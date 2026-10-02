@@ -44,7 +44,8 @@ RULES:
    or pipeline). Never write generic tasks such as "Implementar backend". A story with `- {{tasks}}` needs at least
    one task line in the same format: `<[AREA] título> — Propósito: … — Cómo: … — Componente: … — Estado: todo`.
 8. A story above 8 points is a finding: report it to split the manifest task. Do not split it here.
-9. Run `wow pack check epic --id E<n>` and fix the packet until it exits 0 (100% and no errors).
+9. Run `wow pack check epic --id E<n>` and fix the packet until it exits 0 (no errors and nothing pending but
+   optional fields: `jira_prefix` may stay empty, because it is known only at Jira export).
 
 ## How to paste it in Product Brain
 

@@ -72,10 +72,6 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
             steps.append(_step(None, 1, "set the plan mode", "harness", models["author"],
                                "wow plan init --mode greenfield|brownfield (or edit plan.mode)",
                                "greenfield and brownfield change phase 0 and the packet prompts"))
-        elif mode == "brownfield" and not (project / ".spec-kit" / "discovery" / "architecture.md").is_file():
-            steps.append(_step(None, 0, "run Spec-Kit discovery on the existing code", "cursor",
-                               models["cursor_reason"], "/spec-kit.discovery",
-                               "brownfield plans cite the real architecture from .spec-kit/discovery/architecture.md"))
         lint = manifest.lint(doc)
         if lint:
             plan["phase"] = min(plan["phase"], 1)
@@ -97,7 +93,7 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
             status = packets["epics"][eid] if eid else packets[name]
             if status == "ok":
                 check = pbcompletion.check_file(project, name)
-                if check and (check["percentage"] < 100 or check["errors"]):
+                if check and not pbcompletion.ready(check):
                     plan["phase"] = min(plan["phase"], 2)
                     target = f"epic --id {eid}" if eid else kind
                     steps.append(_step(None, 2, f"complete the {name} packet", "harness", models["author"],
@@ -183,6 +179,13 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
 
     # Phase 4: Spec-Kit feature synced and planned.
     feature = next((f for f in features if f["epic_key"] == key), None)
+    if feature is None and doc["plan"].get("mode") == "brownfield" \
+            and not (project / ".spec-kit" / "discovery" / "architecture.md").is_file():
+        # Spec-Kit plans brownfield work from its discovery; Product Brain does not need it.
+        steps.append(_step(eid, 4, "run Spec-Kit discovery on the existing code", "cursor",
+                           models["cursor_reason"], "/spec-kit.discovery",
+                           "Spec-Kit plans brownfield epics from .spec-kit/discovery/architecture.md"))
+        return finish(4)
     if feature is None:
         steps.append(_step(eid, 4, "sync the epic into Spec-Kit", "cursor", models["cursor_generate"],
                            f"wow sk cmd sync --epic {key}", f"no specs/*/spec.md declares **Jira Epic:** {key}"))

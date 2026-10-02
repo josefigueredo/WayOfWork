@@ -409,6 +409,20 @@ class PackCheckCommandTest(unittest.TestCase):
         self.assertEqual(run_cli(["pack", "check", "prd", "--project", str(project)])[0], 0)
         self.assertEqual(run_cli(["pack", "check", "epic", "--project", str(project)])[0], 2)
 
+    def test_epic_missing_only_jira_prefix_passes_with_an_optional_note(self):
+        import re
+        import pack as _pack
+        from pbfill import fill as _fill
+        from test_manifest import pb_ready_doc
+        project = make_project()
+        text = _fill(_pack.render_epic(pb_ready_doc(), "E1", "0123456789abcdef"))
+        text = re.sub(r"\| Prefijo Jira \(jira_prefix\) \| [^|]* \|", "| Prefijo Jira (jira_prefix) | {{jira_prefix}} |", text)
+        write(project, "wow/pb/epic-E1.md", text)
+        code, out, _ = run_cli(["pack", "check", "epic", "--id", "E1", "--project", str(project)])
+        self.assertEqual(code, 0)
+        self.assertIn("optional: jira_prefix", out)
+        self.assertNotIn("pending: jira_prefix", out)
+
 
 class ReferencesContractTest(unittest.TestCase):
     def test_prompts_exist_follow_the_packet_and_cite_the_real_discovery_path(self):

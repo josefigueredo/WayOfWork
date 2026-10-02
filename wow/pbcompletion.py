@@ -370,6 +370,16 @@ def check_epic(text: str) -> dict:
             "errors": errors}
 
 
+# Product Brain counts these toward completion but its EPIC agent lists them as optional support fields
+# (agent-prompts.config.ts:533); jira_prefix is known only at Jira export. They never hold a packet back.
+OPTIONAL_FIELDS = frozenset({"jira_prefix"})
+
+
+def ready(result: dict) -> bool:
+    """A packet can go to Product Brain: no errors and nothing pending but optional fields."""
+    return not result["errors"] and all(p["field"] in OPTIONAL_FIELDS for p in result["pending"])
+
+
 def check_file(project: Path, name: str) -> Optional[dict]:
     path = project / "wow" / "pb" / f"{name}.md"
     if not path.is_file():

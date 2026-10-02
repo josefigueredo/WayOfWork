@@ -171,6 +171,27 @@ class EpicPhasesTest(unittest.TestCase):
         close_chats(p)
         self.assertEqual(state.compute_state(p, CFG, None)["epics"][0]["phase"], "unknown")
 
+    def test_epic_packet_missing_only_jira_prefix_goes_to_product_brain(self):
+        import re
+        p = project_at_phase_3()
+        path = p / "wow/pb/epic-E1.md"
+        path.write_text(re.sub(r"\| Prefijo Jira \(jira_prefix\) \| [^|]* \|",
+                               "| Prefijo Jira (jira_prefix) | {{jira_prefix}} |", path.read_text()))
+        result = state.compute_state(p, CFG)
+        self.assertEqual(result["plan"]["phase"], 3)
+        self.assertNotIn("complete the epic-E1 packet", result["plan"]["missing"])
+
+    def test_brownfield_discovery_comes_right_before_the_spec_kit_sync(self):
+        p = project_at_phase_3()
+        (p / ".spec-kit/discovery/architecture.md").unlink()
+        close_chats(p)
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
+        self.assertNotIn("run Spec-Kit discovery on the existing code", result["plan"]["missing"])
+        self.assertEqual(result["epics"][0]["phase"], 4)
+        step = result["next_steps"][0]
+        self.assertEqual((step["epic"], step["action"], step["where"], step["command"]),
+                         ("E1", "run Spec-Kit discovery on the existing code", "cursor", "/spec-kit.discovery"))
+
     def test_phase_4_sync_step_uses_cursor(self):
         p = project_at_phase_3()
         close_chats(p)
@@ -232,7 +253,7 @@ class ModeStepsTest(unittest.TestCase):
         self.assertEqual(result["next_steps"][0]["action"], "set the plan mode")
         manifest.save(p, pb_ready_doc())
         missing = state.compute_state(p, CFG)["plan"]["missing"]
-        self.assertIn("run Spec-Kit discovery on the existing code", missing)
+        self.assertNotIn("run Spec-Kit discovery on the existing code", missing)  # only before the Spec-Kit sync
         self.assertNotIn("set the plan mode", missing)
         write(p, ".spec-kit/discovery/architecture.md", "# Arquitectura\n")
         self.assertNotIn("run Spec-Kit discovery on the existing code",

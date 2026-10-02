@@ -54,6 +54,18 @@ class PredictTest(unittest.TestCase):
         result = pbcompletion.predict("rfc", text[:start] + text[end:])
         self.assertIn("coexistence_strategy", [p["field"] for p in result["pending"]])
 
+    def test_only_optional_fields_pending_is_ready_for_product_brain(self):
+        import re
+        import pack
+        from test_manifest import pb_ready_doc
+        full = fill(pack.render_epic(pb_ready_doc(), "E1", "0123456789abcdef"))
+        no_prefix = re.sub(r"\| Prefijo Jira \(jira_prefix\) \| [^|]* \|", "| Prefijo Jira (jira_prefix) | {{jira_prefix}} |", full)
+        result = pbcompletion.check_epic(no_prefix)
+        self.assertEqual([p["field"] for p in result["pending"]], ["jira_prefix"])
+        self.assertTrue(pbcompletion.ready(result))
+        no_owner = no_prefix.replace("| Owner (owner) | Owner de producto |", "| Owner (owner) | {{owner}} |")
+        self.assertFalse(pbcompletion.ready(pbcompletion.check_epic(no_owner)))
+
     def test_table_in_free_text_section_fills_it_like_pb(self):
         text = fill(pbtemplate.load("rfc"))
         start = text.index("## 5. Alternativas Consideradas")
