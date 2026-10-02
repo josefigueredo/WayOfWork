@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable
 
 MAX_ROUNDS = 3
+_SAFE_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _SEP = r"\s+[—–-]+\s*"
 _VERDICT_RE = re.compile(r"^\s*VERDICT:\s*(APPROVED|CHANGES_REQUIRED)\s*$", re.MULTILINE)
 _BLOCKER_RE = re.compile(r"^\s*BLOCKER\s+(\S+)\s+(\S+)" + _SEP + r"(.+?)\s*$")
@@ -42,7 +43,14 @@ def new_summary(ref: str, anchor_set: str) -> dict:
     return {"schema_version": 1, "ref": ref, "anchor_set": anchor_set, "rounds": [], "final": None}
 
 
+def safe_ref(ref: str) -> bool:
+    """A ref becomes a file name: allow only [A-Za-z0-9._-], no leading dot, no '..'."""
+    return bool(_SAFE_REF_RE.match(ref)) and ".." not in ref
+
+
 def _path(project: Path, ref: str) -> Path:
+    if not safe_ref(ref):
+        raise ValueError(f"unsafe ref {ref!r}: use letters, digits, '.', '_' or '-'")
     return project / "wow" / "reviews" / f"{ref}.json"
 
 

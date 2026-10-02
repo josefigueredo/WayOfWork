@@ -192,6 +192,14 @@ class ReviewCommandTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("no reviewer available", err)
 
+    def test_unsafe_ref_exits_2_and_writes_nothing_outside(self):
+        project, _ = _review_project("VERDICT: APPROVED\n")
+        code, _, err = run_cli(["review", "--set", "readiness", "--ref", "../../escape", "--project", str(project)])
+        self.assertEqual(code, 2)
+        self.assertIn("unsafe ref", err)
+        self.assertFalse((project.parent / "escape.json").exists())
+        self.assertFalse((project / ".wow").joinpath("escape").exists())
+
     def test_claims_requires_doc(self):
         project, _ = _review_project("VERDICT: APPROVED\n")
         self.assertEqual(run_cli(["review", "--set", "claims", "--ref", "facts", "--project", str(project)])[0], 2)

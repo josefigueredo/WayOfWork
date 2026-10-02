@@ -9,9 +9,9 @@ import runwu
 
 
 def fake_runner(stdout, code=0, seen=None):
-    def run(argv, cwd=None, env=None, capture_output=None, text=None):
+    def run(argv, cwd=None, env=None, capture_output=None, text=None, timeout=None):
         if seen is not None:
-            seen.update({"argv": argv, "cwd": cwd, "tmpdir": env.get("TMPDIR")})
+            seen.update({"argv": argv, "cwd": cwd, "tmpdir": env.get("TMPDIR"), "timeout": timeout})
         return subprocess.CompletedProcess(argv, code, stdout, "stderr secret")
     return run
 
@@ -40,6 +40,15 @@ class RunTest(unittest.TestCase):
                                which=lambda n: "/bin/" + n, now=lambda: "2026-10-02T10:00:00Z")
         saved = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual((code, saved["result"], saved["ref"]), (1, None, "WU-002"))
+
+    def test_timeout_is_recorded_and_returns_control(self):
+        def hung(argv, cwd=None, env=None, capture_output=None, text=None, timeout=None):
+            raise subprocess.TimeoutExpired(argv, timeout)
+
+        code, path = runwu.run(make_project(), "WU-004", "composer-2.5", runner=hung, timeout=5,
+                               which=lambda n: "/bin/" + n, now=lambda: "2026-10-02T10:00:00Z")
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual((code, saved["exit_code"], saved["timed_out"], saved["result"]), (124, None, True, None))
 
     def test_missing_cursor_agent(self):
         with self.assertRaises(FileNotFoundError):

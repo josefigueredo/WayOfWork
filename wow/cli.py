@@ -184,16 +184,22 @@ def _cmd_run_wu(args) -> int:
         print(shlex.join(runwu.build_command(args.wu, model, args.worktree)))
         return exitcodes.OK
     try:
-        code, path = runwu.run(project, args.wu, model, epic=args.epic, worktree=args.worktree)
+        code, path = runwu.run(project, args.wu, model, epic=args.epic, worktree=args.worktree,
+                               timeout=int(cfg.get("run_wu_timeout_s", runwu.DEFAULT_TIMEOUT_S)))
     except FileNotFoundError:
         sys.stderr.write("wow: cursor-agent not found on PATH\n")
         return exitcodes.CANNOT_EVALUATE
+    if code == runwu.TIMEOUT_EXIT:
+        print("cursor-agent timed out (run_wu_timeout_s in .wow/config.json)")
     print(f"run recorded: {path.relative_to(project)}")
     return exitcodes.OK if code == 0 else exitcodes.FINDINGS
 
 
 def _cmd_review(args) -> int:
     project = _project(args)
+    if not review_mod.safe_ref(args.ref):
+        sys.stderr.write(f"wow: unsafe ref {args.ref!r}: use letters, digits, '.', '_' or '-'\n")
+        return exitcodes.CANNOT_EVALUATE
     try:
         cfg = config.load_config(project)
         repo = Path(args.repo).resolve() if args.repo else project

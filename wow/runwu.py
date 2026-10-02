@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
 KEEP_RESULT_KEYS = ("type", "subtype", "is_error", "duration_ms", "duration_api_ms", "usage")
+DEFAULT_TIMEOUT_S = 3600
+TIMEOUT_EXIT = 124
 
 
 def _utc_now() -> str:
@@ -27,22 +29,29 @@ def build_command(wu: str, model: str, worktree: bool) -> List[str]:
 
 def run(project: Path, wu: str, model: str, epic: Optional[str] = None, worktree: bool = False,
         runner: Callable = subprocess.run, which: Callable = shutil.which,
-        now: Callable[[], str] = _utc_now) -> Tuple[int, Path]:
+        now: Callable[[], str] = _utc_now, timeout: int = DEFAULT_TIMEOUT_S) -> Tuple[int, Path]:
     if which("cursor-agent") is None:
         raise FileNotFoundError("cursor-agent")
     env = dict(os.environ, TMPDIR=tempfile.mkdtemp(prefix="wow-run-"))
     started = now()
-    proc = runner(build_command(wu, model, worktree), cwd=str(project), env=env, capture_output=True, text=True)
-    ended = now()
+    timed_out, exit_code, result = False, None, None
     try:
-        data = json.loads(proc.stdout)
-        result = {k: data[k] for k in KEEP_RESULT_KEYS if k in data} if isinstance(data, dict) else None
-    except (json.JSONDecodeError, TypeError):
-        result = None
+        proc = runner(build_command(wu, model, worktree), cwd=str(project), env=env, capture_output=True,
+                      text=True, timeout=timeout)
+        exit_code = proc.returncode
+        try:
+            data = json.loads(proc.stdout)
+            result = {k: data[k] for k in KEEP_RESULT_KEYS if k in data} if isinstance(data, dict) else None
+        except (json.JSONDecodeError, TypeError):
+            result = None
+    except subprocess.TimeoutExpired:
+        timed_out = True
+    ended = now()
     record = {"schema_version": 1, "work_unit": wu, "ref": f"{epic}/{wu}" if epic else wu, "model": model,
-              "started_at": started, "ended_at": ended, "exit_code": proc.returncode, "result": result}
+              "started_at": started, "ended_at": ended, "exit_code": exit_code, "timed_out": timed_out,
+              "result": result}
     stamp = ended.replace("-", "").replace(":", "")
     path = project / "harness" / "runs" / f"{wu}-{stamp}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
-    return proc.returncode, path
+    return (TIMEOUT_EXIT if timed_out else exit_code), path

@@ -77,5 +77,15 @@ class RoundsTest(unittest.TestCase):
         self.assertEqual(review.load_summary(project, "E2", "epic"), review.new_summary("E2", "epic"))
 
 
+class RefSafetyTest(unittest.TestCase):
+    def test_unsafe_refs_are_rejected(self):
+        project = make_project()
+        for bad in ("../escape", "a/b", "..", "", "x\\y"):
+            with self.assertRaises(ValueError):
+                review.save_summary(project, review.new_summary(bad, "story"))
+        for good in ("IRIS-41", "E1", "plan", "facts.v2"):
+            self.assertTrue(review.safe_ref(good))
+
+
 if __name__ == "__main__":
     unittest.main()
