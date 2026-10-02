@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Callable, Optional, Tuple
 
 DEFAULT_COMMANDS = {
-    "codex": {"argv": ["codex", "exec", "-C", "{cwd}", "-s", "read-only", "--ephemeral", "-o", "{out}", "-"],
+    "codex": {"argv": ["codex", "exec", "-C", "{cwd}", "-s", "read-only", "--ephemeral", "--skip-git-repo-check",
+                        "-o", "{out}", "-"],
               "stdin": True, "output": "file"},
     "copilot": {"argv": ["copilot", "-s", "-p", "{prompt}"], "stdin": False, "output": "stdout"},
 }

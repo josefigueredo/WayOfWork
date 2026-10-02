@@ -66,5 +66,12 @@ class PickTest(unittest.TestCase):
         self.assertIsNone(reviewers.command_spec({}, "unknown"))
 
 
+class CodexOutsideGitTest(unittest.TestCase):
+    def test_codex_runs_in_non_git_workspaces(self):
+        # Multi-repo umbrellas (a workspace root holding many repos) are not git repositories; without this flag
+        # `codex exec` refuses to start and the dry run silently falls back to the next reviewer.
+        self.assertIn("--skip-git-repo-check", reviewers.DEFAULT_COMMANDS["codex"]["argv"])
+
+
 if __name__ == "__main__":
     unittest.main()
