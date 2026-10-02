@@ -17,6 +17,7 @@ import review as review_mod
 import reviewers
 import snapshot as snapshot_mod
 import state as state_mod
+import usage as usage_mod
 from sources.jira import JiraClient
 
 VERSION = "0.1.0"
@@ -124,13 +125,28 @@ def _cmd_snapshot(args) -> int:
         sys.stderr.write(f"wow: {exc}\n")
         return exitcodes.CANNOT_EVALUATE
     result = state_mod.compute_state(project, cfg, _jira_for(project))
-    snap = snapshot_mod.build(result, snapshot_mod.load_previous(project), _now())
+    records = usage_mod.collect(project, cfg)
+    snap = snapshot_mod.build(result, snapshot_mod.load_previous(project), _now(), usage=records)
     snapshot_mod.write(project, snap)
     print(f"wrote {snapshot_mod.PROGRESS_REL}")
     for blocker in result["blockers"]:
         print(f"! {blocker}")
     for step in result["next_steps"]:
         print(f"- [{step['where']}] {step['action']} -> {step['command']}")
+    return exitcodes.OK
+
+
+def _cmd_usage(args) -> int:
+    project = _project(args)
+    try:
+        cfg = config.load_config(project)
+    except config.ConfigError as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    for row in usage_mod.summarize(usage_mod.collect(project, cfg)):
+        median = row["median_ms"] if row["median_ms"] is not None else "-"
+        print(f"{row['vendor']} {row['model']} count={row['count']} in={row['tokens_in']} "
+              f"out={row['tokens_out']} median_ms={median}")
     return exitcodes.OK
 
 
@@ -243,6 +259,8 @@ def build_parser() -> argparse.ArgumentParser:
     rv.add_argument("--base", default="main", help="git base for story/epic diffs (default: main)")
     rv.add_argument("--doc", default=None, help="claims document (required for --set claims)")
     rv.set_defaults(handler=_cmd_review)
+
+    with_project(sub.add_parser("usage", help="summarize LLM usage by vendor and model")).set_defaults(handler=_cmd_usage)
     return parser
 
 

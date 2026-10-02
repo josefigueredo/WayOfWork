@@ -26,11 +26,14 @@ class SnapshotTest(unittest.TestCase):
                                  "phases": {"E1": 5, "E2": "unknown"}, "tasks_done": 3, "tasks_total": 4})
 
     def test_build_appends_history_and_keeps_usage(self):
+        import usage as usage_mod
+        record = {k: None for k in usage_mod.RECORD_KEYS}
+        record.update({"ts": "t", "vendor": "cursor", "model": "x", "scope": "task", "source": "cursor-run"})
         previous = {"history": [{"ts": "a", "plan_phase": 2, "phases": {}, "tasks_done": 0, "tasks_total": 0}],
-                    "usage": [{"model": "x"}]}
+                    "usage": [record]}
         snap = snapshot.build(fake_state(), previous, "2026-10-02T10:00:00Z")
         self.assertEqual(len(snap["history"]), 2)
-        self.assertEqual(snap["usage"], [{"model": "x"}])
+        self.assertEqual(snap["usage"], [record])
         self.assertEqual(schema.validate(snap, schema.load_schema("progress")), [])
 
     def test_real_state_snapshot_validates_and_round_trips(self):
@@ -45,6 +48,21 @@ class SnapshotTest(unittest.TestCase):
         project = make_project()
         write(project, "wow/progress.json", "{bad")
         self.assertIsNone(snapshot.load_previous(project))
+
+
+class UsageInSnapshotTest(unittest.TestCase):
+    def test_usage_param_replaces_previous(self):
+        import usage as usage_mod
+        record = {k: None for k in usage_mod.RECORD_KEYS}
+        record.update({"ts": "t", "vendor": "cursor", "model": "composer-2.5", "scope": "task", "source": "cursor-run"})
+        previous = {"history": [], "usage": [{"stale": True}]}
+        snap = snapshot.build(fake_state(), previous, "2026-10-02T10:00:00Z", usage=[record])
+        self.assertEqual(snap["usage"], [record])
+        self.assertEqual(schema.validate(snap, schema.load_schema("progress")), [])
+
+    def test_schema_rejects_incomplete_usage_record(self):
+        snap = snapshot.build(fake_state(), None, "2026-10-02T10:00:00Z", usage=[{"vendor": "x"}])
+        self.assertTrue(schema.validate(snap, schema.load_schema("progress")))
 
 
 if __name__ == "__main__":

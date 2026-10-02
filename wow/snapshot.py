@@ -20,11 +20,11 @@ def history_point(state: dict, now: str) -> dict:
             "tasks_done": done, "tasks_total": total}
 
 
-def build(state: dict, previous: Optional[dict], now: str) -> dict:
+def build(state: dict, previous: Optional[dict], now: str, usage: Optional[list] = None) -> dict:
     previous = previous or {}
     return {"schema_version": 1, "generated_at": now, "current": state,
             "history": list(previous.get("history", [])) + [history_point(state, now)],
-            "usage": list(previous.get("usage", []))}
+            "usage": list(usage) if usage is not None else list(previous.get("usage", []))}
 
 
 def load_previous(project: Path) -> Optional[dict]:

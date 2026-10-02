@@ -25,6 +25,13 @@
       }
     },
     "history": {"type": "array", "items": {"type": "object", "required": ["ts", "plan_phase", "phases", "tasks_done", "tasks_total"]}},
-    "usage": {"type": "array", "items": {"type": "object"}}
+    "usage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ts", "vendor", "tool", "model", "tokens_in", "tokens_out", "cache_read", "cache_write",
+                     "reasoning_out", "duration_ms", "scope", "ref", "source"]
+      }
+    }
   }
 }

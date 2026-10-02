@@ -108,6 +108,8 @@ class StateCommandTest(unittest.TestCase):
 class SnapshotCommandTest(unittest.TestCase):
     def test_snapshot_writes_file_and_grows_history(self):
         project = make_project()
+        write(project, ".wow/config.json", _json.dumps({"usage": {"claude_root": str(project / "none-c"),
+                                                                    "codex_root": str(project / "none-x")}}))
         code, out, _ = run_cli(["snapshot", "--project", str(project)])
         self.assertEqual(code, 0)
         self.assertIn("wrote wow/progress.json", out)
@@ -193,6 +195,23 @@ class ReviewCommandTest(unittest.TestCase):
     def test_claims_requires_doc(self):
         project, _ = _review_project("VERDICT: APPROVED\n")
         self.assertEqual(run_cli(["review", "--set", "claims", "--ref", "facts", "--project", str(project)])[0], 2)
+
+
+class UsageCommandTest(unittest.TestCase):
+    def test_usage_prints_cursor_rows_and_snapshot_includes_them(self):
+        project = make_project()
+        write(project, ".wow/config.json", _json.dumps({"usage": {"claude_root": str(project / "none-c"),
+                                                                    "codex_root": str(project / "none-x")}}))
+        write(project, "harness/runs/WU-001-1.json", _json.dumps({
+            "schema_version": 1, "work_unit": "WU-001", "ref": "WU-001", "model": "composer-2.5",
+            "started_at": "2026-10-01T10:00:00Z", "ended_at": "2026-10-01T10:01:00Z", "exit_code": 0,
+            "result": {"duration_ms": 60000, "usage": {"inputTokens": 1000, "outputTokens": 50}}}))
+        code, out, _ = run_cli(["usage", "--project", str(project)])
+        self.assertEqual(code, 0)
+        self.assertIn("cursor composer-2.5 count=1 in=1000 out=50 median_ms=60000", out)
+        run_cli(["snapshot", "--project", str(project)])
+        saved = _json.loads((project / "wow/progress.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["usage"][0]["model"], "composer-2.5")
 
 
 class ReviewSkillContractTest(unittest.TestCase):
