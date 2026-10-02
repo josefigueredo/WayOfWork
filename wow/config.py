@@ -17,6 +17,7 @@ DEFAULTS: dict = {
         "cursor_generate": "composer-2.5",
         "cursor_reason": "claude-sonnet-5-5-high",
     },
+    "github": {"enabled": True},
 }
 
 _SPEC_KIT_MAP = {

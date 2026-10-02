@@ -13,6 +13,7 @@ import json
 import config
 import contextpack
 import exitcodes
+import links
 import manifest
 import pack
 import packets
@@ -24,6 +25,8 @@ import sk
 import snapshot as snapshot_mod
 import state as state_mod
 import usage as usage_mod
+from sources import SourceUnavailable, github
+from sources import repo as repo_src
 from sources.jira import JiraClient
 
 VERSION = "0.1.0"
@@ -123,6 +126,22 @@ def _cmd_state(args) -> int:
     return exitcodes.OK
 
 
+def _github_prs(project: Path, cfg: dict):
+    if not (cfg.get("github") or {}).get("enabled", True):
+        return [], "disabled"
+    prs, errors, ok = [], [], 0
+    dirs = [project] + [project / p for p in repo_src.submodule_paths(project) if (project / p).exists()]
+    for directory in dirs:
+        try:
+            prs += github.pull_requests(directory)
+            ok += 1
+        except SourceUnavailable as exc:
+            errors.append(str(exc))
+    if not errors:
+        return prs, "ok"
+    return prs, ("partial: " + "; ".join(errors)) if ok else errors[0]
+
+
 def _cmd_snapshot(args) -> int:
     project = _project(args)
     try:
@@ -131,6 +150,8 @@ def _cmd_snapshot(args) -> int:
         sys.stderr.write(f"wow: {exc}\n")
         return exitcodes.CANNOT_EVALUATE
     result = state_mod.compute_state(project, cfg, _jira_for(project))
+    prs, result["sources"]["github"] = _github_prs(project, cfg)
+    result = links.build_links(project, result, prs)
     records = usage_mod.collect(project, cfg)
     snap = snapshot_mod.build(result, snapshot_mod.load_previous(project), _now(), usage=records)
     snapshot_mod.write(project, snap)

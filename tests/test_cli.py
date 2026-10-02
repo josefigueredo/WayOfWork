@@ -108,7 +108,7 @@ class StateCommandTest(unittest.TestCase):
 class SnapshotCommandTest(unittest.TestCase):
     def test_snapshot_writes_file_and_grows_history(self):
         project = make_project()
-        write(project, ".wow/config.json", _json.dumps({"usage": {"claude_root": str(project / "none-c"),
+        write(project, ".wow/config.json", _json.dumps({"github": {"enabled": False}, "usage": {"claude_root": str(project / "none-c"),
                                                                     "codex_root": str(project / "none-x")}}))
         code, out, _ = run_cli(["snapshot", "--project", str(project)])
         self.assertEqual(code, 0)
@@ -208,7 +208,7 @@ class ReviewCommandTest(unittest.TestCase):
 class UsageCommandTest(unittest.TestCase):
     def test_usage_prints_cursor_rows_and_snapshot_includes_them(self):
         project = make_project()
-        write(project, ".wow/config.json", _json.dumps({"usage": {"claude_root": str(project / "none-c"),
+        write(project, ".wow/config.json", _json.dumps({"github": {"enabled": False}, "usage": {"claude_root": str(project / "none-c"),
                                                                     "codex_root": str(project / "none-x")}}))
         write(project, "harness/runs/WU-001-1.json", _json.dumps({
             "schema_version": 1, "work_unit": "WU-001", "ref": "WU-001", "model": "composer-2.5",
@@ -314,6 +314,18 @@ class ContextCommandTest(unittest.TestCase):
         code, out, _ = run_cli(["context", "check", "--project", str(project)])
         self.assertEqual(code, 1)
         self.assertIn("C1 needs a source", out)
+
+
+class SnapshotGithubDisabledTest(unittest.TestCase):
+    def test_disabled_github_is_reported(self):
+        project = make_project()
+        write(project, ".wow/config.json", _json.dumps({"github": {"enabled": False},
+                                                        "usage": {"claude_root": str(project / "c"),
+                                                                  "codex_root": str(project / "x")}}))
+        self.assertEqual(run_cli(["snapshot", "--project", str(project)])[0], 0)
+        saved = _json.loads((project / "wow/progress.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["current"]["sources"]["github"], "disabled")
+        self.assertIn("links", saved["current"]["plan"])
 
 
 if __name__ == "__main__":
