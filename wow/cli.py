@@ -15,6 +15,7 @@ import exitcodes
 import manifest
 import pack
 import packets
+import pbaudit
 import review as review_mod
 import reviewers
 import runwu
@@ -309,6 +310,23 @@ def _cmd_pack(args) -> int:
     return exitcodes.OK
 
 
+def _cmd_pbchat_audit(args) -> int:
+    project = _project(args)
+    if not review_mod.safe_ref(args.doc):
+        sys.stderr.write(f"wow: unsafe document name {args.doc!r}\n")
+        return exitcodes.CANNOT_EVALUATE
+    try:
+        result = pbaudit.audit(project, args.doc)
+    except FileNotFoundError:
+        sys.stderr.write(f"wow: wow/pb/chats/{args.doc}.md not found; copy the Product Brain chat there first\n")
+        return exitcodes.CANNOT_EVALUATE
+    pbaudit.write_audit(project, result)
+    print(f"verdict: {result['verdict']}")
+    if result["corrections_to_paste"]:
+        print(result["corrections_to_paste"])
+    return exitcodes.OK if result["verdict"] == "approved" else exitcodes.FINDINGS
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="wow", description="WayOfWork CLI")
     parser.add_argument("--version", action="store_true", help="print the version and exit")
@@ -350,6 +368,12 @@ def build_parser() -> argparse.ArgumentParser:
     pk.add_argument("--id", default=None, help="epic id for kind 'epic'")
     pk.add_argument("--force", action="store_true", help="overwrite an existing packet")
     pk.set_defaults(handler=_cmd_pack)
+
+    pc = sub.add_parser("pbchat", help="audit local copies of Product Brain chats")
+    pcsub = pc.add_subparsers(dest="pbchat_command", parser_class=_Parser)
+    pa = with_project(pcsub.add_parser("audit"))
+    pa.add_argument("doc", help="prd | rfc | epic-E<n>")
+    pa.set_defaults(handler=_cmd_pbchat_audit)
 
     with_project(sub.add_parser("usage", help="summarize LLM usage by vendor and model")).set_defaults(handler=_cmd_usage)
 

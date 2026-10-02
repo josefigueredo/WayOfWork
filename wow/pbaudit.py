@@ -1,0 +1,114 @@
+"""Audit a local copy of a Product Brain chat against its packet and the context pack (spec 9.3).
+
+Corrections are Spanish on purpose: they are pasted back into the Product Brain chat.
+"""
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import List, Optional
+
+import pack
+from sources import pbchat
+
+KNOWN_INVENTIONS = [
+    ("marketplace", r"\bmarketplace\b"),
+    ("comprador/vendedor", r"\bcomprador(?:es)?\b|\bvendedor(?:es)?\b"),
+    ("API Gateway", r"\bapi[ -]?gateway\b"),
+    ("Okta", r"\bokta\b"),
+    ("OAuth", r"\boauth\b"),
+    ("SLA", r"\bSLAs?\b"),
+]
+_NEGATION_RE = re.compile(r"\b(no hay|no es|no existe|no usa|inexistente|sin)\b", re.IGNORECASE)
+_CHECK_RE = re.compile(r"[✅✔]")
+_CITATION_RE = re.compile(r"\(|fuente|source|secci[oó]n|§", re.IGNORECASE)
+_COMPLETION_RE = re.compile(r"(?:llega al|documento al|completitud[^0-9\n]{0,20})\s*(\d{1,3})\s*%", re.IGNORECASE)
+_ITEM_RE = re.compile(r"^\s*(?:\d+[.)]|[-*])\s+(.+?)\s*$")
+
+
+def open_questions(text: str) -> List[str]:
+    lines = text.splitlines()
+    heads = [i for i, line in enumerate(lines) if "preguntas abiertas" in line.lower() and len(line) < 80]
+    if not heads:
+        return []
+    items: List[str] = []
+    for line in lines[heads[-1] + 1:]:
+        if not line.strip():
+            continue
+        item = _ITEM_RE.match(line)
+        if item:
+            items.append(item.group(1))
+        elif line[:1] in (" ", "\t") and items:
+            items[-1] = f"{items[-1]} {line.strip()}"
+        else:
+            break
+    return items
+
+
+def _preamble_lines() -> set:
+    return {line.strip() for line in pack.PREAMBLE.splitlines() if line.strip()}
+
+
+def _allowed_text(project: Path, doc: str) -> str:
+    parts = []
+    packet = project / "wow" / "pb" / f"{doc}.md"
+    if packet.is_file():
+        parts.append(packet.read_text(encoding="utf-8"))
+    for path in sorted((project / "wow" / "context-pack").glob("*.md")):
+        parts.append(path.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
+def _corrections(missing: List[str], inventions: List[dict], unsupported: List[dict]) -> str:
+    if not (missing or inventions or unsupported):
+        return ""
+    lines = ["Correcciones (pegalas en el chat de Product Brain):"]
+    lines += [f"- Conservá el criterio {anchor} tal como venía en el paquete (regla 6)." for anchor in missing]
+    lines += [f"- Quitá «{i['term']}» (línea {i['line']}): no figura en el material (regla 4). "
+              f"Si es una decisión pendiente, movela a Preguntas abiertas." for i in inventions]
+    lines += [f"- El ítem «{c['text']}» figura como cumplido sin citar dónde se cumple (regla 7): "
+              f"citá la sección o marcalo como pendiente." for c in unsupported]
+    return "\n".join(lines)
+
+
+def audit(project: Path, doc: str, extra_inventions: Optional[List[dict]] = None) -> dict:
+    chat_path = project / "wow" / "pb" / "chats" / f"{doc}.md"
+    if not chat_path.is_file():
+        raise FileNotFoundError(chat_path)
+    text = chat_path.read_text(encoding="utf-8")
+    preamble = _preamble_lines()
+    lines = [(n, line) for n, line in enumerate(text.splitlines(), 1) if line.strip() not in preamble]
+    parsed = pbchat.parse_chat("\n".join(line for _, line in lines))
+
+    packet = project / "wow" / "pb" / f"{doc}.md"
+    expected = sorted(set(pbchat.ANCHOR_RE.findall(packet.read_text(encoding="utf-8")))) if packet.is_file() else []
+    missing = sorted(set(expected) - set(parsed["anchors"]))
+
+    allowed = _allowed_text(project, doc)
+    inventions: List[dict] = []
+    for term, pattern in KNOWN_INVENTIONS:
+        regex = re.compile(pattern, re.IGNORECASE)
+        if regex.search(allowed):
+            continue
+        for number, line in lines:
+            if regex.search(line) and not _NEGATION_RE.search(line):
+                inventions.append({"term": term, "line": number, "text": line.strip()[:160], "source": "known-list"})
+                break
+    inventions += list(extra_inventions or [])
+
+    unsupported = [{"line": n, "text": line.strip()[:160]} for n, line in lines
+                   if _CHECK_RE.search(line) and not _CITATION_RE.search(line)]
+    percents = [int(m) for m in _COMPLETION_RE.findall(text) if int(m) <= 100]
+    verdict = "approved" if not (missing or inventions or unsupported) else "changes_required"
+    return {"schema_version": 1, "doc": doc, "verdict": verdict, "closed": parsed["closed"],
+            "completion_pct": percents[-1] if percents else None, "open_questions": open_questions(text),
+            "expected_anchors": expected, "missing_anchors": missing, "unsupported_checks": unsupported,
+            "inventions": inventions, "corrections_to_paste": _corrections(missing, inventions, unsupported)}
+
+
+def write_audit(project: Path, result: dict) -> Path:
+    path = project / "wow" / "pb" / "chats" / f"{result['doc']}.audit.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path

@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "required": ["schema_version", "doc", "verdict", "closed", "completion_pct", "open_questions",
+               "expected_anchors", "missing_anchors", "unsupported_checks", "inventions", "corrections_to_paste"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "doc": {"type": "string"},
+    "verdict": {"type": "string", "enum": ["approved", "changes_required"]},
+    "closed": {"type": "boolean"},
+    "completion_pct": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+    "open_questions": {"type": "array", "items": {"type": "string"}},
+    "expected_anchors": {"type": "array", "items": {"type": "string"}},
+    "missing_anchors": {"type": "array", "items": {"type": "string"}},
+    "unsupported_checks": {"type": "array", "items": {"type": "object", "required": ["line", "text"]}},
+    "inventions": {"type": "array", "items": {"type": "object", "required": ["term", "line", "text", "source"]}},
+    "corrections_to_paste": {"type": "string"}
+  }
+}

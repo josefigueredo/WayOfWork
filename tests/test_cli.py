@@ -276,5 +276,17 @@ class PackCommandTest(unittest.TestCase):
         self.assertEqual(run_cli(["pack", "epic", "--id", "E9", "--project", str(project)])[0], 2)
 
 
+class PbchatAuditCommandTest(unittest.TestCase):
+    def test_audit_codes_and_file(self):
+        project = make_project()
+        write(project, "wow/pb/chats/prd.md", "llega al 100%\n✅ Todo listo.\n")
+        code, out, _ = run_cli(["pbchat", "audit", "prd", "--project", str(project)])
+        self.assertEqual(code, 1)
+        self.assertIn("verdict: changes_required", out)
+        self.assertTrue((project / "wow/pb/chats/prd.audit.json").is_file())
+        self.assertEqual(run_cli(["pbchat", "audit", "rfc", "--project", str(project)])[0], 2)
+        self.assertEqual(run_cli(["pbchat", "audit", "../x", "--project", str(project)])[0], 2)
+
+
 if __name__ == "__main__":
     unittest.main()
