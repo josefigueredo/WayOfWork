@@ -12,6 +12,9 @@ import json
 import config
 import exitcodes
 import manifest
+import packets
+import review as review_mod
+import reviewers
 import snapshot as snapshot_mod
 import state as state_mod
 from sources.jira import JiraClient
@@ -131,6 +134,80 @@ def _cmd_snapshot(args) -> int:
     return exitcodes.OK
 
 
+def _cmd_review(args) -> int:
+    project = _project(args)
+    try:
+        cfg = config.load_config(project)
+        repo = Path(args.repo).resolve() if args.repo else project
+        if args.set == "readiness":
+            packet = packets.readiness_packet(project)
+        elif args.set == "story":
+            packet = packets.story_packet(project, args.ref, repo, args.base)
+        elif args.set == "epic":
+            packet = packets.epic_packet(project, args.ref, repo, args.base)
+        else:
+            if not args.doc:
+                sys.stderr.write("wow: --set claims requires --doc PATH\n")
+                return exitcodes.CANNOT_EVALUATE
+            packet = packets.claims_packet(Path(args.doc).resolve(), repo)
+    except (config.ConfigError, packets.PacketError, manifest.ManifestError) as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+
+    ref = args.ref
+    summary = review_mod.load_summary(project, ref, args.set)
+    dhash = packets.diff_hash(packet["body"])
+    action = review_mod.next_action(summary, dhash)
+    if action == "done":
+        print(f"{ref}: approved")
+        return exitcodes.OK
+    if action in ("hitl", "wait_for_changes"):
+        last = summary["rounds"][-1]
+        if action == "hitl":
+            print(f"{ref}: hitl after {last['n']} rounds — decide as a human:")
+        else:
+            print(f"round {last['n']} has open BLOCKERs and the diff did not change; fix them first:")
+        for blocker in last["blockers"]:
+            print(f"BLOCKER {blocker['anchor']} {blocker['path_line']} — {blocker['text']}")
+        return exitcodes.FINDINGS
+
+    try:
+        name, spec = reviewers.pick_reviewer(cfg, packet["cwd"])
+        text = reviewers.run_backend(spec, packets.build_prompt(packet), packet["cwd"])
+    except reviewers.NoReviewer as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    except (reviewers.ReviewerFailed, FileNotFoundError, OSError) as exc:
+        sys.stderr.write(f"wow: reviewer failed: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+
+    number = len(summary["rounds"]) + 1
+    raw = project / ".wow" / "reviews" / ref / f"round-{number}.md"
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    raw.write_text(text, encoding="utf-8")
+    parsed = review_mod.parse_verdict(text)
+    try:
+        summary = review_mod.record_round(summary, parsed, packet["anchors"], dhash)
+    except review_mod.ReviewOutputError as exc:
+        sys.stderr.write(f"wow: {exc}; raw output kept in {raw.relative_to(project)}\n")
+        return exitcodes.CANNOT_EVALUATE
+    review_mod.save_summary(project, summary)
+
+    if args.set == "readiness":
+        doc = manifest.load(project)
+        verdict = {"approved": "approved", "hitl": "hitl"}.get(summary["final"], "changes_required")
+        doc["plan"]["readiness"] = {"verdict": verdict, "rounds": len(summary["rounds"])}
+        manifest.save(project, doc)
+
+    last = summary["rounds"][-1]
+    print(f"round {last['n']}: {last['verdict']} (reviewer: {name})")
+    for blocker in last["blockers"]:
+        print(f"BLOCKER {blocker['anchor']} {blocker['path_line']} — {blocker['text']}")
+    if summary["final"] == "hitl":
+        print("escalated to HITL: decide as a human, no new round will open")
+    return exitcodes.OK if summary["final"] == "approved" else exitcodes.FINDINGS
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="wow", description="WayOfWork CLI")
     parser.add_argument("--version", action="store_true", help="print the version and exit")
@@ -158,6 +235,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     with_project(sub.add_parser("state", help="print the derived state as JSON")).set_defaults(handler=_cmd_state)
     with_project(sub.add_parser("snapshot", help="write wow/progress.json")).set_defaults(handler=_cmd_snapshot)
+
+    rv = with_project(sub.add_parser("review", help="run an anchored independent review"))
+    rv.add_argument("--set", required=True, choices=["readiness", "story", "epic", "claims"])
+    rv.add_argument("--ref", required=True, help="plan | Jira story key | epic id | claims doc name")
+    rv.add_argument("--repo", default=None, help="repository to diff or to verify claims against")
+    rv.add_argument("--base", default="main", help="git base for story/epic diffs (default: main)")
+    rv.add_argument("--doc", default=None, help="claims document (required for --set claims)")
+    rv.set_defaults(handler=_cmd_review)
     return parser
 
 

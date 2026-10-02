@@ -135,5 +135,73 @@ class SkillContractTest(unittest.TestCase):
         self.assertTrue(os.access(ROOT / "install.sh", os.X_OK))
 
 
+import sys as _sys  # noqa: E402
+
+_FAKE_REVIEWER = """import sys, pathlib
+data = sys.stdin.read()
+out = sys.argv[1]
+answer = pathlib.Path(sys.argv[2]).read_text()
+open(out, "w").write("OK" if "Reply with exactly OK" in data else answer)
+"""
+
+
+def _review_project(answer: str):
+    project = make_project()
+    script = write(project, "fake_reviewer.py", _FAKE_REVIEWER)
+    answer_file = write(project, "answer.txt", answer)
+    spec = {"argv": [_sys.executable, str(script), "{out}", str(answer_file)], "stdin": True, "output": "file"}
+    write(project, ".wow/config.json", _json.dumps({"reviewers": ["codex"], "reviewer_commands": {"codex": spec}}))
+    _manifest.save(project, valid_doc())
+    write(project, "wow/plan/PLAN.md", "## Brief\n- Goal: x\n")
+    return project, answer_file
+
+
+class ReviewCommandTest(unittest.TestCase):
+    def test_readiness_approved_updates_manifest(self):
+        project, _ = _review_project("VERDICT: APPROVED\n")
+        code, out, _ = run_cli(["review", "--set", "readiness", "--ref", "plan", "--project", str(project)])
+        self.assertEqual(code, 0)
+        self.assertIn("round 1: APPROVED (reviewer: codex)", out)
+        saved = _json.loads((project / "wow/plan/manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["plan"]["readiness"], {"verdict": "approved", "rounds": 1})
+        self.assertTrue((project / ".wow/reviews/plan/round-1.md").is_file())
+
+    def test_blocker_then_same_diff_waits(self):
+        project, _ = _review_project("VERDICT: CHANGES_REQUIRED\nBLOCKER R1 manifest.json:1 — task 1.1 has no AC\n")
+        args = ["review", "--set", "readiness", "--ref", "plan", "--project", str(project)]
+        code, out, _ = run_cli(args)
+        self.assertEqual(code, 1)
+        self.assertIn("BLOCKER R1", out)
+        code, out, _ = run_cli(args)
+        self.assertEqual(code, 1)
+        self.assertIn("round 1 has open BLOCKERs and the diff did not change", out)
+
+    def test_unparseable_output_exits_2_without_recording(self):
+        project, _ = _review_project("I think it is fine")
+        code, _, err = run_cli(["review", "--set", "readiness", "--ref", "plan", "--project", str(project)])
+        self.assertEqual(code, 2)
+        self.assertIn("VERDICT", err)
+        self.assertFalse((project / "wow/reviews/plan.json").exists())
+
+    def test_no_reviewer_exits_2(self):
+        project, _ = _review_project("VERDICT: APPROVED\n")
+        write(project, ".wow/config.json", _json.dumps({"reviewers": ["claude"]}))
+        code, _, err = run_cli(["review", "--set", "readiness", "--ref", "plan", "--project", str(project)])
+        self.assertEqual(code, 2)
+        self.assertIn("no reviewer available", err)
+
+    def test_claims_requires_doc(self):
+        project, _ = _review_project("VERDICT: APPROVED\n")
+        self.assertEqual(run_cli(["review", "--set", "claims", "--ref", "facts", "--project", str(project)])[0], 2)
+
+
+class ReviewSkillContractTest(unittest.TestCase):
+    def test_review_skill_frontmatter(self):
+        text = (ROOT / "skills/wow-review/SKILL.md").read_text(encoding="utf-8")
+        front = _re.match(r"^---\nname: (.+)\ndescription: (.+)\n---\n", text)
+        self.assertEqual(front.group(1), "wow-review")
+        self.assertLessEqual(len(text.splitlines()), 80)
+
+
 if __name__ == "__main__":
     unittest.main()
