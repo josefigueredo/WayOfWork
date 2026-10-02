@@ -95,6 +95,9 @@ const cost = C.estimateCost([R({tokens_in: 1000000, tokens_out: 1000000}), R({mo
   {as_of: "2026-09-01", per_mtok: {m1: {in: 3, out: 15}}});
 assert.deepStrictEqual([cost.available, cost.as_of, cost.priced, cost.unpriced, cost.byPool.own], [true, "2026-09-01", 1, 1, 18]);
 
+const blind = C.estimateCost([R({}), R({vendor: "cursor", model: "c1", tokens_in: 2000000})],
+  {as_of: "x", per_mtok: {m1: {in: 3}, c1: {in: 1}}});
+assert.deepStrictEqual([blind.priced, blind.unpriced, blind.byPool.own, blind.byPool.cursor], [1, 1, null, 2]);
 assert.strictEqual(C.weekStart("2026-09-10T10:00:00Z"), "2026-09-07");
 assert.strictEqual(C.weekStart("nope"), null);
 assert.deepStrictEqual(C.weeklyThroughput([{ts: "2026-09-08T10:00:00Z", tasks_done: 0},
@@ -174,6 +177,11 @@ const port = R.portfolio([{name: "a.json", doc: ex("full.json")}, {name: "b.json
 assert.ok(port.includes("Portfolio (2 files)"));
 assert.ok(port.includes('data-select="1"'));
 assert.ok(port.includes("not valid JSON"));
+const ownUnpriced = ex("full.json");
+ownUnpriced.current.pricing.per_mtok = {"composer-2.5": {in: 1.25, out: 10}};
+const ou = R.renderDoc({name: "ou", doc: ownUnpriced}).html;
+assert.ok(ou.includes("cost: no data"), "pool without priced records shows no data, not $0.00");
+assert.ok(!ou.includes("$0.00 estimated"));
 const svgs = full.match(/<svg [^>]*>/g) || [];
 assert.ok(svgs.length >= 4);
 assert.ok(svgs.every((s) => / width="\d+"/.test(s)), "every svg declares its nominal width");

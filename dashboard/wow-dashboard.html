@@ -253,18 +253,20 @@ const WowCore = (() => {
     if (!Object.keys(table).length) {
       return {available: false, reason: "no price table: set pricing.per_mtok in .wow/config.json"};
     }
-    const byPool = {own: 0, cursor: 0, other: 0};
+    // A pool stays null until a record with both a rate and a token counter is priced: no data is never $0 (D12).
+    const byPool = {own: null, cursor: null, other: null};
     let priced = 0;
     let unpriced = 0;
     for (const r of records(usage)) {
-      const rates = table[r.model];
-      if (!rates) { unpriced += 1; continue; }
-      let cost = 0;
+      const rates = table[r.model] || {};
+      let cost = null;
       for (const [field, rate] of [["tokens_in", rates.in], ["tokens_out", rates.out],
                                    ["cache_read", rates.cache_read], ["cache_write", rates.cache_write]]) {
-        if (isNum(r[field]) && isNum(rate)) cost += (r[field] * rate) / 1e6;
+        if (isNum(r[field]) && isNum(rate)) cost = (cost === null ? 0 : cost) + (r[field] * rate) / 1e6;
       }
-      byPool[pool(r.vendor)] += cost;
+      if (cost === null) { unpriced += 1; continue; }
+      const name = pool(r.vendor);
+      byPool[name] = (byPool[name] === null ? 0 : byPool[name]) + cost;
       priced += 1;
     }
     return {available: true, as_of: (pricing && pricing.as_of) || null, byPool, priced, unpriced};
@@ -527,12 +529,12 @@ const WowRender = (() => {
     const rows = C.usageByModel(usage);
     const pools = C.poolTotals(usage);
     const cost = C.estimateCost(usage, doc.current.pricing);
-    const costSub = (name) => (cost.available ? `${fmtUsd(cost.byPool[name])} estimated` : "cost: no data");
+    const costSub = (name) => (cost.available && isNum(cost.byPool[name]) ? `${fmtUsd(cost.byPool[name])} estimated` : "cost: no data");
     const tiles = `<div class="tiles">` +
       `<div class="tile"><div class="label">Own accounts (Claude + Codex)</div><div class="value">${fmt(C.sumOrNull([pools.own.tokens_in, pools.own.tokens_out]))}</div><div class="sub">tokens in + out · ${pools.own.count} records · ${costSub("own")}</div></div>` +
       `<div class="tile pool-cursor"><div class="label">Cursor pool</div><div class="value">${fmt(C.sumOrNull([pools.cursor.tokens_in, pools.cursor.tokens_out]))}</div><div class="sub">tokens in + out · ${pools.cursor.count} runs · ${costSub("cursor")}</div></div></div>`;
     const costNote = cost.available
-      ? `<p class="source">Costs are estimated from the price table as of ${esc(cost.as_of || "an unknown date")}; ${cost.unpriced} record(s) have no price and are excluded.</p>`
+      ? `<p class="source">Costs are estimated from the price table as of ${esc(cost.as_of || "an unknown date")}; ${cost.unpriced} record(s) have no price or no token data and are excluded.</p>`
       : noData(cost.reason);
     const vendorsShown = [...new Set(rows.map((r) => C.vendorKey(r.vendor)))];
     const names = {anthropic: "Anthropic (Claude)", openai: "OpenAI (Codex)", cursor: "Cursor", other: "Other"};
