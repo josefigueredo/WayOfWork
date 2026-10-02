@@ -54,6 +54,13 @@ class PredictTest(unittest.TestCase):
         result = pbcompletion.predict("rfc", text[:start] + text[end:])
         self.assertIn("coexistence_strategy", [p["field"] for p in result["pending"]])
 
+    def test_table_in_free_text_section_fills_it_like_pb(self):
+        text = fill(pbtemplate.load("rfc"))
+        start = text.index("## 5. Alternativas Consideradas")
+        end = text.index("## 6. Preguntas Abiertas")
+        table = "## 5. Alternativas Consideradas\n| Alternativa | Pros | Contras |\n| --- | --- | --- |\n| A | x | y |\n\n"
+        self.assertEqual(pbcompletion.predict("rfc", text[:start] + table + text[end:])["percentage"], 100)
+
 
 class EpicCheckTest(unittest.TestCase):
     def test_epic_errors_for_invalid_values(self):

@@ -173,10 +173,15 @@ def _content_state(text: str) -> str:
 
 
 def _free_text(body: List[str], literals: List[str]) -> str:
+    # PB keeps the whole section content, tables included; table rows are only another unit's
+    # when the template section itself has a table.
+    template_table = any(literal.startswith("|") for literal in literals)
     kept = []
     for line in body:
         stripped = line.strip()
-        if not stripped or stripped.startswith("|") or _LABEL_RE.match(stripped) or _norm(stripped) in literals:
+        is_row = stripped.startswith("|")
+        if not stripped or (is_row and (template_table or _SEPARATOR_RE.match(stripped))) \
+                or _LABEL_RE.match(stripped) or _norm(stripped) in literals:
             continue
         kept.append(stripped.lstrip(">").strip())
     return "\n".join(kept)
