@@ -167,6 +167,14 @@ class EpicPhasesTest(unittest.TestCase):
         self.assertEqual(result["next_steps"][0]["where"], "product-brain")
         self.assertIn("wow/pb/prd.md", result["next_steps"][0]["command"])
 
+    def test_exported_epic_does_not_need_a_closing_phrase_in_its_chats(self):
+        p = project_at_phase_3()  # E1 already exported as IRIS-40
+        for name in ("prd", "rfc", "epic-E1"):
+            write(p, f"wow/pb/chats/{name}.md", "¿Querés que procedamos con el repaso de validación final?")
+            write(p, f"wow/pb/chats/{name}.audit.json", '{"verdict": "approved"}')
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
+        self.assertEqual(result["epics"][0]["phase"], 4)
+
     def test_phase_3_unaudited_chat(self):
         p = project_at_phase_3()
         close_chats(p)

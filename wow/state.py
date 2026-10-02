@@ -152,7 +152,9 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
     for doc_name in ("prd", "rfc", f"epic-{eid}"):
         label = _CHAT_LABEL.get(doc_name, f"epic {eid}")
         chat = pbchat.chat_status(project, doc_name)
-        if not chat["present"] or not chat["closed"]:
+        # The closing phrase only tells whether a chat finished before export; once the epic has a Jira key,
+        # Jira is the truth and the copied, audited chat is enough.
+        if not chat["present"] or (not chat["closed"] and not key):
             steps.append(_step(eid, 3, f"finish the {label} chat in Product Brain", "product-brain",
                                models["product_brain"], f"paste the preamble and wow/pb/{doc_name}.md",
                                f"wow/pb/chats/{doc_name}.md is missing or not closed"))
