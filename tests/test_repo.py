@@ -15,11 +15,19 @@ class ContextPackTest(unittest.TestCase):
 
     def test_counts_unchecked_items_only(self):
         project = make_project()
-        write(project, "wow/context-pack/facts.md", "# Facts\n")
+        write(project, "wow/context-pack/facts.md", "# Facts\n- C1: hecho [MEDIDO] (fuente: README.md)\n")
         write(project, "wow/context-pack/pending-owner.md",
               "- [ ] North Star\n- [x] SLA: [SIN DEFINIR] (accepted)\n  - [ ] rollout\n")
         self.assertEqual(repo.context_pack_status(project),
                          {"facts": True, "pending_file": True, "pending_open": 2})
+
+
+class SkeletonFactsTest(unittest.TestCase):
+    def test_skeleton_without_claims_is_not_a_context_pack(self):
+        project = make_project()
+        write(project, "wow/context-pack/facts.md", "# Hechos\n\n<!-- one claim per line: - C1: … -->\n")
+        write(project, "wow/context-pack/pending-owner.md", "")
+        self.assertFalse(repo.context_pack_status(project)["facts"])
 
 
 class PacketTest(unittest.TestCase):

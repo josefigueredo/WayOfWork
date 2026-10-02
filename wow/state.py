@@ -76,7 +76,12 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
             steps.append(_step(None, 0, "run Spec-Kit discovery on the existing code", "cursor",
                                models["cursor_reason"], "/spec-kit.discovery",
                                "brownfield plans cite the real architecture from .spec-kit/discovery/architecture.md"))
-        if doc["plan"]["readiness"]["verdict"] != "approved":
+        lint = manifest.lint(doc)
+        if lint:
+            plan["phase"] = min(plan["phase"], 1)
+            steps.append(_step(None, 1, "complete the plan", "harness", models["author"], "wow-plan",
+                               f"{len(lint)} lint finding(s), first: {lint[0]}"))
+        elif doc["plan"]["readiness"]["verdict"] != "approved":
             plan["phase"] = min(plan["phase"], 1)
             steps.append(_step(None, 1, "run the readiness review", "harness", models["reviewer"],
                                "wow review --set readiness --ref plan",

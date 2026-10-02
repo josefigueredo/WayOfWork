@@ -33,7 +33,7 @@ def summary(key, stories, done):
 def project_at_phase_3():
     """Context pack done, readiness approved, packets fresh, manifest frozen with E1=IRIS-40."""
     p = make_project()
-    write(p, "wow/context-pack/facts.md", "# Facts\n")
+    write(p, "wow/context-pack/facts.md", "- C1: hecho de prueba [MEDIDO] (fuente: README.md)\n")
     write(p, "wow/context-pack/pending-owner.md", "- [x] North Star\n")
     write(p, ".spec-kit/discovery/architecture.md", "# Arquitectura\n")
     doc = pb_ready_doc()
@@ -75,7 +75,7 @@ class PlanPhasesTest(unittest.TestCase):
 
     def test_open_owner_items_are_blockers_and_planning_continues(self):
         p = make_project()
-        write(p, "wow/context-pack/facts.md", "x")
+        write(p, "wow/context-pack/facts.md", "- C1: hecho de prueba [MEDIDO] (fuente: README.md)\n")
         write(p, "wow/context-pack/pending-owner.md", "- [ ] North Star\n- [ ] SLA\n")
         result = state.compute_state(p, CFG)
         self.assertEqual(result["plan"]["phase"], 0)
@@ -84,7 +84,7 @@ class PlanPhasesTest(unittest.TestCase):
 
     def test_readiness_pending_is_phase_1(self):
         p = make_project()
-        write(p, "wow/context-pack/facts.md", "x")
+        write(p, "wow/context-pack/facts.md", "- C1: hecho de prueba [MEDIDO] (fuente: README.md)\n")
         write(p, "wow/context-pack/pending-owner.md", "- [x] ok\n")
         manifest.save(p, dict(valid_doc(), plan=dict(valid_doc()["plan"], mode="greenfield")))
         result = state.compute_state(p, CFG)
@@ -102,7 +102,7 @@ class PlanPhasesTest(unittest.TestCase):
 
     def test_invalid_manifest_json_gives_fix_step(self):
         p = make_project()
-        write(p, "wow/context-pack/facts.md", "x")
+        write(p, "wow/context-pack/facts.md", "- C1: hecho de prueba [MEDIDO] (fuente: README.md)\n")
         write(p, "wow/context-pack/pending-owner.md", "")
         write(p, "wow/plan/manifest.json", "{bad")
         result = state.compute_state(p, CFG)
@@ -192,7 +192,7 @@ class EpicPhasesTest(unittest.TestCase):
 class ModeStepsTest(unittest.TestCase):
     def test_missing_mode_and_brownfield_discovery_steps(self):
         p = make_project()
-        write(p, "wow/context-pack/facts.md", "x")
+        write(p, "wow/context-pack/facts.md", "- C1: hecho de prueba [MEDIDO] (fuente: README.md)\n")
         write(p, "wow/context-pack/pending-owner.md", "")
         manifest.save(p, valid_doc())
         result = state.compute_state(p, CFG)
@@ -204,6 +204,19 @@ class ModeStepsTest(unittest.TestCase):
         write(p, ".spec-kit/discovery/architecture.md", "# Arquitectura\n")
         self.assertNotIn("run Spec-Kit discovery on the existing code",
                          state.compute_state(p, CFG)["plan"]["missing"])
+
+
+class TemplateManifestTest(unittest.TestCase):
+    def test_template_manifest_asks_to_complete_the_plan_before_readiness(self):
+        p = make_project()
+        write(p, "wow/context-pack/facts.md", "- C1: hecho [MEDIDO] (fuente: README.md)\n")
+        write(p, "wow/context-pack/pending-owner.md", "")
+        manifest.save(p, manifest.new_manifest("0001-x", "X", "2026-10-02", mode="brownfield"))
+        write(p, ".spec-kit/discovery/architecture.md", "x")
+        result = state.compute_state(p, CFG)
+        self.assertEqual(result["next_steps"][0]["action"], "complete the plan")
+        self.assertEqual(result["next_steps"][0]["command"], "wow-plan")
+        self.assertNotIn("run the readiness review", result["plan"]["missing"])
 
 
 if __name__ == "__main__":

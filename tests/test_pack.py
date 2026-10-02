@@ -95,7 +95,7 @@ class WriteTest(unittest.TestCase):
 class StateIntegrationTest(unittest.TestCase):
     def test_filled_packets_reach_phase_3_and_unfilled_stay_in_phase_2(self):
         project = make_project()
-        write(project, "wow/context-pack/facts.md", "x")
+        write(project, "wow/context-pack/facts.md", "- C1: hecho de prueba [MEDIDO] (fuente: README.md)\n")
         write(project, "wow/context-pack/pending-owner.md", "")
         write(project, ".spec-kit/discovery/architecture.md", "# Arquitectura\n")
         doc = pb_ready_doc()
