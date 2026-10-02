@@ -25,6 +25,7 @@ KNOWN_INVENTIONS = [
     ("SLA", r"\bSLAs?\b"),
 ]
 _NEGATION_RE = re.compile(r"\b(no hay|no es|no existe|no usa|inexistente|sin)\b", re.IGNORECASE)
+_CLAUSE_RE = re.compile(r"[;.!?]")
 _CHECK_RE = re.compile(r"[✅✔]")
 _CITATION_RE = re.compile(r"\(|fuente|source|secci[oó]n|§", re.IGNORECASE)
 _COMPLETION_RE = re.compile(r"(?:llega al|documento al|completitud[^0-9\n]{0,20})\s*(\d{1,3})\s*%", re.IGNORECASE)
@@ -48,6 +49,15 @@ def open_questions(text: str) -> List[str]:
         else:
             break
     return items
+
+
+def _affirmed(regex: re.Pattern, line: str) -> bool:
+    """True if the term appears in a clause without a negation before it ("no hay X; agregar Y" flags Y)."""
+    for clause in _CLAUSE_RE.split(line):
+        for match in regex.finditer(clause):
+            if not _NEGATION_RE.search(clause[:match.start()]):
+                return True
+    return False
 
 
 def _preamble_lines() -> set:
@@ -96,7 +106,7 @@ def audit(project: Path, doc: str, extra_inventions: Optional[List[dict]] = None
         if regex.search(allowed):
             continue
         for number, line in lines:
-            if regex.search(line) and not _NEGATION_RE.search(line):
+            if _affirmed(regex, line):
                 inventions.append({"term": term, "line": number, "text": line.strip()[:160], "source": "known-list"})
                 break
     inventions += list(extra_inventions or [])

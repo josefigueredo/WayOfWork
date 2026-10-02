@@ -87,6 +87,9 @@ def check(project: Path) -> List[str]:
                 continue
             if source:
                 rel = source.strip().split(":")[0]
-                if not (project / rel).exists():
+                target = (project / rel).resolve()
+                if target != project.resolve() and project.resolve() not in target.parents:
+                    findings.append(f"{name}:{number}: {claim_id} source outside the project: {rel}")
+                elif not target.exists():
                     findings.append(f"{name}:{number}: {claim_id} source not found: {rel}")
     return findings

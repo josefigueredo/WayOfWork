@@ -51,5 +51,16 @@ class CheckTest(unittest.TestCase):
         self.assertEqual(len(contextpack.check(make_project())), 4)
 
 
+class SourceScopeTest(unittest.TestCase):
+    def test_source_outside_project_is_rejected(self):
+        project = make_project()
+        contextpack.scan(project)
+        outside = project.parent / f"{project.name}-outside.md"
+        outside.write_text("x", encoding="utf-8")
+        self.addCleanup(outside.unlink)
+        write(project, "wow/context-pack/facts.md", f"- C1: x [MEDIDO] (fuente: ../{outside.name}:1)\n")
+        self.assertEqual(contextpack.check(project), [f"facts.md:1: C1 source outside the project: ../{outside.name}"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -91,5 +91,11 @@ class DeepAuditTest(unittest.TestCase):
         self.assertRegex(prompt, r"\n\d+: ")
 
 
+class NegationScopeTest(unittest.TestCase):
+    def test_negation_only_covers_its_own_clause(self):
+        result = pbaudit.audit(setup(chat="No hay API Gateway; agregar Okta como IdP.\n"), "prd")
+        self.assertEqual([i["term"] for i in result["inventions"]], ["Okta"])
+
+
 if __name__ == "__main__":
     unittest.main()
