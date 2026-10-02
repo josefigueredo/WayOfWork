@@ -54,5 +54,26 @@ class PacketTemplateTest(unittest.TestCase):
         self.assertEqual(repo.pending_items(project), ["North Star", "rollout"])
 
 
+class ChildReposTest(unittest.TestCase):
+    def test_nested_repos_up_to_three_levels_skipping_noise(self):
+        project = make_project()
+        write(project, "engine/prism-group/.git/HEAD", "ref: refs/heads/main\n")
+        write(project, "engine/prism-analyzer/.git", "gitdir: ../prism-group/.git/worktrees/x\n")
+        write(project, "product/dora-group/platform-dora-bff/.git/HEAD", "x")
+        write(project, "product/dora-group/platform-dora-bff/vendor/inner/.git/HEAD", "x")
+        write(project, "product/catalog/.history/.git/HEAD", "x")
+        write(project, "node_modules/pkg/.git/HEAD", "x")
+        write(project, "a/b/c/d/.git/HEAD", "x")
+        self.assertEqual(repo.child_repos(project), [
+            "engine/prism-analyzer", "engine/prism-group", "product/dora-group/platform-dora-bff"])
+
+    def test_submodules_are_included_and_project_root_is_not(self):
+        project = make_project()
+        write(project, ".git/HEAD", "x")
+        write(project, ".gitmodules", '[submodule "a"]\n\tpath = deep/x/y/z\n')
+        write(project, "deep/x/y/z/.git", "gitdir: x\n")
+        self.assertEqual(repo.child_repos(project), ["deep/x/y/z"])
+
+
 if __name__ == "__main__":
     unittest.main()

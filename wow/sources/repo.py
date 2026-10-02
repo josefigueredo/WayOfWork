@@ -53,3 +53,30 @@ def submodule_paths(project: Path) -> List[str]:
     if not path.is_file():
         return []
     return [m.group(1) for m in map(_SUBMODULE_RE.match, path.read_text(encoding="utf-8").splitlines()) if m]
+
+
+_REPO_SKIP = {".git", "node_modules", ".terraform", ".venv", "venv", "dist", "build", ".history", "__pycache__",
+              "wow", ".wow", "specs", ".spec-kit"}
+
+
+def child_repos(project: Path, max_depth: int = 3) -> List[str]:
+    """Git repositories under the project (multi-repo workspaces), as relative paths.
+
+    Walks up to max_depth levels, does not descend into a repository once found, skips tool and editor
+    folders (.history, node_modules, .terraform…), and adds existing submodule paths. The root is excluded.
+    """
+    found = {p for p in submodule_paths(project) if (project / p).exists()}
+
+    def walk(directory: Path, depth: int) -> None:
+        if depth > max_depth:
+            return
+        for item in sorted(directory.iterdir()):
+            if not item.is_dir() or item.is_symlink() or item.name in _REPO_SKIP:
+                continue
+            if (item / ".git").exists():
+                found.add(item.relative_to(project).as_posix())
+                continue
+            walk(item, depth + 1)
+
+    walk(project, 1)
+    return sorted(found)

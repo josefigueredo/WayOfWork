@@ -149,7 +149,9 @@ def _github_prs(project: Path, cfg: dict):
     if not (cfg.get("github") or {}).get("enabled", True):
         return [], "disabled"
     prs, errors, ok = [], [], 0
-    dirs = [project] + [project / p for p in repo_src.submodule_paths(project) if (project / p).exists()]
+    dirs = ([project] if (project / ".git").exists() else []) + [project / p for p in repo_src.child_repos(project)]
+    if not dirs:
+        return [], "no git repositories found"
     for directory in dirs:
         try:
             prs += github.pull_requests(directory)

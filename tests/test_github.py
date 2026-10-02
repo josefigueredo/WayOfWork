@@ -37,5 +37,21 @@ class GithubTest(unittest.TestCase):
         self.assertEqual(github.checks_state([{"state": "SUCCESS"}, {"conclusion": "SUCCESS"}]), "passing")
 
 
+class GithubDirsTest(unittest.TestCase):
+    def test_snapshot_reads_nested_repos_and_skips_non_git_root(self):
+        from unittest import mock
+        from helpers import write
+        import cli
+        project = make_project()
+        write(project, "engine/prism-group/.git/HEAD", "x")
+        write(project, "product/dora-group/bff/.git/HEAD", "x")
+        seen = []
+        with mock.patch.object(cli.github, "pull_requests", side_effect=lambda d: seen.append(d.name) or []):
+            prs, status = cli._github_prs(project, {"github": {"enabled": True}})
+        self.assertEqual((sorted(seen), status), (["bff", "prism-group"], "ok"))
+        with mock.patch.object(cli.github, "pull_requests", side_effect=AssertionError("no call")):
+            self.assertEqual(cli._github_prs(make_project(), {}), ([], "no git repositories found"))
+
+
 if __name__ == "__main__":
     unittest.main()

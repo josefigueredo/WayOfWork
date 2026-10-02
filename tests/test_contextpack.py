@@ -62,5 +62,15 @@ class SourceScopeTest(unittest.TestCase):
         self.assertEqual(contextpack.check(project), [f"facts.md:1: C1 source outside the project: ../{outside.name}"])
 
 
+class NestedScanTest(unittest.TestCase):
+    def test_scan_finds_nested_repos(self):
+        project = make_project()
+        write(project, "product/dora-group/platform-dora-bff/.git/HEAD", "x")
+        write(project, "product/dora-group/platform-dora-bff/README.md", "# BFF\n")
+        result = contextpack.scan(project)
+        self.assertEqual(result["children"], ["product/dora-group/platform-dora-bff"])
+        self.assertIn("product/dora-group/platform-dora-bff/README.md", result["docs"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -8,7 +8,6 @@ from typing import Dict, List
 from sources import repo
 
 CLAIM_FILES = ("facts.md", "metrics.md", "decisions.md", "contracts.md")
-_SKIP = {"wow", ".wow", "specs", ".spec-kit", "node_modules", ".git"}
 _CLAIM_START_RE = re.compile(r"^\s*-\s*(C[0-9]+):")
 _CLAIM_FULL_RE = re.compile(r"^\s*-\s*(C[0-9]+):\s*(.+?)\s*\[(MEDIDO|ESTIMACI[ÓO]N|SIN DEFINIR)\]\s*"
                             r"(?:\((?:fuente|source):\s*([^)]+)\))?\s*$")
@@ -24,11 +23,7 @@ SKELETONS: Dict[str, str] = {
 
 
 def children(project: Path) -> List[Path]:
-    found = {project / p for p in repo.submodule_paths(project) if (project / p).exists()}
-    for item in project.iterdir():
-        if item.is_dir() and item.name not in _SKIP and (item / ".git").exists():
-            found.add(item)
-    return sorted(found, key=lambda p: p.name)
+    return [project / rel for rel in repo.child_repos(project)]
 
 
 def _docs(project: Path, root: Path) -> List[str]:
@@ -54,7 +49,7 @@ def scan(project: Path) -> dict:
     lines += [f"- {k.name} ({k.relative_to(project).as_posix()})" for k in kids] or ["- (ninguno)"]
     lines += ["", "## Documentos"] + ([f"- {d}" for d in docs] or ["- (ninguno)"]) + [""]
     (base / "inventory.md").write_text("\n".join(lines), encoding="utf-8")
-    return {"children": [k.name for k in kids], "docs": docs, "created": created}
+    return {"children": [k.relative_to(project).as_posix() for k in kids], "docs": docs, "created": created}
 
 
 def check(project: Path) -> List[str]:
