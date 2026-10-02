@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>WayOfWork Dashboard</title>
+<style>
+body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+</style>
+</head>
+<body>
+<header>
+  <h1>WayOfWork Dashboard</h1>
+  <div class="controls">
+    <label class="file">Open progress.json <input id="file" type="file" accept=".json,application/json" multiple></label>
+    <button id="theme" type="button">Toggle theme</button>
+    <button id="print" type="button">Print</button>
+  </div>
+</header>
+<div id="drop" class="drop">Drop one or more <code>wow/progress.json</code> files here. Nothing leaves this page.</div>
+<div id="warnings" role="status"></div>
+<div id="portfolio"></div>
+<main id="panels"></main>
+<div id="tip" role="tooltip" hidden></div>
+<script id="wow-core">
+const WowCore = (() => {
+  "use strict";
+  const PHASES = ["Context", "Plan", "Packets", "Product Brain", "Spec-Kit", "Build", "Close"];
+  const VENDORS = ["anthropic", "openai", "cursor"];
+  const POOLS = {anthropic: "own", openai: "own", cursor: "cursor"};
+  const TOKEN_FIELDS = ["tokens_in", "tokens_out", "cache_read", "cache_write", "reasoning_out"];
+
+  const arr = (v) => (Array.isArray(v) ? v : []);
+  const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+
+  function validate(doc) {
+    if (!doc || typeof doc !== "object" || Array.isArray(doc)) return {ok: false, warnings: ["not a JSON object"]};
+    const warnings = [];
+    if (doc.schema_version !== 1) {
+      warnings.push(`schema_version ${JSON.stringify(doc.schema_version)} is not 1; showing what is recognizable`);
+    }
+    for (const key of ["history", "usage"]) if (!(key in doc)) warnings.push(`missing "${key}"`);
+    const ok = !!doc.current && typeof doc.current === "object";
+    if (!ok) warnings.push('missing "current"');
+    return {ok, warnings};
+  }
+
+  function phaseState(phase, col) {
+    if (!isNum(phase)) return "unknown";
+    if (phase > col) return "done";
+    return phase === col ? "current" : "todo";
+  }
+
+  function sumOrNull(values) {
+    let total = null;
+    for (const v of values) if (isNum(v)) total = (total === null ? 0 : total) + v;
+    return total;
+  }
+
+  function median(sorted) {
+    if (!sorted.length) return null;
+    const mid = sorted.length >> 1;
+    return sorted.length % 2 ? sorted[mid] : Math.trunc((sorted[mid - 1] + sorted[mid]) / 2);
+  }
+
+  function quantile(sorted, q) {
+    if (!sorted.length) return null;
+    const rank = Math.min(sorted.length, Math.max(1, Math.ceil(q * sorted.length)));
+    return sorted[rank - 1];
+  }
+
+  const vendorKey = (vendor) => (VENDORS.includes(vendor) ? vendor : "other");
+  const pool = (vendor) => POOLS[vendor] || "other";
+  const records = (usage) => arr(usage).filter((r) => r && typeof r === "object");
+
+  function usageByModel(usage) {
+    const groups = new Map();
+    for (const r of records(usage)) {
+      const key = `${r.vendor}\u0000${r.model}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    }
+    const rows = [];
+    for (const items of groups.values()) {
+      const durations = items.map((r) => r.duration_ms).filter(isNum).sort((a, b) => a - b);
+      const row = {vendor: items[0].vendor ?? null, model: items[0].model ?? null, pool: pool(items[0].vendor),
+                   count: items.length, median_ms: median(durations), p95_ms: quantile(durations, 0.95)};
+      for (const field of TOKEN_FIELDS) row[field] = sumOrNull(items.map((r) => r[field]));
+      rows.push(row);
+    }
+    const rank = (v) => (VENDORS.indexOf(v) < 0 ? VENDORS.length : VENDORS.indexOf(v));
+    return rows.sort((a, b) => rank(a.vendor) - rank(b.vendor) || String(a.model).localeCompare(String(b.model)));
+  }
+
+  function poolTotals(usage) {
+    const out = {};
+    for (const name of ["own", "cursor", "other"]) {
+      const items = records(usage).filter((r) => pool(r.vendor) === name);
+      out[name] = {count: items.length, tokens_in: sumOrNull(items.map((r) => r.tokens_in)),
+                   tokens_out: sumOrNull(items.map((r) => r.tokens_out))};
+    }
+    return out;
+  }
+
+  const refEpic = (ref) => (typeof ref === "string" && ref ? ref.split("/")[0] : null);
+
+  function usageByEpic(usage) {
+    const groups = new Map();
+    for (const r of records(usage)) {
+      const epic = refEpic(r.ref) || "unattributed";
+      if (!groups.has(epic)) groups.set(epic, {epic, own: [], cursor: []});
+      const target = groups.get(epic)[pool(r.vendor) === "cursor" ? "cursor" : "own"];
+      target.push(r.tokens_in, r.tokens_out);
+    }
+    return [...groups.values()].map((g) => ({epic: g.epic, own: sumOrNull(g.own), cursor: sumOrNull(g.cursor)}));
+  }
+
+  function estimateCost(usage, pricing) {
+    const table = (pricing && pricing.per_mtok) || {};
+    if (!Object.keys(table).length) {
+      return {available: false, reason: "no price table: set pricing.per_mtok in .wow/config.json"};
+    }
+    const byPool = {own: 0, cursor: 0, other: 0};
+    let priced = 0;
+    let unpriced = 0;
+    for (const r of records(usage)) {
+      const rates = table[r.model];
+      if (!rates) { unpriced += 1; continue; }
+      let cost = 0;
+      for (const [field, rate] of [["tokens_in", rates.in], ["tokens_out", rates.out],
+                                   ["cache_read", rates.cache_read], ["cache_write", rates.cache_write]]) {
+        if (isNum(r[field]) && isNum(rate)) cost += (r[field] * rate) / 1e6;
+      }
+      byPool[pool(r.vendor)] += cost;
+      priced += 1;
+    }
+    return {available: true, as_of: (pricing && pricing.as_of) || null, byPool, priced, unpriced};
+  }
+
+  function weekStart(ts) {
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return null;
+    const back = (d.getUTCDay() + 6) % 7;
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - back)).toISOString().slice(0, 10);
+  }
+
+  function weeklyThroughput(history) {
+    const lastByWeek = new Map();
+    for (const h of arr(history)) {
+      const week = h && weekStart(h.ts);
+      if (week && isNum(h.tasks_done)) lastByWeek.set(week, h.tasks_done);
+    }
+    const weeks = [...lastByWeek.keys()].sort();
+    return weeks.slice(1).map((week, i) => ({week, done: Math.max(0, lastByWeek.get(week) - lastByWeek.get(weeks[i]))}));
+  }
+
+  function burnup(history, epicId) {
+    return arr(history)
+      .filter((h) => h && h.epics && h.epics[epicId] && isNum(h.epics[epicId].done))
+      .map((h) => ({ts: h.ts, done: h.epics[epicId].done, total: h.epics[epicId].total}));
+  }
+
+  function quality(reviews) {
+    const rows = arr(reviews).filter((r) => r && typeof r === "object");
+    const decided = rows.filter((r) => r.final === "approved" || r.final === "hitl");
+    const firstPass = decided.filter((r) => r.first_pass).length;
+    return {total: rows.length, decided: decided.length,
+            firstPassRate: decided.length ? firstPass / decided.length : null,
+            hitl: rows.filter((r) => r.final === "hitl").length, rows};
+  }
+
+  return {PHASES, VENDORS, arr, validate, phaseState, sumOrNull, median, quantile, vendorKey, pool,
+          usageByModel, poolTotals, refEpic, usageByEpic, estimateCost, weekStart, weeklyThroughput, burnup,
+          quality};
+})();
+</script>
+<script id="wow-render"></script>
+<script id="wow-app"></script>
+</body>
+</html>
