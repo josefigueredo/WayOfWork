@@ -221,6 +221,24 @@ class RunWuCommandTest(unittest.TestCase):
         self.assertIn("cursor-agent -p '/spec-kit.implement WU-008 --max-iterations 5' --model composer-2.5", out)
 
 
+class SkCommandTest(unittest.TestCase):
+    def test_sk_cmd_and_status_codes(self):
+        project = make_project()
+        code, out, _ = run_cli(["sk", "cmd", "sync", "--epic", "IRIS-40", "--project", str(project)])
+        self.assertEqual(code, 0)
+        self.assertIn("/spec-kit.sync --epic-key IRIS-40", out)
+        self.assertEqual(run_cli(["sk", "cmd", "sync", "--project", str(project)])[0], 2)
+        self.assertEqual(run_cli(["sk", "status", "--project", str(project)])[0], 0)
+        write(project, ".spec-kit/import_report.md", "⚠ missing AC\n")
+        self.assertEqual(run_cli(["sk", "status", "--project", str(project)])[0], 1)
+
+    def test_sk_prep_skill_frontmatter(self):
+        text = (ROOT / "skills/wow-sk-prep/SKILL.md").read_text(encoding="utf-8")
+        front = _re.match(r"^---\nname: (.+)\ndescription: (.+)\n---\n", text)
+        self.assertEqual(front.group(1), "wow-sk-prep")
+        self.assertLessEqual(len(text.splitlines()), 80)
+
+
 class ReviewSkillContractTest(unittest.TestCase):
     def test_review_skill_frontmatter(self):
         text = (ROOT / "skills/wow-review/SKILL.md").read_text(encoding="utf-8")

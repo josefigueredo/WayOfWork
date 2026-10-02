@@ -24,6 +24,10 @@ wow state         # el estado completo en JSON, sin escribir nada
 wow manifest validate | lint
 wow plan init 0001-mi-iniciativa --title "Mi iniciativa"
 wow plan freeze --epics E1=IRIS-40   # sumar épicas después es válido; cambiar una key ya registrada pide --reopen "<motivo>"
+wow review --set story --ref IRIS-41 --repo ../backend-api   # review independiente anclado (Codex)
+wow usage                                                   # consumo por marca y modelo
+wow sk status | wow sk cmd plan --feature specs/001-x       # preparar pasos de Spec-Kit
+wow run-wu WU-008 --epic E1                                 # implementar una WU midiendo el consumo
 ```
 
 Credenciales de Jira: variables `IC_JIRA_BASE_URL`, `IC_JIRA_USER_EMAIL`, `IC_JIRA_API_TOKEN`

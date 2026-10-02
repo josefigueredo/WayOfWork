@@ -17,6 +17,7 @@ import packets
 import review as review_mod
 import reviewers
 import runwu
+import sk
 import snapshot as snapshot_mod
 import state as state_mod
 import usage as usage_mod
@@ -150,6 +151,25 @@ def _cmd_usage(args) -> int:
         print(f"{row['vendor']} {row['model']} count={row['count']} in={row['tokens_in']} "
               f"out={row['tokens_out']} median_ms={median}")
     return exitcodes.OK
+
+
+def _cmd_sk_cmd(args) -> int:
+    project = _project(args)
+    try:
+        lines = sk.commands_for(args.step, config.load_config(project), epic=args.epic, feature=args.feature)
+    except (ValueError, config.ConfigError) as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    for line in lines:
+        print(line)
+    return exitcodes.OK
+
+
+def _cmd_sk_status(args) -> int:
+    result = sk.status(_project(args), args.feature)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    dirty = result["import_warnings"] or any(f["orphan_tasks"] for f in result["features"])
+    return exitcodes.FINDINGS if dirty else exitcodes.OK
 
 
 def _cmd_run_wu(args) -> int:
@@ -291,6 +311,17 @@ def build_parser() -> argparse.ArgumentParser:
     rw.add_argument("--worktree", action="store_true")
     rw.add_argument("--dry-run", action="store_true")
     rw.set_defaults(handler=_cmd_run_wu)
+
+    skp = sub.add_parser("sk", help="prepare Spec-Kit steps")
+    sksub = skp.add_subparsers(dest="sk_command", parser_class=_Parser)
+    skc = with_project(sksub.add_parser("cmd"))
+    skc.add_argument("step", choices=list(sk.STEPS))
+    skc.add_argument("--epic", default=None)
+    skc.add_argument("--feature", default=None)
+    skc.set_defaults(handler=_cmd_sk_cmd)
+    sks = with_project(sksub.add_parser("status"))
+    sks.add_argument("--feature", default=None)
+    sks.set_defaults(handler=_cmd_sk_status)
     return parser
 
 
