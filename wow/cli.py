@@ -109,6 +109,21 @@ def _cmd_plan_freeze(args) -> int:
     return exitcodes.OK
 
 
+def _cmd_plan_guard(args) -> int:
+    try:
+        doc = manifest.load(_project(args))
+    except manifest.ManifestError as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    try:
+        manifest.ensure_writable(doc, args.reopen)
+    except manifest.FrozenError as exc:
+        print(str(exc))
+        return exitcodes.FINDINGS
+    print("writable")
+    return exitcodes.OK
+
+
 def _jira_for(project: Path):
     creds = config.resolve_jira_credentials(project)
     return JiraClient(creds, timeout=5.0) if creds else None
@@ -400,6 +415,9 @@ def build_parser() -> argparse.ArgumentParser:
     fr.add_argument("--epics", required=True, help="EPIC=KEY pairs, comma separated")
     fr.add_argument("--reopen", default=None, help="reason for changing an already recorded epic key")
     fr.set_defaults(handler=_cmd_plan_freeze)
+    gd = with_project(psub.add_parser("guard"))
+    gd.add_argument("--reopen", default=None, help="reason to edit a frozen manifest")
+    gd.set_defaults(handler=_cmd_plan_guard)
 
     with_project(sub.add_parser("state", help="print the derived state as JSON")).set_defaults(handler=_cmd_state)
     with_project(sub.add_parser("snapshot", help="write wow/progress.json")).set_defaults(handler=_cmd_snapshot)

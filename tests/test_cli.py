@@ -328,5 +328,40 @@ class SnapshotGithubDisabledTest(unittest.TestCase):
         self.assertIn("links", saved["current"]["plan"])
 
 
+import argparse as _argparse  # noqa: E402
+
+
+class PlanGuardCommandTest(unittest.TestCase):
+    def test_guard_codes(self):
+        project = make_project()
+        self.assertEqual(run_cli(["plan", "guard", "--project", str(project)])[0], 2)
+        _manifest.save(project, valid_doc())
+        self.assertEqual(run_cli(["plan", "guard", "--project", str(project)])[0], 0)
+        run_cli(["plan", "freeze", "--epics", "E1=IRIS-40", "--project", str(project)])
+        code, out, _ = run_cli(["plan", "guard", "--project", str(project)])
+        self.assertEqual(code, 1)
+        self.assertIn("/spec-kit.amend", out)
+        self.assertEqual(run_cli(["plan", "guard", "--reopen", "scope", "--project", str(project)])[0], 0)
+
+
+class AllSkillsContractTest(unittest.TestCase):
+    def test_every_skill_is_small_named_and_cites_real_commands(self):
+        import cli
+        parser = cli.build_parser()
+        subs = next(a for a in parser._actions if isinstance(a, _argparse._SubParsersAction)).choices
+        names = []
+        for path in sorted((ROOT / "skills").glob("*/SKILL.md")):
+            text = path.read_text(encoding="utf-8")
+            front = _re.match(r"^---\nname: (.+)\ndescription: (.+)\n---\n", text)
+            self.assertIsNotNone(front, path)
+            self.assertEqual(front.group(1), path.parent.name)
+            self.assertLessEqual(len(text.splitlines()), 80, path)
+            for command in _re.findall(r"`wow ([a-z-]+)", text):
+                self.assertIn(command, subs, f"{path}: wow {command}")
+            names.append(path.parent.name)
+        self.assertEqual(names, ["wow-context", "wow-guide", "wow-pack", "wow-pb-audit", "wow-plan",
+                                 "wow-review", "wow-sk-prep"])
+
+
 if __name__ == "__main__":
     unittest.main()

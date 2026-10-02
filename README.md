@@ -28,6 +28,10 @@ wow review --set story --ref IRIS-41 --repo ../backend-api   # review independie
 wow usage                                                   # consumo por marca y modelo
 wow sk status | wow sk cmd plan --feature specs/001-x       # preparar pasos de Spec-Kit
 wow run-wu WU-008 --epic E1                                 # implementar una WU midiendo el consumo
+wow context scan | wow context check                        # context pack con afirmaciones etiquetadas
+wow pack prd | wow pack rfc | wow pack epic --id E1         # paquetes para Product Brain
+wow pbchat audit prd --deep                                 # auditar la copia del chat de PB
+wow plan guard                                              # ¿se puede editar el manifiesto?
 ```
 
 Credenciales de Jira: variables `IC_JIRA_BASE_URL`, `IC_JIRA_USER_EMAIL`, `IC_JIRA_API_TOKEN`
