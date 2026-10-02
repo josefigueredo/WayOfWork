@@ -6,10 +6,14 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import List, Optional
 
 import pack
+import review
+import reviewers
 from sources import pbchat
 
 KNOWN_INVENTIONS = [
@@ -105,6 +109,49 @@ def audit(project: Path, doc: str, extra_inventions: Optional[List[dict]] = None
             "completion_pct": percents[-1] if percents else None, "open_questions": open_questions(text),
             "expected_anchors": expected, "missing_anchors": missing, "unsupported_checks": unsupported,
             "inventions": inventions, "corrections_to_paste": _corrections(missing, inventions, unsupported)}
+
+
+_INVENTION_RE = re.compile(r"^\s*INVENTION\s+(\d+)\s+[—–-]+\s*(.+?)\s+[—–-]+\s*(.+?)\s*$")
+
+_DEEP_PROMPT = """You are an independent auditor. CONTEXT is the only source of truth.
+List every statement in CHAT that asserts a fact, component, provider, number, owner or deadline
+that does not appear in CONTEXT. Ignore statements that only repeat CONTEXT or ask questions.
+
+Output format, exactly, with no other text:
+VERDICT: APPROVED | CHANGES_REQUIRED
+INVENTION <chat-line-number> — <short quote> — <why it is not supported>
+
+--- CONTEXT ---
+{context}
+
+--- CHAT (numbered) ---
+{chat}
+"""
+
+
+def build_deep_prompt(project: Path, doc: str) -> str:
+    text = (project / "wow" / "pb" / "chats" / f"{doc}.md").read_text(encoding="utf-8")
+    preamble = _preamble_lines()
+    numbered = "\n".join(f"{n}: {line}" for n, line in enumerate(text.splitlines(), 1)
+                         if line.strip() not in preamble)
+    return _DEEP_PROMPT.format(context=_allowed_text(project, doc) or "(empty)", chat=numbered)
+
+
+def parse_inventions(text: str) -> List[dict]:
+    if review.parse_verdict(text)["verdict"] is None:
+        raise review.ReviewOutputError("reviewer output has no 'VERDICT:' line")
+    found = []
+    for line in text.splitlines():
+        match = _INVENTION_RE.match(line)
+        if match:
+            found.append({"term": match.group(2)[:80], "line": int(match.group(1)),
+                          "text": match.group(3), "source": "reviewer"})
+    return found
+
+
+def deep_inventions(project: Path, doc: str, cfg: dict, runner=subprocess.run, which=shutil.which) -> List[dict]:
+    _, spec = reviewers.pick_reviewer(cfg, project, runner, which)
+    return parse_inventions(reviewers.run_backend(spec, build_deep_prompt(project, doc), project, runner, which))
 
 
 def write_audit(project: Path, result: dict) -> Path:

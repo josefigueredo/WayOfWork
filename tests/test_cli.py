@@ -288,5 +288,22 @@ class PbchatAuditCommandTest(unittest.TestCase):
         self.assertEqual(run_cli(["pbchat", "audit", "../x", "--project", str(project)])[0], 2)
 
 
+class PbchatDeepAuditCommandTest(unittest.TestCase):
+    def test_deep_audit_adds_reviewer_inventions(self):
+        project, _ = _review_project("VERDICT: CHANGES_REQUIRED\nINVENTION 1 — SLA 99.9% — no está en el contexto\n")
+        write(project, "wow/pb/chats/prd.md", "llega al 100%\n")
+        code, out, _ = run_cli(["pbchat", "audit", "prd", "--deep", "--project", str(project)])
+        self.assertEqual(code, 1)
+        saved = _json.loads((project / "wow/pb/chats/prd.audit.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["inventions"][0]["source"], "reviewer")
+
+    def test_deep_audit_without_reviewer_exits_2(self):
+        project, _ = _review_project("VERDICT: APPROVED\n")
+        write(project, ".wow/config.json", _json.dumps({"reviewers": ["claude"]}))
+        write(project, "wow/pb/chats/prd.md", "llega al 100%\n")
+        self.assertEqual(run_cli(["pbchat", "audit", "prd", "--deep", "--project", str(project)])[0], 2)
+        self.assertFalse((project / "wow/pb/chats/prd.audit.json").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

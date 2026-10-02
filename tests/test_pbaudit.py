@@ -75,5 +75,21 @@ class AuditTest(unittest.TestCase):
         self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["doc"], "prd")
 
 
+class DeepAuditTest(unittest.TestCase):
+    def test_parse_inventions_and_verdict_required(self):
+        text = "VERDICT: CHANGES_REQUIRED\nINVENTION 12 — North Star del 30% — no figura en el contexto\n"
+        self.assertEqual(pbaudit.parse_inventions(text), [
+            {"term": "North Star del 30%", "line": 12, "text": "no figura en el contexto", "source": "reviewer"}])
+        import review
+        with self.assertRaises(review.ReviewOutputError):
+            pbaudit.parse_inventions("no verdict here")
+
+    def test_prompt_excludes_preamble_and_numbers_chat(self):
+        prompt = pbaudit.build_deep_prompt(setup(), "prd")
+        self.assertNotIn("Reglas para este documento", prompt.split("--- CHAT")[1])
+        self.assertIn("marketplace", prompt)
+        self.assertRegex(prompt, r"\n\d+: ")
+
+
 if __name__ == "__main__":
     unittest.main()

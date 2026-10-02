@@ -315,8 +315,19 @@ def _cmd_pbchat_audit(args) -> int:
     if not review_mod.safe_ref(args.doc):
         sys.stderr.write(f"wow: unsafe document name {args.doc!r}\n")
         return exitcodes.CANNOT_EVALUATE
+    extra = []
+    if args.deep:
+        try:
+            extra = pbaudit.deep_inventions(project, args.doc, config.load_config(project))
+        except FileNotFoundError:
+            sys.stderr.write(f"wow: wow/pb/chats/{args.doc}.md not found or reviewer CLI missing\n")
+            return exitcodes.CANNOT_EVALUATE
+        except (reviewers.NoReviewer, reviewers.ReviewerFailed, review_mod.ReviewOutputError,
+                config.ConfigError, OSError) as exc:
+            sys.stderr.write(f"wow: deep audit failed: {exc}\n")
+            return exitcodes.CANNOT_EVALUATE
     try:
-        result = pbaudit.audit(project, args.doc)
+        result = pbaudit.audit(project, args.doc, extra_inventions=extra)
     except FileNotFoundError:
         sys.stderr.write(f"wow: wow/pb/chats/{args.doc}.md not found; copy the Product Brain chat there first\n")
         return exitcodes.CANNOT_EVALUATE
@@ -373,6 +384,7 @@ def build_parser() -> argparse.ArgumentParser:
     pcsub = pc.add_subparsers(dest="pbchat_command", parser_class=_Parser)
     pa = with_project(pcsub.add_parser("audit"))
     pa.add_argument("doc", help="prd | rfc | epic-E<n>")
+    pa.add_argument("--deep", action="store_true", help="also ask an independent reviewer")
     pa.set_defaults(handler=_cmd_pbchat_audit)
 
     with_project(sub.add_parser("usage", help="summarize LLM usage by vendor and model")).set_defaults(handler=_cmd_usage)
