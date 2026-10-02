@@ -1,0 +1,4 @@
+.env.local
+.wow/reviews/
+__pycache__/
+.superpowers/
