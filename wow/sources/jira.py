@@ -50,6 +50,11 @@ class JiraClient:
         url = f"{self._creds.base_url}/browse/{key}"
         issues, token = [], None
         try:
+            # Jira hides a project the account cannot browse: searches come back empty, not 403. Without
+            # this check an invisible epic would read as "exists with 0 stories" and ask for a re-export.
+            if not self._post("/rest/api/3/search/jql", {"jql": f"key = {key}", "fields": ["status"]}).get("issues"):
+                raise SourceUnavailable(f"jira: {key} is not visible to this account "
+                                        f"(no Browse permission on its project, or another site)")
             while True:
                 body = {"jql": jql, "fields": ["status"], "maxResults": 100}
                 if token:

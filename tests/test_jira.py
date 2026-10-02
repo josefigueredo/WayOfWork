@@ -40,8 +40,10 @@ class EpicSummaryTest(unittest.TestCase):
 
         def opener(request, timeout):
             body = json.loads(request.data.decode())
-            seen.append(body)
             self.assertTrue(request.get_header("Authorization").startswith("Basic "))
+            if body["jql"] == "key = IRIS-40":
+                return FakeResponse({"issues": [{"key": "IRIS-40", "fields": {}}]})
+            seen.append(body)
             return FakeResponse(pages[len(seen) - 1])
 
         summary = JiraClient(CREDS, opener=opener).epic_summary("IRIS-40")
@@ -56,7 +58,10 @@ class EpicSummaryTest(unittest.TestCase):
         captured = {}
 
         def opener(request, timeout):
-            captured.update(json.loads(request.data.decode()))
+            body = json.loads(request.data.decode())
+            if body["jql"] == "key = IRIS-40":
+                return FakeResponse({"issues": [{"key": "IRIS-40", "fields": {}}]})
+            captured.update(body)
             return FakeResponse({"issues": []})
 
         JiraClient(creds, opener=opener).epic_summary("IRIS-40")
@@ -67,6 +72,13 @@ class EpicSummaryTest(unittest.TestCase):
             raise urllib.error.HTTPError(request.full_url, 400, "Bad Request", {}, io.BytesIO(b"{}"))
 
         self.assertFalse(JiraClient(CREDS, opener=opener).epic_summary("IRIS-404")["exists"])
+
+    def test_epic_invisible_to_the_account_is_unavailable_not_an_empty_epic(self):
+        # Jira hides projects without Browse permission: every search comes back empty instead of 403.
+        with self.assertRaises(SourceUnavailable) as ctx:
+            JiraClient(CREDS, opener=lambda r, timeout: FakeResponse({"issues": []})).epic_summary("PLATE-491")
+        self.assertIn("PLATE-491 is not visible", str(ctx.exception))
+        self.assertNotIn(TOKEN, str(ctx.exception))
 
     def test_auth_error_is_unavailable_without_secrets(self):
         def opener(request, timeout):
