@@ -6,9 +6,11 @@ import unittest
 from helpers import make_project, write
 import config
 import manifest
+import pack
 import state
+from pbfill import fill
 from sources import SourceUnavailable
-from test_manifest import valid_doc
+from test_manifest import pb_ready_doc, valid_doc
 
 CFG = config.DEFAULTS
 
@@ -33,13 +35,17 @@ def project_at_phase_3():
     p = make_project()
     write(p, "wow/context-pack/facts.md", "# Facts\n")
     write(p, "wow/context-pack/pending-owner.md", "- [x] North Star\n")
-    doc = valid_doc()
+    write(p, ".spec-kit/discovery/architecture.md", "# Arquitectura\n")
+    doc = pb_ready_doc()
     doc["plan"]["readiness"] = {"verdict": "approved", "rounds": 1}
     doc = manifest.freeze(doc, {"E1": "IRIS-40"}, "2026-10-02T10:00:00Z")
     manifest.save(p, doc)
     h = manifest.manifest_hash(p)
-    for name in ("prd", "rfc", "epic-E1"):
-        write(p, f"wow/pb/{name}.md", f"<!-- wow: manifest-hash={h} -->\n")
+    brief = pack.parse_brief("## Brief\n- Goal: x\n- Open questions: none\n")
+    texts = {"prd": pack.render_prd(doc, brief, h), "rfc": pack.render_rfc(doc, brief, h),
+             "epic-E1": pack.render_epic(doc, "E1", h)}
+    for name, text in texts.items():
+        write(p, f"wow/pb/{name}.md", fill(text))
     return p
 
 

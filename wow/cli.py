@@ -358,9 +358,9 @@ def _cmd_pack(args) -> int:
                 return exitcodes.CANNOT_EVALUATE
             name, text = f"epic-{args.id}", pack.render_epic(doc, args.id, mhash)
         elif args.kind == "prd":
-            name, text = "prd", pack.render_prd(doc, brief, mhash)
+            name, text = "prd", pack.render_prd(doc, brief, mhash, pending=repo_src.pending_items(project))
         else:
-            name, text = "rfc", pack.render_rfc(doc, brief, mhash)
+            name, text = "rfc", pack.render_rfc(doc, brief, mhash, pending=repo_src.pending_items(project))
     except ValueError as exc:
         sys.stderr.write(f"wow: {exc}\n")
         return exitcodes.CANNOT_EVALUATE

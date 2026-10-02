@@ -5,7 +5,11 @@ import re
 from pathlib import Path
 from typing import Dict, List
 
+import pbtemplate
+
 HASH_RE = re.compile(r"manifest-hash=([0-9a-f]{16})")
+TEMPLATE_RE = re.compile(r"template=(pb-[0-9a-f]{7})")
+_PENDING_RE = re.compile(r"^\s*-\s*\[ \]\s*(.+?)\s*$")
 _UNCHECKED_RE = re.compile(r"^\s*-\s*\[ \]")
 
 
@@ -21,8 +25,18 @@ def context_pack_status(project: Path) -> dict:
 def _packet(path: Path, mhash: str) -> str:
     if not path.is_file():
         return "missing"
-    match = HASH_RE.search(path.read_text(encoding="utf-8"))
-    return "ok" if match and match.group(1) == mhash else "stale"
+    text = path.read_text(encoding="utf-8")
+    match = HASH_RE.search(text)
+    template = TEMPLATE_RE.search(text)
+    fresh = match and match.group(1) == mhash and template and template.group(1) == pbtemplate.TEMPLATE_ID
+    return "ok" if fresh else "stale"
+
+
+def pending_items(project: Path) -> List[str]:
+    path = project / "wow" / "context-pack" / "pending-owner.md"
+    if not path.is_file():
+        return []
+    return [m.group(1) for m in map(_PENDING_RE.match, path.read_text(encoding="utf-8").splitlines()) if m]
 
 
 def packet_status(project: Path, mhash: str, epic_ids: List[str]) -> dict:

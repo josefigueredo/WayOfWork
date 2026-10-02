@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import manifest
+import pbcompletion
 from sources import SourceUnavailable, pbchat, repo, speckit
 
 _WHERE_RANK = {"human": 0, "harness": 1, "product-brain": 1, "terminal": 1, "cursor": 2}
@@ -79,6 +80,13 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
         for name, kind, eid in named:
             status = packets["epics"][eid] if eid else packets[name]
             if status == "ok":
+                check = pbcompletion.check_file(project, name)
+                if check and (check["percentage"] < 100 or check["errors"]):
+                    plan["phase"] = min(plan["phase"], 2)
+                    target = f"epic --id {eid}" if eid else kind
+                    steps.append(_step(None, 2, f"complete the {name} packet", "harness", models["author"],
+                                       f"wow-pack, then wow pack check {target}",
+                                       f"predicted completion {check['percentage']}%, {len(check['errors'])} error(s)"))
                 continue
             if status == "stale":
                 plan["stale_packets"].append(name)

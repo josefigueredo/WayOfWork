@@ -6,97 +6,112 @@ from helpers import make_project, write
 import config
 import manifest
 import pack
+import pbcompletion
 import state
+from pbfill import fill
 from sources import repo
-from test_manifest import valid_doc
+from test_manifest import pb_ready_doc, valid_doc
 
 BRIEF = """# Plan
 ## Brief
 - Goal: Curar casos en IRIS v2
 - Decisions: D1 una sola máquina de estados · D2 BFF como frontera
 - Constraints: costo del juez ≤ USD 100
-- Non-goals: migrar datos históricos
-- Open questions: none
-## Other
-- Goal: ignored
+- Non-goals: migrar datos históricos · curación masiva
+- Open questions: ¿Se incorpora la etapa de plan?
 """
+H = "0123456789abcdef"
 
 
 class BriefTest(unittest.TestCase):
-    def test_parse_brief_only_reads_brief_section(self):
+    def test_parse_brief(self):
         brief = pack.parse_brief(BRIEF)
-        self.assertEqual(brief["Goal"], "Curar casos en IRIS v2")
-        self.assertEqual(brief["Non-goals"], "migrar datos históricos")
-        self.assertEqual(brief["Open questions"], "none")
-
-    def test_missing_brief_gives_empty_values(self):
-        self.assertEqual(pack.parse_brief("nothing")["Goal"], "")
+        self.assertEqual((brief["Goal"], brief["Open questions"]), ("Curar casos en IRIS v2", "¿Se incorpora la etapa de plan?"))
 
 
-class RenderTest(unittest.TestCase):
-    def test_epic_packet_maps_tasks_to_stories(self):
-        text = pack.render_epic(valid_doc(), "E1", "0123456789abcdef")
-        self.assertEqual(repo.HASH_RE.search(text).group(1), "0123456789abcdef")
-        self.assertIn("# Épica E1 — Curation", text)
+class PrdRfcTest(unittest.TestCase):
+    def test_prd_follows_pb_template_and_keeps_unknowns_as_placeholders(self):
+        text = pack.render_prd(pb_ready_doc(), pack.parse_brief(BRIEF), H, pending=["North Star"])
+        self.assertEqual(repo.HASH_RE.search(text).group(1), H)
+        self.assertIn("template=pb-9b19a89", text)
+        self.assertIn("## Vision y Estrategia", text)
+        self.assertIn("| Tipo de Iniciativa | Evolución de sistema existente |", text)
+        self.assertIn("| 1 | E1: Curation | E1.C1: analysts can curate |", text)
+        self.assertIn("| 1 | migrar datos históricos | {{out_scope_1_reason}} | {{out_scope_1_when}} |", text)
+        self.assertIn("| 2 | curación masiva |", text)
+        self.assertIn("| 1 | ¿Se incorpora la etapa de plan? | Owner de producto | Abierta |", text)
+        self.assertIn("| 2 | North Star | Owner de producto | Abierta |", text)
+        self.assertIn("{{why_now}}", text)
+        self.assertNotIn("{{in_scope_2_name}}", text)
+        result = pbcompletion.predict("prd", text)
+        self.assertLess(result["percentage"], 100)
+        self.assertEqual(pbcompletion.predict("prd", fill(text))["percentage"], 100)
+
+    def test_rfc_greenfield_coexistence_and_milestones(self):
+        doc = pb_ready_doc()
+        doc["plan"]["mode"] = "greenfield"
+        text = pack.render_rfc(doc, pack.parse_brief(BRIEF), H)
+        self.assertIn("No aplica: sistema nuevo; no convive con un sistema previo.", text)
+        self.assertIn("| E1 | Curation | 5 story points |", text)
         self.assertIn("- E1.C1: analysts can curate", text)
-        self.assertIn("### H2 — API (tarea 1.2)", text)
-        self.assertIn("- Story points: 2   ·   Prioridad: media   ·   Depende de: H1", text)
-        self.assertIn("  - AC1: endpoint returns 200", text)
-        self.assertIn("<!-- wow:fill", text)
+        self.assertIn("### API Gateway", text)
+        self.assertEqual(pbcompletion.predict("rfc", fill(text))["percentage"], 100)
 
-    def test_epic_undefined_values_and_unknown_epic(self):
-        doc = valid_doc()
-        doc["epics"][0]["tasks"][0].update({"estimate": None, "priority": None, "labels": []})
-        text = pack.render_epic(doc, "E1", "0123456789abcdef")
-        self.assertIn("- Story points: [SIN DEFINIR]   ·   Prioridad: [SIN DEFINIR]   ·   Depende de: —", text)
+
+class EpicTest(unittest.TestCase):
+    def test_epic_packet_has_pb_shape_and_checks_clean_when_filled(self):
+        text = pack.render_epic(pb_ready_doc(), "E1", H)
+        self.assertIn("| Criticidad (criticality) | Alta |", text)
+        self.assertIn("### US-002 — [BE] API (tarea 1.2)", text)
+        self.assertIn("| Story points (story_points) | 2 |", text)
+        self.assertIn("| Prioridad (priority) | Media |", text)
+        self.assertIn("- US-001 (tarea 1.1)", text)
+        self.assertIn("- AC1 — Dado un caso Cuando el analista lo cura Entonces queda auditado", text)
+        self.assertIn("- " + pbcompletion.DOR[0], text)
+        self.assertIn("- " + pbcompletion.DOD[10] + " — no", text)
+        self.assertIn("E1.C1: analysts can curate", text)
+        result = pbcompletion.check_epic(fill(text))
+        self.assertEqual((result["percentage"], result["errors"]), (100, []))
         with self.assertRaises(ValueError):
-            pack.render_epic(doc, "E9", "0123456789abcdef")
+            pack.render_epic(pb_ready_doc(), "E9", H)
 
-    def test_prd_and_rfc_use_brief(self):
-        brief = pack.parse_brief(BRIEF)
-        prd = pack.render_prd(valid_doc(), brief, "0123456789abcdef")
-        self.assertIn("## Resumen\nCurar casos en IRIS v2", prd)
-        self.assertIn("### Fuera de alcance\nmigrar datos históricos", prd)
-        self.assertIn("## Preguntas abiertas\nNinguna.", prd)
-        self.assertIn("- Autor: [SIN DEFINIR]", prd)
-        rfc = pack.render_rfc(valid_doc(), brief, "0123456789abcdef")
-        self.assertIn("- D1 una sola máquina de estados", rfc)
-        self.assertIn("- D2 BFF como frontera", rfc)
-        self.assertIn("### E1 — Curation", rfc)
+    def test_old_manifest_epic_lists_what_is_missing(self):
+        result = pbcompletion.check_epic(pack.render_epic(valid_doc(), "E1", H))
+        self.assertLess(result["percentage"], 100)
+        self.assertTrue(any("not Gherkin" in e for e in result["errors"]))
 
 
 class WriteTest(unittest.TestCase):
-    def test_refuses_overwrite_without_force(self):
+    def test_refuses_overwrite_without_force_and_preamble_rules(self):
         project = make_project()
         pack.write_packet(project, "prd", "v1")
         with self.assertRaises(FileExistsError):
             pack.write_packet(project, "prd", "v2")
-        pack.write_packet(project, "prd", "v2", force=True)
-        self.assertEqual((project / "wow/pb/prd.md").read_text(encoding="utf-8"), "v2")
-
-    def test_preamble_written_once(self):
-        project = make_project()
-        path = pack.ensure_preamble(project)
-        self.assertIn("[SIN DEFINIR]", path.read_text(encoding="utf-8"))
-        path.write_text("edited", encoding="utf-8")
-        pack.ensure_preamble(project)
-        self.assertEqual(path.read_text(encoding="utf-8"), "edited")
+        text = pack.ensure_preamble(project).read_text(encoding="utf-8")
+        for needle in ("API Gateway", "SLA", "Owner es el rol que decide", "No aplica", "[SIN DEFINIR]"):
+            self.assertIn(needle, text)
 
 
 class StateIntegrationTest(unittest.TestCase):
-    def test_packed_project_reaches_phase_3(self):
+    def test_filled_packets_reach_phase_3_and_unfilled_stay_in_phase_2(self):
         project = make_project()
         write(project, "wow/context-pack/facts.md", "x")
         write(project, "wow/context-pack/pending-owner.md", "")
-        doc = valid_doc()
+        write(project, ".spec-kit/discovery/architecture.md", "# Arquitectura\n")
+        doc = pb_ready_doc()
         doc["plan"]["readiness"] = {"verdict": "approved", "rounds": 1}
         manifest.save(project, doc)
-        write(project, "wow/plan/PLAN.md", BRIEF)
         mhash = manifest.manifest_hash(project)
         brief = pack.parse_brief(BRIEF)
-        pack.write_packet(project, "prd", pack.render_prd(doc, brief, mhash))
-        pack.write_packet(project, "rfc", pack.render_rfc(doc, brief, mhash))
-        pack.write_packet(project, "epic-E1", pack.render_epic(doc, "E1", mhash))
+        packets = {"prd": pack.render_prd(doc, brief, mhash), "rfc": pack.render_rfc(doc, brief, mhash),
+                   "epic-E1": pack.render_epic(doc, "E1", mhash)}
+        for name, text in packets.items():
+            pack.write_packet(project, name, text)
+        result = state.compute_state(project, config.DEFAULTS)
+        self.assertEqual(result["plan"]["phase"], 2)
+        self.assertTrue(any(s["action"].startswith("complete the prd packet") for s in result["next_steps"]))
+        for name, text in packets.items():
+            pack.write_packet(project, name, fill(text), force=True)
         self.assertEqual(state.compute_state(project, config.DEFAULTS)["plan"]["phase"], 3)
 
 

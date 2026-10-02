@@ -25,9 +25,9 @@ class ContextPackTest(unittest.TestCase):
 class PacketTest(unittest.TestCase):
     def test_ok_stale_missing(self):
         project = make_project()
-        write(project, "wow/pb/prd.md", f"<!-- wow: manifest-hash={H} -->\n# PRD\n")
+        write(project, "wow/pb/prd.md", f"<!-- wow: manifest-hash={H} template=pb-9b19a89 -->\n# PRD\n")
         write(project, "wow/pb/rfc.md", "<!-- wow: manifest-hash=ffffffffffffffff -->\n")
-        write(project, "wow/pb/epic-E1.md", f"<!-- wow: manifest-hash={H} -->\n")
+        write(project, "wow/pb/epic-E1.md", f"<!-- wow: manifest-hash={H} template=pb-9b19a89 -->\n")
         self.assertEqual(repo.packet_status(project, H, ["E1", "E2"]),
                          {"prd": "ok", "rfc": "stale", "epics": {"E1": "ok", "E2": "missing"}})
 
@@ -38,6 +38,20 @@ class SubmoduleTest(unittest.TestCase):
         write(project, ".gitmodules", '[submodule "a"]\n\tpath = mfe-x\n[submodule "b"]\n  path = bff-x\n')
         self.assertEqual(repo.submodule_paths(project), ["mfe-x", "bff-x"])
         self.assertEqual(repo.submodule_paths(make_project()), [])
+
+
+class PacketTemplateTest(unittest.TestCase):
+    def test_template_id_required(self):
+        project = make_project()
+        write(project, "wow/pb/prd.md", f"<!-- wow: manifest-hash={H} template=pb-9b19a89 -->\n")
+        write(project, "wow/pb/rfc.md", f"<!-- wow: manifest-hash={H} -->\n")
+        status = repo.packet_status(project, H, [])
+        self.assertEqual((status["prd"], status["rfc"]), ("ok", "stale"))
+
+    def test_pending_items(self):
+        project = make_project()
+        write(project, "wow/context-pack/pending-owner.md", "- [ ] North Star\n- [x] SLA\n  - [ ] rollout\n")
+        self.assertEqual(repo.pending_items(project), ["North Star", "rollout"])
 
 
 if __name__ == "__main__":
