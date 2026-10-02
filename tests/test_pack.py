@@ -75,6 +75,14 @@ class EpicTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             pack.render_epic(pb_ready_doc(), "E9", H)
 
+    def test_draft_epic_packet_carries_draft_status(self):
+        doc = pb_ready_doc()
+        self.assertIn("| Estado (status) | todo |", pack.render_epic(doc, "E1", H))
+        doc["epics"][0]["status"] = "draft"
+        text = pack.render_epic(doc, "E1", H)
+        self.assertIn("| Estado (status) | draft |", text)
+        self.assertEqual(pbcompletion.check_epic(fill(text))["errors"], [])
+
     def test_old_manifest_epic_lists_what_is_missing(self):
         result = pbcompletion.check_epic(pack.render_epic(valid_doc(), "E1", H))
         self.assertLess(result["percentage"], 100)

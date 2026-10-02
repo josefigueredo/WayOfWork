@@ -115,6 +115,13 @@
             "type": "string",
             "pattern": "^E[0-9]+$"
           },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "draft"
+            ]
+          },
           "title": {
             "type": "string"
           },

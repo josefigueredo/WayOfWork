@@ -143,7 +143,8 @@ def render_epic(doc: dict, epic_id: str, mhash: str) -> str:
     key = doc["plan"]["export"]["epics"].get(epic_id)
     tasks = epic["tasks"]
     stories = {t["id"]: f"US-{n:03d}" for n, t in enumerate(tasks, 1)}
-    scalar = {"epic_name": epic["title"], "status": "todo", "estimation_method": "story_points"}
+    status = "draft" if epic.get("status") == "draft" else "todo"
+    scalar = {"epic_name": epic["title"], "status": status, "estimation_method": "story_points"}
     if key:
         scalar["jira_prefix"] = key.split("-")[0]
     if "big_move" in product:

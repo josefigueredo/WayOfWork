@@ -176,6 +176,13 @@ class PbExtensionTest(unittest.TestCase):
         self.assertTrue(any("start_date" in e for e in errors), errors)
         self.assertTrue(any("mode" in e for e in errors), errors)
 
+    def test_epic_status_is_active_or_draft(self):
+        doc = pb_ready_doc()
+        doc["epics"][0]["status"] = "draft"
+        self.assertEqual(manifest.validate(doc), [])
+        doc["epics"][0]["status"] = "paused"
+        self.assertTrue(any("status" in e for e in manifest.validate(doc)))
+
     def test_subtasks_accept_objects(self):
         doc = pb_ready_doc()
         doc["epics"][0]["tasks"][0]["subtasks"] = ["write schema", {"title": "[BE] tabla", "purpose": "guardar",

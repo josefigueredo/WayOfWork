@@ -86,8 +86,8 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
             steps.append(_step(None, 1, "run the readiness review", "harness", models["reviewer"],
                                "wow review --set readiness --ref plan",
                                f"readiness verdict is {doc['plan']['readiness']['verdict']}"))
-        # Phase 2: packets carry the current manifest hash.
-        epic_ids = [e["id"] for e in doc["epics"]]
+        # Phase 2: packets carry the current manifest hash. Draft epics are not sent to Product Brain.
+        epic_ids = [e["id"] for e in doc["epics"] if e.get("status") != "draft"]
         packets = repo.packet_status(project, manifest.manifest_hash(project), epic_ids)
         named = [("prd", "prd", None), ("rfc", "rfc", None)] + \
                 [(f"epic-{eid}", "epic", eid) for eid in epic_ids]
@@ -115,6 +115,11 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
     if doc is not None:
         features = speckit.features(project)
         for epic in doc["epics"]:
+            if epic.get("status") == "draft":
+                epics_out.append({"id": epic["id"], "title": epic["title"], "jira": None, "jira_url": None,
+                                  "phase": "draft", "reason": "draft: not sent to Product Brain",
+                                  "progress": None, "missing": []})
+                continue
             out = _epic_state(project, cfg, doc, epic, features, jira, plan["phase"], sources)
             epics_out.append(out["epic"])
             steps.extend(out["steps"])

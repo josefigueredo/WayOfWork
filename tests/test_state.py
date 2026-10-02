@@ -65,6 +65,29 @@ def add_feature(p, tasks=TASKS_DONE):
     write(p, "specs/001-curation/work-units.json", '{"work_units": [{"id": "WU-001"}, {"id": "WU-002"}]}')
 
 
+class DraftEpicTest(unittest.TestCase):
+    def test_draft_epic_gets_no_packet_or_product_brain_steps(self):
+        p = project_at_phase_3()
+        doc = manifest.load(p)
+        draft = json.loads(json.dumps(doc["epics"][0]))
+        draft.update({"id": "E2", "title": "Later", "status": "draft", "done_when": ["E2.C1: later"]})
+        for n, task in enumerate(draft["tasks"], 1):
+            task["id"], task["depends_on"] = f"2.{n}", []
+        doc["epics"].append(draft)
+        manifest.save(p, doc)
+        h = manifest.manifest_hash(p)
+        brief = pack.parse_brief("## Brief\n- Goal: x\n- Open questions: none\n")
+        texts = {"prd": pack.render_prd(doc, brief, h), "rfc": pack.render_rfc(doc, brief, h),
+                 "epic-E1": pack.render_epic(doc, "E1", h)}
+        for name, text in texts.items():
+            write(p, f"wow/pb/{name}.md", fill(text))
+        result = state.compute_state(p, CFG)
+        self.assertEqual(result["plan"]["phase"], 3)
+        self.assertFalse([s for s in result["next_steps"] if "E2" in json.dumps(s)])
+        e2 = next(e for e in result["epics"] if e["id"] == "E2")
+        self.assertEqual((e2["phase"], e2["missing"]), ("draft", []))
+
+
 class PlanPhasesTest(unittest.TestCase):
     def test_fresh_project_is_phase_0_with_context_step(self):
         result = state.compute_state(make_project(), CFG)
