@@ -106,6 +106,13 @@ class TemplateAwareAuditTest(unittest.TestCase):
         terms = [i["term"] for i in pbaudit.audit(project, "rfc")["inventions"]]
         self.assertEqual(terms, ["API Gateway", "SLA", "circuit breaker", "Kong"])
 
+    def test_template_headings_in_the_chat_are_not_affirmations(self):
+        project = make_project()
+        write(project, "wow/pb/rfc.md", "### API Gateway\n| Tecnologia | No aplica: sitio estático |\n")
+        chat = "### API Gateway\n| Tecnologia | No aplica: sitio estático |\n### SLA\nNo aplica: sin acuerdo.\n"
+        write(project, "wow/pb/chats/rfc.md", chat)
+        self.assertEqual(pbaudit.audit(project, "rfc")["inventions"], [])
+
     def test_authoritative_completion_wins(self):
         project = make_project()
         write(project, "wow/pb/chats/prd.md", "El PRD llega al 100%.\n**Completitud del documento:** 96% · Pendiente: Metadata\n")

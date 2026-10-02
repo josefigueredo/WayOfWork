@@ -121,7 +121,8 @@ def audit(project: Path, doc: str, extra_inventions: Optional[List[dict]] = None
         if regex.search(allowed):
             continue
         for number, line in lines:
-            if _affirmed(regex, line):
+            # A heading is the template's fixed section name ("### API Gateway"), not an affirmation.
+            if not line.lstrip().startswith("#") and _affirmed(regex, line):
                 inventions.append({"term": term, "line": number, "text": line.strip()[:160], "source": "known-list"})
                 break
     inventions += list(extra_inventions or [])
