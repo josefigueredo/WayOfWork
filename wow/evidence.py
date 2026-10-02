@@ -5,9 +5,11 @@ import json
 from pathlib import Path
 from typing import Dict, List
 
+import pbcompletion
 from sources import pbchat
 
-PB_KEYS = ("present", "closed", "audit", "completion_pct", "inventions", "missing_anchors", "open_questions")
+PB_KEYS = ("present", "closed", "audit", "completion_pct", "inventions", "missing_anchors", "open_questions",
+           "packet_pct", "packet_errors")
 
 
 def _count(value) -> int:
@@ -31,6 +33,9 @@ def pb_status(project: Path, epic_ids: List[str]) -> Dict[str, dict]:
                 entry["inventions"] = _count(data.get("inventions"))
                 entry["missing_anchors"] = _count(data.get("missing_anchors"))
                 entry["open_questions"] = _count(data.get("open_questions"))
+        check = pbcompletion.check_file(project, doc)
+        entry["packet_pct"] = check["percentage"] if check else None
+        entry["packet_errors"] = len(check["errors"]) if check else None
         out[doc] = entry
     return out
 

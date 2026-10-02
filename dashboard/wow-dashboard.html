@@ -557,14 +557,15 @@ const WowRender = (() => {
     if (!cur.pb || typeof cur.pb !== "object") return panel("panel-pb", "Product Brain", noData(RERUN), "wow/pb/chats/");
     const rows = Object.keys(cur.pb).map((doc) => {
       const s = cur.pb[doc] || {};
-      if (!s.present) return `<tr><td>${esc(doc)}</td><td colspan="6" class="muted">no local chat copy yet (wow/pb/chats/${esc(doc)}.md)</td></tr>`;
+      const packet = `<td class="num">${isNum(s.packet_pct) ? `${s.packet_pct}%` : "—"}${s.packet_errors ? ` · ${fmt(s.packet_errors)} error(s)` : ""}</td>`;
+      if (!s.present) return `<tr><td>${esc(doc)}</td>${packet}<td colspan="6" class="muted">no local chat copy yet (wow/pb/chats/${esc(doc)}.md)</td></tr>`;
       const audit = s.audit ? badge(s.audit === "approved" ? "approved" : s.audit === "changes_required" ? "changes_required" : "unknown") : badge("pending", "not audited");
-      return `<tr><td>${esc(doc)}</td><td>${s.closed ? "closed" : "open"}</td><td class="num">${isNum(s.completion_pct) ? `${s.completion_pct}%` : "—"}</td><td>${audit}</td>` +
+      return `<tr><td>${esc(doc)}</td>${packet}<td>${s.closed ? "closed" : "open"}</td><td class="num">${isNum(s.completion_pct) ? `${s.completion_pct}%` : "—"}</td><td>${audit}</td>` +
         `<td class="num">${fmt(s.inventions)}</td><td class="num">${fmt(s.missing_anchors)}</td><td class="num">${fmt(s.open_questions)}</td></tr>`;
     }).join("");
-    const body = `<div class="scroll"><table><thead><tr><th>Document</th><th>Chat</th><th class="num">PB completion</th><th>Audit</th>` +
+    const body = `<div class="scroll"><table><thead><tr><th>Document</th><th class="num">Packet (predicted)</th><th>Chat</th><th class="num">PB completion</th><th>Audit</th>` +
       `<th class="num">Inventions</th><th class="num">Missing anchors</th><th class="num">Open questions</th></tr></thead><tbody>${rows}</tbody></table></div>` +
-      `<p class="source">A closed chat is not done until its audit is approved: Product Brain checklists are not evidence.</p>`;
+      `<p class="source">Packet (predicted) comes from wow pack check, which applies Product Brain\'s own completion rules. A closed chat is not done until its audit is approved: Product Brain checklists are not evidence.</p>`;
     return panel("panel-pb", "Product Brain", body, "wow/pb/chats/*.md and *.audit.json (wow pbchat audit)");
   }
 

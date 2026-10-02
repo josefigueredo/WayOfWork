@@ -151,7 +151,7 @@ assert.ok(partial.includes("jira: HTTP 401"));
 assert.ok(partial.includes("run wow snapshot again"));
 const full = R.renderDoc({name: "f", doc: ex("full.json")}).html;
 for (const needle of ["E3", "estimated", "2026-09-01 (example values)", "Cursor", "EX-43", "checks failing",
-                      'href="https://github.com/example/backend-example/pull/9"', "data-copy=", "HITL"]) {
+                      'href="https://github.com/example/backend-example/pull/9"', "data-copy=", "HITL", "Packet (predicted)"]) {
   assert.ok(full.includes(needle), needle);
 }
 

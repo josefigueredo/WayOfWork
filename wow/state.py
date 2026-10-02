@@ -67,6 +67,15 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
             doc = None
     if doc is not None:
         plan["id"] = doc["plan"]["id"]
+        mode = doc["plan"].get("mode")
+        if mode not in manifest.MODES:
+            steps.append(_step(None, 1, "set the plan mode", "harness", models["author"],
+                               "wow plan init --mode greenfield|brownfield (or edit plan.mode)",
+                               "greenfield and brownfield change phase 0 and the packet prompts"))
+        elif mode == "brownfield" and not (project / ".spec-kit" / "discovery" / "architecture.md").is_file():
+            steps.append(_step(None, 0, "run Spec-Kit discovery on the existing code", "cursor",
+                               models["cursor_reason"], "/spec-kit.discovery",
+                               "brownfield plans cite the real architecture from .spec-kit/discovery/architecture.md"))
         if doc["plan"]["readiness"]["verdict"] != "approved":
             plan["phase"] = min(plan["phase"], 1)
             steps.append(_step(None, 1, "run the readiness review", "harness", models["reviewer"],

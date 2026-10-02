@@ -86,7 +86,7 @@ class PlanPhasesTest(unittest.TestCase):
         p = make_project()
         write(p, "wow/context-pack/facts.md", "x")
         write(p, "wow/context-pack/pending-owner.md", "- [x] ok\n")
-        manifest.save(p, valid_doc())
+        manifest.save(p, dict(valid_doc(), plan=dict(valid_doc()["plan"], mode="greenfield")))
         result = state.compute_state(p, CFG)
         self.assertEqual(result["plan"]["phase"], 1)
         self.assertEqual(result["next_steps"][0]["command"], "wow review --set readiness --ref plan")
@@ -187,6 +187,23 @@ class EpicPhasesTest(unittest.TestCase):
         self.assertLessEqual(len(result["next_steps"]), 3)
         wheres = [s["where"] for s in result["next_steps"]]
         self.assertEqual(wheres, sorted(wheres, key=lambda w: w == "cursor"))
+
+
+class ModeStepsTest(unittest.TestCase):
+    def test_missing_mode_and_brownfield_discovery_steps(self):
+        p = make_project()
+        write(p, "wow/context-pack/facts.md", "x")
+        write(p, "wow/context-pack/pending-owner.md", "")
+        manifest.save(p, valid_doc())
+        result = state.compute_state(p, CFG)
+        self.assertEqual(result["next_steps"][0]["action"], "set the plan mode")
+        manifest.save(p, pb_ready_doc())
+        missing = state.compute_state(p, CFG)["plan"]["missing"]
+        self.assertIn("run Spec-Kit discovery on the existing code", missing)
+        self.assertNotIn("set the plan mode", missing)
+        write(p, ".spec-kit/discovery/architecture.md", "# Arquitectura\n")
+        self.assertNotIn("run Spec-Kit discovery on the existing code",
+                         state.compute_state(p, CFG)["plan"]["missing"])
 
 
 if __name__ == "__main__":

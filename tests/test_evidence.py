@@ -21,11 +21,12 @@ class PbStatusTest(unittest.TestCase):
         self.assertEqual(list(out), ["prd", "rfc", "epic-E1"])
         self.assertEqual(out["prd"], {"present": True, "closed": True, "audit": "changes_required",
                                       "completion_pct": 100, "inventions": 1, "missing_anchors": 1,
-                                      "open_questions": 2})
+                                      "open_questions": 2, "packet_pct": None, "packet_errors": None})
         self.assertEqual(out["rfc"]["audit"], "unknown")
         self.assertIsNone(out["rfc"]["inventions"])
         self.assertEqual(out["epic-E1"], {"present": False, "closed": False, "audit": None, "completion_pct": None,
-                                          "inventions": None, "missing_anchors": None, "open_questions": None})
+                                          "inventions": None, "missing_anchors": None, "open_questions": None,
+                                          "packet_pct": None, "packet_errors": None})
 
 
 class ReviewSummariesTest(unittest.TestCase):
@@ -52,6 +53,15 @@ class PricingTest(unittest.TestCase):
         self.assertEqual(evidence.pricing(config.DEFAULTS), {"as_of": None, "per_mtok": {}})
         cfg = {"pricing": {"as_of": "2026-09-01", "per_mtok": {"m": {"in": 1}}}}
         self.assertEqual(evidence.pricing(cfg), {"as_of": "2026-09-01", "per_mtok": {"m": {"in": 1}}})
+
+
+class PacketPctTest(unittest.TestCase):
+    def test_packet_pct(self):
+        import pbtemplate
+        project = make_project()
+        write(project, "wow/pb/prd.md", pbtemplate.load("prd"))
+        out = evidence.pb_status(project, [])
+        self.assertEqual((out["prd"]["packet_pct"], out["rfc"]["packet_pct"]), (0, None))
 
 
 if __name__ == "__main__":
