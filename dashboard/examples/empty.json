@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-02T12:00:00Z",
+  "current": {
+    "schema_version": 1,
+    "plan": {"id": null, "phase": 0, "stale_packets": [], "missing": ["build the context pack", "plan the initiative"],
+             "links": {"files": []}},
+    "epics": [],
+    "blockers": [],
+    "next_steps": [
+      {"epic": null, "phase": 0, "action": "build the context pack", "where": "harness", "model": "claude-opus",
+       "command": "wow-context", "why": "wow/context-pack/facts.md and pending-owner.md are required before planning"},
+      {"epic": null, "phase": 1, "action": "plan the initiative", "where": "harness", "model": "claude-opus",
+       "command": "wow-plan", "why": "there is no wow/plan/manifest.json yet"}
+    ],
+    "steps_total": 2,
+    "sources": {"jira": "not_configured", "github": "disabled"},
+    "pb": {
+      "prd": {"present": false, "closed": false, "audit": null, "completion_pct": null, "inventions": null,
+              "missing_anchors": null, "open_questions": null},
+      "rfc": {"present": false, "closed": false, "audit": null, "completion_pct": null, "inventions": null,
+              "missing_anchors": null, "open_questions": null}
+    },
+    "reviews": [],
+    "pricing": {"as_of": null, "per_mtok": {}}
+  },
+  "history": [{"ts": "2026-10-02T12:00:00Z", "plan_phase": 0, "phases": {}, "tasks_done": 0, "tasks_total": 0, "epics": {}}],
+  "usage": []
+}

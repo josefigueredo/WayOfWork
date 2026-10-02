@@ -115,5 +115,71 @@ console.log("core ok");
         self.assertIn("core ok", proc.stdout)
 
 
+class ExamplesTest(unittest.TestCase):
+    def test_examples_validate_against_progress_schema(self):
+        import schema
+        for name in ("empty.json", "partial.json", "full.json"):
+            doc = json.loads((EXAMPLES / name).read_text(encoding="utf-8"))
+            self.assertEqual(schema.validate(doc, schema.load_schema("progress")), [], name)
+
+
+@unittest.skipIf(NODE is None, "node is not installed")
+class RenderTest(unittest.TestCase):
+    def test_render_examples_and_hostile_input(self):
+        js = script("wow-core") + script("wow-render") + r"""
+const assert = require("assert");
+const fs = require("fs");
+const R = WowRender;
+const EX = %s;
+const ex = (n) => JSON.parse(fs.readFileSync(EX + "/" + n, "utf8"));
+const panels = (html) => (html.match(/<section class="panel/g) || []).length;
+
+for (const n of ["empty.json", "partial.json", "full.json"]) {
+  const out = R.renderDoc({name: n, doc: ex(n)});
+  assert.strictEqual(panels(out.html), 7, n);
+  assert.strictEqual(out.warnings, "", n);
+  assert.strictEqual(R.renderAll(ex(n)).length, 7, n);
+}
+const empty = R.renderDoc({name: "e", doc: ex("empty.json")}).html;
+assert.ok(empty.includes("No data"));
+assert.ok(empty.includes("build the context pack"));
+const partial = R.renderDoc({name: "p", doc: ex("partial.json")}).html;
+assert.ok(partial.includes("jira: HTTP 401"));
+assert.ok(partial.includes("run wow snapshot again"));
+const full = R.renderDoc({name: "f", doc: ex("full.json")}).html;
+for (const needle of ["E3", "estimated", "2026-09-01 (example values)", "Cursor", "EX-43", "checks failing",
+                      'href="https://github.com/example/backend-example/pull/9"', "data-copy=", "HITL"]) {
+  assert.ok(full.includes(needle), needle);
+}
+
+const evil = ex("full.json");
+evil.current.epics[0].title = "<img src=x onerror=alert(1)>";
+evil.current.epics[0].jira_url = "javascript:alert(1)";
+evil.current.epics[0].links.jira = "javascript:alert(1)";
+evil.current.epics[0].links.prs[0].url = "javascript:alert(2)";
+const bad = R.renderDoc({name: "evil", doc: evil}).html;
+assert.ok(!bad.includes("<img src=x"));
+assert.ok(bad.includes("&lt;img src=x"));
+assert.ok(!/href="javascript:/i.test(bad));
+
+const v2 = R.renderDoc({name: "v2.json", doc: Object.assign(ex("empty.json"), {schema_version: 2})});
+assert.ok(v2.warnings.includes("schema_version"));
+assert.strictEqual(panels(v2.html), 7);
+const broken = R.renderDoc({name: "bad.json", doc: null, error: "not valid JSON"});
+assert.strictEqual(broken.html, "");
+assert.ok(broken.warnings.includes("not valid JSON"));
+assert.ok(R.renderDoc({name: "x.json", doc: {schema_version: 1}}).warnings.includes('missing &quot;current&quot;'));
+
+const port = R.portfolio([{name: "a.json", doc: ex("full.json")}, {name: "b.json", doc: null, error: "not valid JSON"}], 0);
+assert.ok(port.includes("Portfolio (2 files)"));
+assert.ok(port.includes('data-select="1"'));
+assert.ok(port.includes("not valid JSON"));
+console.log("render ok");
+""" % json.dumps(str(EXAMPLES))
+        proc = run_node(js)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("render ok", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

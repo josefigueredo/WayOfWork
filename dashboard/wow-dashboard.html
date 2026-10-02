@@ -175,7 +175,297 @@ const WowCore = (() => {
           quality};
 })();
 </script>
-<script id="wow-render"></script>
+<script id="wow-render">
+const WowRender = (() => {
+  "use strict";
+  const C = WowCore;
+  const arr = C.arr;
+  const ENT = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"};
+  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ENT[ch]);
+  const safeUrl = (u) => (typeof u === "string" && /^https?:\/\//i.test(u) ? u : null);
+  const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+  const fmt = (n) => (isNum(n) ? Math.round(n).toLocaleString("en-US") : "—");
+  const fmtMs = (ms) => (!isNum(ms) ? "—" : ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${ms} ms`);
+  const fmtUsd = (n) => `$${n.toFixed(2)}`;
+  const RERUN = "this snapshot predates this panel; run wow snapshot again";
+  const PLACES = {harness: "Harness (Claude/Codex)", "product-brain": "Product Brain", cursor: "Cursor",
+                  human: "Human", terminal: "Terminal"};
+  const STATUS = {
+    approved: ["good", "✓", "approved"], changes_required: ["serious", "!", "changes required"],
+    hitl: ["critical", "⚑", "HITL"], unknown: ["muted", "?", "unknown"], pending: ["muted", "…", "pending"],
+    passing: ["good", "✓", "checks passing"], failing: ["critical", "✗", "checks failing"],
+    running: ["warning", "…", "checks pending"], none: ["muted", "–", "no checks"],
+    ok: ["good", "✓", "ok"], blocker: ["critical", "■", "blocker"],
+  };
+
+  function badge(kind, label) {
+    const [cls, icon, text] = STATUS[kind] || STATUS.unknown;
+    return `<span class="badge ${cls}"><span class="dot" aria-hidden="true"></span><span aria-hidden="true">${icon}</span> ${esc(label ?? text)}</span>`;
+  }
+  const noData = (reason) => `<div class="nodata" role="note"><strong>No data</strong><span>${esc(reason)}</span></div>`;
+  const tip = (text) => `data-tip="${esc(text)}" tabindex="0"`;
+  const link = (url, text) => (safeUrl(url) ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>` : esc(text));
+
+  function panel(id, title, body, source, wide) {
+    return `<section class="panel${wide ? " wide" : ""}" id="${id}" aria-labelledby="${id}-h">` +
+      `<h2 id="${id}-h">${esc(title)}</h2>${body}` +
+      (source ? `<p class="source">Source: ${esc(source)}</p>` : "") + `</section>`;
+  }
+
+  // ---- 1. Phase map -------------------------------------------------------
+  function phaseMap(cur) {
+    const plan = cur.plan || {};
+    const cell = (state, text) => `<td class="ph ${state}" ${tip(text)}><span class="sr">${esc(state)}</span></td>`;
+    const head = C.PHASES.map((p, i) => `<th scope="col">${i} ${esc(p)}</th>`).join("");
+    const rows = [`<tr><th scope="row">Plan ${esc(plan.id || "")}</th>` + C.PHASES.map((p, i) => (i > 2
+      ? `<td class="ph na"></td>`
+      : cell(C.phaseState(plan.phase, i), `Plan · ${i} ${p}: ${C.phaseState(plan.phase, i)}`))).join("") + `</tr>`];
+    for (const e of arr(cur.epics)) {
+      const unknown = !isNum(e.phase) ? `unknown: ${e.reason || "no reason given"}` : null;
+      rows.push(`<tr><th scope="row">${esc(e.id)} ${esc(e.title || "")}</th>` + C.PHASES.map((p, i) => {
+        if (i < 3) return `<td class="ph na"></td>`;
+        const state = C.phaseState(e.phase, i);
+        const extra = state === "current" && e.progress ? ` (${e.progress} tasks)` : "";
+        return cell(state, unknown || `${e.id} · ${i} ${p}: ${state}${extra}`);
+      }).join("") + `</tr>`);
+    }
+    const legend = `<div class="legend"><span><i class="ph done"></i>done</span><span><i class="ph current"></i>current</span>` +
+      `<span><i class="ph todo"></i>to do</span><span><i class="ph unknown"></i>unknown (source down)</span></div>`;
+    const blockers = arr(cur.blockers).length
+      ? `<h3>Blockers</h3><ul class="plain">${arr(cur.blockers).map((b) => `<li>${badge("blocker")} ${esc(b)}</li>`).join("")}</ul>`
+      : "";
+    const body = `<div class="scroll"><table class="phase-table"><thead><tr><th></th>${head}</tr></thead><tbody>${rows.join("")}</tbody></table></div>${legend}${blockers}` +
+      (arr(cur.epics).length ? "" : noData("no epics yet: the manifest has none or does not exist"));
+    return panel("panel-phase-map", "Phase map", body, "wow state (repo, Product Brain chat copies, Jira)", true);
+  }
+
+  // ---- 2. What's missing and where ---------------------------------------
+  function nextSteps(cur) {
+    const steps = arr(cur.next_steps);
+    if (!steps.length) return panel("panel-next-steps", "What's missing and where", `<p>Nothing pending.</p>`, "wow state", true);
+    const rows = steps.map((s) => `<tr><td><span class="place ${esc(s.where)}">${esc(PLACES[s.where] || s.where)}</span></td>` +
+      `<td>${esc(s.epic ?? "plan")}</td><td class="num">${esc(s.phase)}</td><td>${esc(s.action)}</td>` +
+      `<td>${esc(s.model ?? "—")}</td><td><code>${esc(s.command)}</code> <button class="copy" type="button" data-copy="${esc(s.command)}">Copy</button></td>` +
+      `<td class="why">${esc(s.why)}</td></tr>`).join("");
+    const total = isNum(cur.steps_total) && cur.steps_total > steps.length ? `<p class="source">Showing ${steps.length} of ${cur.steps_total} steps.</p>` : "";
+    const body = `<div class="scroll"><table><thead><tr><th>Where</th><th>Epic</th><th class="num">Phase</th><th>Action</th>` +
+      `<th>Model</th><th>Command</th><th>Why</th></tr></thead><tbody>${rows}</tbody></table></div>${total}`;
+    return panel("panel-next-steps", "What's missing and where", body, "wow state", true);
+  }
+
+  // ---- 3. Where things live -----------------------------------------------
+  function sourceBadge(value) {
+    if (value === "ok") return badge("ok");
+    if (value === "disabled" || value === "not_configured") return badge("none", value.replace("_", " "));
+    return badge("changes_required", value);
+  }
+  function whereThingsLive(cur) {
+    const sources = cur.sources || {};
+    const srcRows = Object.keys(sources).map((k) => `<tr><th scope="row">${esc(k)}</th><td>${sourceBadge(String(sources[k]))}</td></tr>`);
+    if (!("confluence" in sources)) srcRows.push(`<tr><th scope="row">confluence</th><td>${badge("none", "no data: not collected yet")}</td></tr>`);
+    const epics = arr(cur.epics).map((e) => {
+      const l = e.links || {};
+      const jiraUrl = l.jira || e.jira_url;
+      const jira = e.jira ? (safeUrl(jiraUrl) ? link(jiraUrl, e.jira) : `${esc(e.jira)} <span class="muted">(no URL: Jira not reachable)</span>`) : `<span class="muted">not exported to Jira yet</span>`;
+      const prs = arr(l.prs).length
+        ? `<ul class="plain">${arr(l.prs).map((p) => `<li>${link(p.url, `#${p.number} ${p.title}`)} <span class="muted">${esc(p.repo || "")} · ${esc(String(p.state || "").toLowerCase())}</span> ${badge(p.checks === "pending" ? "running" : p.checks || "none")}</li>`).join("")}</ul>`
+        : `<span class="muted">no linked pull requests</span>`;
+      const files = arr(l.files).length ? arr(l.files).map((f) => `<code>${esc(f)}</code>`).join(" ") : `<span class="muted">none yet</span>`;
+      return `<h3>${esc(e.id)} ${esc(e.title || "")}</h3><dl class="kv"><dt>Jira</dt><dd>${jira}</dd><dt>Pull requests</dt><dd>${prs}</dd><dt>Repo</dt><dd>${files}</dd></dl>`;
+    }).join("");
+    const planFiles = arr((cur.plan || {}).links && cur.plan.links.files);
+    const plan = `<h3>Plan</h3><p>${planFiles.length ? planFiles.map((f) => `<code>${esc(f)}</code>`).join(" ") : `<span class="muted">no plan files yet</span>`}</p>`;
+    const body = `<table class="sources"><tbody>${srcRows.join("")}</tbody></table>${plan}${epics || noData("no epics yet")}`;
+    return panel("panel-links", "Where things live", body, "Jira API, gh pr list, repo files (wow snapshot)");
+  }
+
+  // ---- 4. Velocity ---------------------------------------------------------
+  function lineChart(points, label) {
+    const W = 260, H = 120, L = 30, Rr = 34, T = 10, B = 20;
+    const maxY = Math.max(1, ...points.map((p) => Math.max(p.done, isNum(p.total) ? p.total : 0)));
+    const x = (i) => L + (points.length === 1 ? 0 : (i * (W - L - Rr)) / (points.length - 1));
+    const y = (v) => H - B - (v * (H - T - B)) / maxY;
+    const path = (key) => points.filter((p) => isNum(p[key])).map((p, i) => `${i ? "L" : "M"}${x(points.indexOf(p)).toFixed(1)},${y(p[key]).toFixed(1)}`).join("");
+    const last = points[points.length - 1];
+    const hits = points.map((p, i) => `<circle class="hit" cx="${x(i).toFixed(1)}" cy="${y(p.done).toFixed(1)}" r="8" ${tip(`${label} · ${String(p.ts).slice(0, 10)}: ${p.done} of ${fmt(p.total)} tasks · source: history`)}></circle>`).join("");
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)} burn-up: ${last.done} of ${fmt(last.total)} tasks">` +
+      `<line class="grid" x1="${L}" x2="${W - Rr}" y1="${y(maxY)}" y2="${y(maxY)}"></line>` +
+      `<line class="base" x1="${L}" x2="${W - Rr}" y1="${H - B}" y2="${H - B}"></line>` +
+      `<text x="${L - 4}" y="${y(maxY) + 3}" text-anchor="end">${maxY}</text><text x="${L - 4}" y="${H - B + 3}" text-anchor="end">0</text>` +
+      `<text x="${L}" y="${H - 4}">${esc(String(points[0].ts).slice(5, 10))}</text><text x="${W - Rr}" y="${H - 4}" text-anchor="end">${esc(String(last.ts).slice(5, 10))}</text>` +
+      `<path class="scope" d="${path("total")}"></path><path class="line" d="${path("done")}"></path>` +
+      `<circle class="end" cx="${x(points.length - 1).toFixed(1)}" cy="${y(last.done).toFixed(1)}" r="4"></circle>` +
+      `<text class="label" x="${(x(points.length - 1) + 6).toFixed(1)}" y="${(y(last.done) + 3).toFixed(1)}">${last.done}/${fmt(last.total)}</text>${hits}</svg>`;
+  }
+  function roundedTop(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h);
+    return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
+  }
+  function barChart(rows) {
+    const W = 520, H = 140, L = 30, T = 16, B = 20;
+    const max = Math.max(1, ...rows.map((r) => r.done));
+    const step = (W - L) / rows.length;
+    const bw = Math.min(40, step - 2);
+    const bars = rows.map((r, i) => {
+      const h = (r.done * (H - T - B)) / max;
+      const x = L + i * step + (step - bw) / 2;
+      const y = H - B - h;
+      return (h > 0 ? `<path class="bar" d="${roundedTop(x, y, bw, h, 4)}"></path>` : "") +
+        `<rect class="hit" x="${x}" y="${T}" width="${bw}" height="${H - T - B}" ${tip(`week of ${r.week}: ${r.done} tasks checked · source: history (tasks.md)`)}></rect>` +
+        `<text class="label" x="${x + bw / 2}" y="${y - 4}" text-anchor="middle">${r.done}</text>` +
+        `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${esc(r.week.slice(5))}</text>`;
+    }).join("");
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly throughput"><line class="base" x1="${L}" x2="${W}" y1="${H - B}" y2="${H - B}"></line>${bars}</svg>`;
+  }
+  function velocity(doc) {
+    const cur = doc.current;
+    const history = arr(doc.history);
+    const multiples = arr(cur.epics).map((e) => {
+      const pts = C.burnup(history, e.id);
+      return `<figure><figcaption>${esc(e.id)} ${esc(e.title || "")}</figcaption>` +
+        (pts.length >= 2 ? lineChart(pts, e.id) : noData("needs at least two snapshots with task progress for this epic")) + `</figure>`;
+    }).join("");
+    const legend = `<div class="legend"><span><i class="swatch s1"></i>tasks done</span><span><i class="swatch dashed"></i>scope (total tasks)</span></div>`;
+    const through = C.weeklyThroughput(history);
+    const body = `<h3>Burn-up per epic</h3>${multiples ? legend + `<div class="multiples">${multiples}</div>` : noData("no epics yet")}` +
+      `<h3>Weekly throughput (tasks checked in tasks.md)</h3>${through.length ? barChart(through) : noData("needs snapshots from at least two different weeks")}` +
+      `<h3>Lead time per story</h3>${noData("needs Jira transition dates (not collected yet)")}`;
+    return panel("panel-velocity", "Velocity", body, "progress.json history (one point per wow snapshot)");
+  }
+
+  // ---- 5. Quality ----------------------------------------------------------
+  function quality(cur) {
+    if (!Array.isArray(cur.reviews)) return panel("panel-quality", "Quality", noData(RERUN), "wow/reviews/*.json");
+    const q = C.quality(cur.reviews);
+    if (!q.total) return panel("panel-quality", "Quality", noData("no wow review has been recorded yet"), "wow/reviews/*.json");
+    const rate = q.firstPassRate === null ? "—" : `${Math.round(q.firstPassRate * 100)}%`;
+    const tiles = `<div class="tiles"><div class="tile"><div class="label">First-pass approval</div><div class="value">${rate}</div><div class="sub">${q.decided} decided reviews</div></div>` +
+      `<div class="tile"><div class="label">Escalated to HITL</div><div class="value">${q.hitl}</div><div class="sub">after 3 rounds</div></div>` +
+      `<div class="tile"><div class="label">Reviews</div><div class="value">${q.total}</div><div class="sub">story, epic, readiness, claims</div></div></div>`;
+    const rows = q.rows.map((r) => {
+      const final = r.final === "approved" ? "approved" : r.final === "hitl" ? "hitl" : "pending";
+      const width = Math.max(4, (Math.min(3, r.rounds) / 3) * 100);
+      return `<tr><td>${esc(r.ref)}</td><td>${esc(r.anchor_set ?? "—")}</td><td><span class="meter" ${tip(`${r.ref}: ${r.rounds} round(s), ${fmt(r.blockers)} blocker(s) · source: wow/reviews/${r.ref}.json`)}><span style="width:${width}%"></span></span> ${esc(r.rounds)}</td>` +
+        `<td class="num">${fmt(r.blockers)}</td><td>${badge(final)}</td></tr>`;
+    }).join("");
+    const body = tiles + `<div class="scroll"><table><thead><tr><th>Ref</th><th>Set</th><th>Rounds (max 3)</th><th class="num">Blockers</th><th>Final</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return panel("panel-quality", "Quality", body, "wow/reviews/*.json (independent reviewer: Codex or Copilot)");
+  }
+
+  // ---- 6. LLM usage --------------------------------------------------------
+  function roundedRight(x, y, w, h, r) {
+    const rr = Math.min(r, h / 2, w);
+    return `M${x},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h - rr}Q${x + w},${y + h} ${x + w - rr},${y + h}H${x}Z`;
+  }
+  function hbars(rows) {
+    const W = 560, rowH = 26, LBL = 170, VAL = 90;
+    const value = (r) => C.sumOrNull([r.tokens_in, r.tokens_out]);
+    const max = Math.max(1, ...rows.map((r) => value(r) || 0));
+    const H = rows.length * rowH + 4;
+    const out = rows.map((r, i) => {
+      const v = value(r);
+      const y = i * rowH + 6;
+      const label = `<text class="label" x="${LBL - 8}" y="${y + 11}" text-anchor="end">${esc(r.model ?? "unknown model")}</text>`;
+      if (v === null) return label + `<text x="${LBL}" y="${y + 11}">no token data</text>`;
+      const w = Math.max(2, (v / max) * (W - LBL - VAL));
+      return label + `<path class="vbar v-${C.vendorKey(r.vendor)}" d="${roundedRight(LBL, y, w, 14, 4)}"></path>` +
+        `<rect class="hit" x="${LBL}" y="${y - 4}" width="${W - LBL}" height="${rowH - 4}" ${tip(`${r.vendor} · ${r.model}: ${fmt(v)} tokens (in ${fmt(r.tokens_in)}, out ${fmt(r.tokens_out)}) over ${r.count} record(s) · source: wow usage`)}></rect>` +
+        `<text class="label" x="${LBL + w + 6}" y="${y + 11}">${fmt(v)}</text>`;
+    }).join("");
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tokens in plus out per model">${out}</svg>`;
+  }
+  function latency(rows) {
+    const timed = rows.filter((r) => isNum(r.median_ms));
+    if (!timed.length) return noData("no response times recorded");
+    const W = 560, rowH = 26, LBL = 170, VAL = 130;
+    const max = Math.max(1, ...timed.map((r) => r.p95_ms));
+    const x = (ms) => LBL + (ms / max) * (W - LBL - VAL);
+    const out = timed.map((r, i) => {
+      const y = i * rowH + 13;
+      return `<text class="label" x="${LBL - 8}" y="${y + 4}" text-anchor="end">${esc(r.model)}</text>` +
+        `<line class="range v-${C.vendorKey(r.vendor)}" x1="${x(r.median_ms)}" x2="${x(r.p95_ms)}" y1="${y}" y2="${y}"></line>` +
+        `<circle class="dotm v-${C.vendorKey(r.vendor)}" cx="${x(r.median_ms)}" cy="${y}" r="4.5" ${tip(`${r.model}: median ${fmtMs(r.median_ms)}, p95 ${fmtMs(r.p95_ms)} over ${r.count} record(s) · source: wow usage`)}></circle>` +
+        `<text class="label" x="${x(r.p95_ms) + 8}" y="${y + 4}">p50 ${fmtMs(r.median_ms)} · p95 ${fmtMs(r.p95_ms)}</text>`;
+    }).join("");
+    return `<svg viewBox="0 0 ${W} ${timed.length * rowH + 4}" role="img" aria-label="Response time per model">${out}</svg>`;
+  }
+  function usagePanel(doc) {
+    const usage = arr(doc.usage);
+    if (!usage.length) return panel("panel-usage", "LLM usage", noData("no usage records: run wow usage, then wow snapshot"), "wow usage", true);
+    const rows = C.usageByModel(usage);
+    const pools = C.poolTotals(usage);
+    const cost = C.estimateCost(usage, doc.current.pricing);
+    const costSub = (name) => (cost.available ? `${fmtUsd(cost.byPool[name])} estimated` : "cost: no data");
+    const tiles = `<div class="tiles">` +
+      `<div class="tile"><div class="label">Own accounts (Claude + Codex)</div><div class="value">${fmt(C.sumOrNull([pools.own.tokens_in, pools.own.tokens_out]))}</div><div class="sub">tokens in + out · ${pools.own.count} records · ${costSub("own")}</div></div>` +
+      `<div class="tile pool-cursor"><div class="label">Cursor pool</div><div class="value">${fmt(C.sumOrNull([pools.cursor.tokens_in, pools.cursor.tokens_out]))}</div><div class="sub">tokens in + out · ${pools.cursor.count} runs · ${costSub("cursor")}</div></div></div>`;
+    const costNote = cost.available
+      ? `<p class="source">Costs are estimated from the price table as of ${esc(cost.as_of || "an unknown date")}; ${cost.unpriced} record(s) have no price and are excluded.</p>`
+      : noData(cost.reason);
+    const vendorsShown = [...new Set(rows.map((r) => C.vendorKey(r.vendor)))];
+    const names = {anthropic: "Anthropic (Claude)", openai: "OpenAI (Codex)", cursor: "Cursor", other: "Other"};
+    const legend = `<div class="legend">${vendorsShown.map((v) => `<span><i class="swatch v-${v}"></i>${names[v]}</span>`).join("")}</div>`;
+    const table = `<div class="scroll"><table><thead><tr><th>Vendor</th><th>Model</th><th class="num">Records</th><th class="num">In</th><th class="num">Out</th>` +
+      `<th class="num">Cache read</th><th class="num">Cache write</th><th class="num">Reasoning</th><th class="num">Median</th><th class="num">p95</th></tr></thead><tbody>` +
+      rows.map((r) => `<tr><td>${esc(r.vendor)}</td><td>${esc(r.model)}</td><td class="num">${r.count}</td><td class="num">${fmt(r.tokens_in)}</td><td class="num">${fmt(r.tokens_out)}</td>` +
+        `<td class="num">${fmt(r.cache_read)}</td><td class="num">${fmt(r.cache_write)}</td><td class="num">${fmt(r.reasoning_out)}</td><td class="num">${fmtMs(r.median_ms)}</td><td class="num">${fmtMs(r.p95_ms)}</td></tr>`).join("") +
+      `</tbody></table></div><p class="source">Counters are shown as each tool reports them: Claude input excludes cache (see cache columns); Codex input includes cached tokens. "—" means the tool did not report it.</p>`;
+    const epics = C.usageByEpic(usage);
+    const epicTable = `<div class="scroll"><table><thead><tr><th>Epic (from ref)</th><th class="num">Own accounts</th><th class="num">Cursor pool</th></tr></thead><tbody>` +
+      epics.map((e) => `<tr><td>${esc(e.epic)}</td><td class="num">${fmt(e.own)}</td><td class="num">${fmt(e.cursor)}</td></tr>`).join("") + `</tbody></table></div>`;
+    const body = tiles + costNote + `<h3>Tokens in + out per model</h3>${legend}${hbars(rows)}` +
+      `<h3>Response time per model (median to p95)</h3>${latency(rows)}<h3>All counters</h3>${table}<h3>Split by epic</h3>${epicTable}`;
+    return panel("panel-usage", "LLM usage", body, "Claude Code transcripts, Codex sessions, cursor-agent JSON (wow usage)", true);
+  }
+
+  // ---- 7. Product Brain ----------------------------------------------------
+  function productBrain(cur) {
+    if (!cur.pb || typeof cur.pb !== "object") return panel("panel-pb", "Product Brain", noData(RERUN), "wow/pb/chats/");
+    const rows = Object.keys(cur.pb).map((doc) => {
+      const s = cur.pb[doc] || {};
+      if (!s.present) return `<tr><td>${esc(doc)}</td><td colspan="6" class="muted">no local chat copy yet (wow/pb/chats/${esc(doc)}.md)</td></tr>`;
+      const audit = s.audit ? badge(s.audit === "approved" ? "approved" : s.audit === "changes_required" ? "changes_required" : "unknown") : badge("pending", "not audited");
+      return `<tr><td>${esc(doc)}</td><td>${s.closed ? "closed" : "open"}</td><td class="num">${isNum(s.completion_pct) ? `${s.completion_pct}%` : "—"}</td><td>${audit}</td>` +
+        `<td class="num">${fmt(s.inventions)}</td><td class="num">${fmt(s.missing_anchors)}</td><td class="num">${fmt(s.open_questions)}</td></tr>`;
+    }).join("");
+    const body = `<div class="scroll"><table><thead><tr><th>Document</th><th>Chat</th><th class="num">PB completion</th><th>Audit</th>` +
+      `<th class="num">Inventions</th><th class="num">Missing anchors</th><th class="num">Open questions</th></tr></thead><tbody>${rows}</tbody></table></div>` +
+      `<p class="source">A closed chat is not done until its audit is approved: Product Brain checklists are not evidence.</p>`;
+    return panel("panel-pb", "Product Brain", body, "wow/pb/chats/*.md and *.audit.json (wow pbchat audit)");
+  }
+
+  function renderAll(doc) {
+    const cur = doc.current;
+    return [phaseMap(cur), nextSteps(cur), whereThingsLive(cur), velocity(doc), quality(cur), usagePanel(doc), productBrain(cur)];
+  }
+
+  const warn = (list) => list.map((w) => `<div class="warn" role="alert">${esc(w)}</div>`).join("");
+
+  function renderDoc(entry) {
+    if (entry.error || !entry.doc) return {warnings: warn([`${entry.name}: ${entry.error || "empty file"}`]), html: ""};
+    const v = C.validate(entry.doc);
+    const warnings = warn(v.warnings.map((w) => `${entry.name}: ${w}`));
+    return {warnings, html: v.ok ? renderAll(entry.doc).join("") : ""};
+  }
+
+  function portfolio(entries, active) {
+    const rows = entries.map((e, i) => {
+      const cur = e.doc && e.doc.current;
+      const tokens = e.doc ? C.sumOrNull(arr(e.doc.usage).flatMap((r) => [r && r.tokens_in, r && r.tokens_out])) : null;
+      const status = e.error ? esc(e.error) : esc(C.validate(e.doc).warnings.join("; ") || "ok");
+      return `<tr${i === active ? ' aria-current="true"' : ""}><td><button type="button" data-select="${i}">${esc(e.name)}</button></td>` +
+        `<td>${esc(cur && cur.plan ? cur.plan.id ?? "—" : "—")}</td><td class="num">${esc(cur && cur.plan ? cur.plan.phase : "—")}</td>` +
+        `<td class="num">${cur ? arr(cur.epics).length : "—"}</td><td class="num">${cur ? arr(cur.next_steps).length : "—"}</td>` +
+        `<td class="num">${fmt(tokens)}</td><td>${status}</td></tr>`;
+    }).join("");
+    return `<section class="panel wide" id="panel-portfolio"><h2>Portfolio (${entries.length} files)</h2><div class="scroll"><table><thead><tr>` +
+      `<th>File</th><th>Plan</th><th class="num">Plan phase</th><th class="num">Epics</th><th class="num">Next steps</th><th class="num">Tokens</th><th>Status</th>` +
+      `</tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  }
+
+  return {esc, safeUrl, renderAll, renderDoc, portfolio};
+})();
+</script>
 <script id="wow-app"></script>
 </body>
 </html>
