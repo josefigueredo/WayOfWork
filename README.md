@@ -34,6 +34,18 @@ wow pbchat audit prd --deep                                 # auditar la copia d
 wow plan guard                                              # ¿se puede editar el manifiesto?
 ```
 
+## Dashboard
+
+Abrí `dashboard/wow-dashboard.html` en el navegador y arrastrá uno o varios `wow/progress.json`
+(los genera `wow snapshot`). No usa red: una Content-Security-Policy bloquea toda conexión saliente.
+Con varios archivos aparece la vista de portfolio. En `dashboard/examples/` hay tres snapshots de ejemplo.
+
+Para ver costos estimados, cargá una tabla de precios (USD por millón de tokens) en `.wow/config.json`:
+
+```json
+{"pricing": {"as_of": "2026-10-01", "per_mtok": {"claude-opus-5-5": {"in": 15, "out": 75, "cache_read": 1.5, "cache_write": 18.75}}}}
+```
+
 Credenciales de Jira: variables `IC_JIRA_BASE_URL`, `IC_JIRA_USER_EMAIL`, `IC_JIRA_API_TOKEN`
 (opcionales: `IC_JIRA_PROJECT_KEY`, `IC_JIRA_EPIC_CHILD_MODE`). Se leen del shell, de `.env.local`
 o, como último recurso, de `JIRA_*` en `.spec-kit/.env`. `wow` nunca las imprime.

@@ -174,11 +174,26 @@ const port = R.portfolio([{name: "a.json", doc: ex("full.json")}, {name: "b.json
 assert.ok(port.includes("Portfolio (2 files)"));
 assert.ok(port.includes('data-select="1"'));
 assert.ok(port.includes("not valid JSON"));
+const svgs = full.match(/<svg [^>]*>/g) || [];
+assert.ok(svgs.length >= 4);
+assert.ok(svgs.every((s) => / width="\d+"/.test(s)), "every svg declares its nominal width");
 console.log("render ok");
 """ % json.dumps(str(EXAMPLES))
         proc = run_node(js)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("render ok", proc.stdout)
+
+
+class AppStaticTest(unittest.TestCase):
+    def test_app_wiring_and_theme_tokens(self):
+        app = script("wow-app")
+        for needle in ("dragover", "drop", "data-select", "data-copy", "textContent", "wow-theme", "window.print"):
+            self.assertIn(needle, app, needle)
+        self.assertNotIn("innerHTML = entry", app)
+        text = html_text()
+        for needle in ('@media (prefers-color-scheme: dark)', ':root[data-theme="dark"]', "@media print",
+                       "repeating-linear-gradient(45deg", "#1baf7a", "#199e70", "forced-colors"):
+            self.assertIn(needle, text, needle)
 
 
 if __name__ == "__main__":
