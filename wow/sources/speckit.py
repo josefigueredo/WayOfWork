@@ -30,7 +30,10 @@ def parse_tasks(text: str) -> dict:
     return {"total": len(lines), "done": sum(1 for checked, _ in lines if checked), "stories": stories, "lines": lines}
 
 
-def work_unit_ids(path: Path) -> List[str]:
+TASK_ID_RE = re.compile(r"^(T[0-9]+)\b")
+
+
+def _work_units(path: Path) -> List[dict]:
     if not path.is_file():
         return []
     try:
@@ -40,7 +43,20 @@ def work_unit_ids(path: Path) -> List[str]:
     items = data.get("work_units", []) if isinstance(data, dict) else data
     if not isinstance(items, list):
         return []
-    return [item["id"] for item in items if isinstance(item, dict) and isinstance(item.get("id"), str)]
+    return [item for item in items if isinstance(item, dict) and isinstance(item.get("id"), str)]
+
+
+def work_unit_ids(path: Path) -> List[str]:
+    return [item["id"] for item in _work_units(path)]
+
+
+def _unit_done(unit: dict, checked_text: List[str], checked_ids: set) -> bool:
+    """A unit that lists its task_ids (as /spec-kit.tasks.shape writes them) is done when all of them are checked;
+    otherwise its id has to appear on a checked task line."""
+    task_ids = [t for t in unit.get("task_ids") or [] if isinstance(t, str)]
+    if task_ids:
+        return all(t in checked_ids for t in task_ids)
+    return any(unit["id"] in text for text in checked_text)
 
 
 def features(project: Path) -> List[dict]:
@@ -56,9 +72,11 @@ def features(project: Path) -> List[dict]:
         wu_path = folder / "work-units.json"
         if not wu_path.is_file():
             wu_path = project / ".spec-kit" / "work-units.json"
-        wu_ids = work_unit_ids(wu_path)
+        units = _work_units(wu_path)
+        wu_ids = [unit["id"] for unit in units]
         checked_text = [text for checked, text in parsed["lines"] if checked]
-        pending = [wu for wu in wu_ids if not any(wu in text for text in checked_text)]
+        checked_ids = {m.group(1) for m in (TASK_ID_RE.match(text) for text in checked_text) if m}
+        pending = [unit["id"] for unit in units if not _unit_done(unit, checked_text, checked_ids)]
         result.append({
             "dir": folder.relative_to(project).as_posix(),
             "epic_key": match.group(1) if match else None,

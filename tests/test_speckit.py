@@ -44,6 +44,19 @@ class FeaturesTest(unittest.TestCase):
         self.assertTrue(feature["has_plan"] and feature["has_tasks"] and feature["has_work_units"])
         self.assertEqual(feature["pending_work_units"], ["WU-002"])
 
+    def test_work_unit_done_when_all_its_task_ids_are_checked(self):
+        # /spec-kit.tasks.shape maps units to tasks in work-units.json; tasks.md lines do not name the unit.
+        project = make_project()
+        write(project, "specs/001-x/spec.md", "**Jira Epic:** PLATE-491\n")
+        write(project, "specs/001-x/tasks.md",
+              "- [x] T001 Create docs/auditorias/\n- [x] T005 [US1] Record SHAs\n  - jira: PLATE-492\n"
+              "- [ ] T006 [US1] Run check_freshness\n  - jira: PLATE-492\n")
+        write(project, "specs/001-x/work-units.json",
+              '{"work_units": [{"id": "WU-001", "task_ids": ["T001", "T005"]},'
+              ' {"id": "WU-002", "task_ids": ["T001", "T006"]}]}')
+        [feature] = speckit.features(project)
+        self.assertEqual(feature["pending_work_units"], ["WU-002"])
+
     def test_work_units_fallback_and_no_epic(self):
         project = make_project()
         write(project, "specs/002-x/spec.md", "# Spec without epic\n")
