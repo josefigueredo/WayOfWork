@@ -83,6 +83,19 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(errors, ["jira: no done transition for IRIS-42"])
 
 
+class OpenStoryTest(unittest.TestCase):
+    def test_an_open_story_is_an_anomaly_wow_reports_and_never_closes(self):
+        issues = [{"key": "IRIS-40", "level": "epic", "done": False},
+                  {"key": "IRIS-41", "level": "story", "done": False},
+                  {"key": "IRIS-42", "level": "subtask", "done": False}]
+        jira = FakeJira(issues)
+        result = closing.plan(_project(), "E1", jira)
+        self.assertTrue(any("IRIS-41" in b and "sync-status" in b for b in result["blockers"]), result)
+        self.assertNotIn("IRIS-41", result["to_close"])
+        self.assertTrue(closing.apply(result, jira)[0].startswith("blocked: story IRIS-41"))
+        self.assertEqual(jira.closed, [])
+
+
 class JiraClientTest(unittest.TestCase):
     def test_open_issues_reads_epic_stories_and_subtasks(self):
         def status(key, category):

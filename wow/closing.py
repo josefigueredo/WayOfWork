@@ -1,5 +1,8 @@
 """Close what neither Product Brain nor Spec-Kit closes: subtasks and the epic (/sync-status closes only stories).
 
+Stories are Spec-Kit's: an open story is an anomaly (a task without its `- jira:` key, or sync-status not run)
+that blocks the run and is reported, never closed here, so the closure stays in Spec-Kit's telemetry.
+
 Runs only after the epic review is approved (by the reviewer or by a human with `wow review --decide`) and every
 task in tasks.md is checked. Without --apply it only lists what it would close.
 """
@@ -12,7 +15,7 @@ import manifest
 from sources import SourceUnavailable, speckit
 from state import REVIEW_CLOSED, review_final
 
-_ORDER = {"subtask": 0, "story": 1, "epic": 2}
+_ORDER = {"subtask": 0, "epic": 1}
 
 
 def plan(project: Path, epic_id: str, jira) -> dict:
@@ -31,13 +34,20 @@ def plan(project: Path, epic_id: str, jira) -> dict:
         result["blockers"].append(f"the epic review is not approved: wow review --set epic --ref {epic_id}, "
                                   f"then wow review --decide approved if it escalated to HITL")
     issues = jira.open_issues(key)
+    sync = f"spec-kit sync-status {feature['dir']}" if feature else "spec-kit sync-status"
+    for story in (i for i in issues if i["level"] == "story" and not i["done"]):
+        result["blockers"].append(f"story {story['key']} is open in Jira: Spec-Kit closes stories; check its "
+                                  f"`- jira: {story['key']}` lines in tasks.md and run {sync}")
     result["already_done"] = sum(1 for i in issues if i["done"])
-    result["to_close"] = [i["key"] for i in sorted((i for i in issues if not i["done"]), key=lambda i: _ORDER[i["level"]])]
+    result["to_close"] = [i["key"] for i in sorted((i for i in issues if not i["done"] and i["level"] in _ORDER),
+                                                   key=lambda i: _ORDER[i["level"]])]
     return result
 
 
 def apply(result: dict, jira) -> List[str]:
-    """Close in order (subtasks, stories, epic); stop at the first failure so the epic never closes over open work."""
+    """Close in order (subtasks, then the epic); stop at the first failure so the epic never closes over open work."""
+    if result["blockers"]:
+        return [f"blocked: {b}" for b in result["blockers"]]
     for key in result["to_close"]:
         try:
             jira.close(key)
