@@ -18,6 +18,8 @@ READINESS: Dict[str, str] = {
     "R5": "every task has estimate, priority and labels",
 }
 _AC_RE = re.compile(r"\b(AC[0-9]+):\s*(.+?)\s*$")
+# /spec-kit.sync writes "1. **Given** …, **When** …, **Then** … (AC1)": the id trails, in parentheses.
+_AC_TRAILING_RE = re.compile(r"^\s*(?:\d+[.)]|[-*])?\s*(.+?)\s*\((AC[0-9]+)\)\s*$")
 _CLAIM_RE = re.compile(r"^\s*(?:[-*]\s*)?\**(C[0-9]+)\**\s*[:.)]\s*(.+?)\s*$")
 _HEADER_RE = re.compile(r"^(#+)\s")
 
@@ -55,6 +57,10 @@ def _story_anchors(project: Path, key: str) -> Dict[str, str]:
                 match = _AC_RE.search(line)
                 if match:
                     anchors.setdefault(match.group(1), match.group(2))
+                    continue
+                trailing = _AC_TRAILING_RE.match(line)
+                if trailing:
+                    anchors.setdefault(trailing.group(2), trailing.group(1).replace("**", ""))
     return anchors
 
 

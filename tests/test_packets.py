@@ -43,6 +43,21 @@ class StoryPacketTest(unittest.TestCase):
         self.assertEqual(packet["anchors"], {"AC1": "the case moves to curated", "AC2": "an audit row is written"})
         self.assertIn("+print('v2')", packet["body"])
 
+    def test_anchors_in_spec_kit_given_when_then_format(self):
+        # The format /spec-kit.sync writes: numbered Given/When/Then with the AC id in trailing parentheses.
+        spec = ("### User Story 1 — Auditar ([PLATE-492](https://x.atlassian.net/browse/PLATE-492)) (Priority: P1)\n"
+                "**Acceptance Scenarios:**\n\n"
+                "1. **Given** los commits fijados, **When** corre el agente, **Then** hay un veredicto por página (AC1)\n"
+                "2. **Given** una afirmación sin evidencia, **When** se arma el informe, **Then** queda sin fuente (AC2)\n"
+                "### User Story 2 — Corregir ([PLATE-493](https://x.atlassian.net/browse/PLATE-493))\n"
+                "1. **Given** el informe, **When** se corrige, **Then** queda corregido (AC1)\n")
+        project = make_project()
+        write(project, "specs/001-x/spec.md", spec)
+        packet = packets.story_packet(project, "PLATE-492", git_repo_with_change(), "main")
+        self.assertEqual(packet["anchors"], {
+            "AC1": "Given los commits fijados, When corre el agente, Then hay un veredicto por página",
+            "AC2": "Given una afirmación sin evidencia, When se arma el informe, Then queda sin fuente"})
+
     def test_story_without_anchors_raises(self):
         project = make_project()
         write(project, "specs/001-x/spec.md", "### Story 9: [IRIS-49] nothing\n")
