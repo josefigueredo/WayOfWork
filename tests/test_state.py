@@ -234,7 +234,7 @@ class EpicPhasesTest(unittest.TestCase):
         result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
         epic = result["epics"][0]
         self.assertEqual((epic["phase"], epic["progress"]), (5, "1/2"))
-        self.assertEqual(result["next_steps"][0]["command"], "wow run-wu WU-002")
+        self.assertEqual(result["next_steps"][0]["command"], "/spec-kit.implement WU-002")
 
     def test_phase_5_story_review_before_cursor(self):
         p = project_at_phase_3()

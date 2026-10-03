@@ -27,7 +27,6 @@ wow plan freeze --epics E1=IRIS-40   # sumar épicas después es válido; cambia
 wow review --set story --ref IRIS-41 --repo ../backend-api   # review independiente anclado (Codex)
 wow usage                                                   # consumo por marca y modelo
 wow sk status | wow sk cmd plan --feature specs/001-x       # preparar pasos de Spec-Kit
-wow run-wu WU-008 --epic E1                                 # implementar una WU midiendo el consumo
 wow context scan | wow context check                        # context pack con afirmaciones etiquetadas
 wow pack prd | wow pack rfc | wow pack epic --id E1         # paquetes para Product Brain
 wow pbchat audit prd --deep                                 # auditar la copia del chat de PB
@@ -76,6 +75,9 @@ Para ver costos estimados, cargá una tabla de precios (USD por millón de token
 Credenciales de Jira: variables `IC_JIRA_BASE_URL`, `IC_JIRA_USER_EMAIL`, `IC_JIRA_API_TOKEN`
 (opcionales: `IC_JIRA_PROJECT_KEY`, `IC_JIRA_EPIC_CHILD_MODE`). Se leen del shell, de `.env.local`
 o, como último recurso, de `JIRA_*` en `.spec-kit/.env`. `wow` nunca las imprime.
+
+**Deprecado:** `wow run-wu` (cursor-agent headless; las WUs se corren en el chat de Cursor y el hook `stop` mide el
+consumo) y `wow pack prd|rfc --full` (los paquetes de registro salen completos). Siguen funcionando y avisan por stderr.
 
 Códigos de salida: `0` OK · `1` hallazgos · `2` no pude evaluar.
 

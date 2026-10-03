@@ -211,7 +211,7 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
     # Phase 5: implementation and per-story independent review.
     out["progress"] = f"{feature['tasks_done']}/{feature['tasks_total']}"
     for wu in feature["pending_work_units"]:
-        steps.append(_step(eid, 5, f"implement {wu}", "cursor", models["cursor_generate"], f"wow run-wu {wu}",
+        steps.append(_step(eid, 5, f"implement {wu}", "cursor", models["cursor_generate"], f"/spec-kit.implement {wu}",
                            f"{wu} is not checked in tasks.md"))
     for story, counts in sorted(feature["stories"].items()):
         if counts["done"] == counts["total"] and review_final(project, story) not in REVIEW_CLOSED:

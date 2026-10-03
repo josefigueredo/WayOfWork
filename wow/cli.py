@@ -270,6 +270,8 @@ def _cmd_sk_status(args) -> int:
 
 
 def _cmd_run_wu(args) -> int:
+    sys.stderr.write("wow: run-wu is deprecated: run /spec-kit.implement in the Cursor chat; "
+                     "`wow hook install-cursor` records its tokens\n")
     project = _project(args)
     try:
         cfg = config.load_config(project)
@@ -603,7 +605,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     with_project(sub.add_parser("usage", help="summarize LLM usage by vendor and model")).set_defaults(handler=_cmd_usage)
 
-    rw = with_project(sub.add_parser("run-wu", help="run /spec-kit.implement headless and record usage"))
+    rw = with_project(sub.add_parser("run-wu", help="deprecated: run /spec-kit.implement headless and record usage"))
     rw.add_argument("wu")
     rw.add_argument("--model", default=None)
     rw.add_argument("--epic", default=None)
