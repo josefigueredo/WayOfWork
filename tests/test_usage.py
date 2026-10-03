@@ -93,6 +93,20 @@ class CursorAndSummaryTest(unittest.TestCase):
         self.assertEqual(row, {"vendor": "cursor", "model": "composer-2.5", "count": 2,
                                "tokens_in": 1000, "tokens_out": 50, "median_ms": 60000})
 
+    def test_review_runs_are_usage_records(self):
+        project = make_project()
+        write(project, "harness/reviews/20261002T220000Z-PLATE-492-r1.json", json.dumps({
+            "schema_version": 1, "ts": "2026-10-02T22:00:00Z", "ref": "PLATE-492", "set": "story", "round": 1,
+            "reviewer": "codex", "model": "gpt-6-luna",
+            "usage": {"input_tokens": 16425, "cached_input_tokens": 7936, "output_tokens": 5, "reasoning_output_tokens": 2}}))
+        [record] = usage.review_records(project)
+        self.assertEqual((record["vendor"], record["tool"], record["model"], record["scope"], record["ref"]),
+                         ("openai", "codex", "gpt-6-luna", "review", "PLATE-492"))
+        self.assertEqual((record["tokens_in"], record["tokens_out"], record["cache_read"], record["reasoning_out"]),
+                         (16425, 5, 7936, 2))
+        self.assertIn(record, usage.collect(project, {"usage": {"claude_root": str(project / "c"),
+                                                                "codex_root": str(project / "x")}}))
+
     def test_parse_ts_variants(self):
         self.assertEqual(usage.parse_ts("2026-10-01T10:00:00.1234567Z").microsecond, 123456)
         self.assertEqual(usage.parse_ts("2026-10-01T10:00:00Z").second, 0)

@@ -182,6 +182,16 @@ class ReviewCommandTest(unittest.TestCase):
         self.assertEqual(saved["plan"]["readiness"], {"verdict": "approved", "rounds": 1})
         self.assertTrue((project / ".wow/reviews/plan/round-1.md").is_file())
 
+    def test_each_round_records_its_usage_in_the_project(self):
+        # Recorded where the review belongs, not where the command ran: codex runs --ephemeral, so its own session
+        # log is never written and the usage collector would not see the round otherwise.
+        project, _ = _review_project("VERDICT: APPROVED\n")
+        run_cli(["review", "--set", "readiness", "--ref", "plan", "--project", str(project)])
+        [record_file] = sorted((project / "harness/reviews").glob("*-plan-r1.json"))
+        saved = _json.loads(record_file.read_text(encoding="utf-8"))
+        self.assertEqual((saved["ref"], saved["set"], saved["round"], saved["reviewer"]), ("plan", "readiness", 1, "codex"))
+        self.assertIn("usage", saved)
+
     def test_blocker_then_same_diff_waits(self):
         project, _ = _review_project("VERDICT: CHANGES_REQUIRED\nBLOCKER R1 manifest.json:1 — task 1.1 has no AC\n")
         args = ["review", "--set", "readiness", "--ref", "plan", "--project", str(project)]

@@ -340,7 +340,7 @@ def _cmd_review(args) -> int:
 
     try:
         name, spec = reviewers.pick_reviewer(cfg, packet["cwd"])
-        text = reviewers.run_backend(spec, packets.build_prompt(packet), packet["cwd"])
+        text, used = reviewers.run_backend_with_usage(spec, packets.build_prompt(packet), packet["cwd"])
     except reviewers.NoReviewer as exc:
         sys.stderr.write(f"wow: {exc}\n")
         return exitcodes.CANNOT_EVALUATE
@@ -349,6 +349,14 @@ def _cmd_review(args) -> int:
         return exitcodes.CANNOT_EVALUATE
 
     number = len(summary["rounds"]) + 1
+    # Usage lands in the project the review belongs to, whatever directory the command ran from.
+    stamp = _dt.datetime.now(_dt.timezone.utc)
+    usage_file = project / "harness" / "reviews" / f"{stamp.strftime('%Y%m%dT%H%M%SZ')}-{ref}-r{number}.json"
+    usage_file.parent.mkdir(parents=True, exist_ok=True)
+    usage_file.write_text(json.dumps({
+        "schema_version": 1, "ts": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "ref": ref, "set": args.set, "round": number,
+        "reviewer": name, "model": reviewers.codex_model() if name == "codex" else None, "usage": used}, indent=2) + "\n",
+        encoding="utf-8")
     raw = project / ".wow" / "reviews" / ref / f"round-{number}.md"
     raw.parent.mkdir(parents=True, exist_ok=True)
     raw.write_text(text, encoding="utf-8")

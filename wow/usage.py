@@ -118,11 +118,33 @@ def cursor_records(project: Path) -> List[dict]:
     return records
 
 
+_REVIEWER_VENDOR = {"codex": "openai", "copilot": "github"}
+
+
+def review_records(project: Path) -> List[dict]:
+    """Rounds `wow review` recorded in the project (codex runs --ephemeral, so its session log never exists)."""
+    records: List[dict] = []
+    for path in sorted((project / "harness" / "reviews").glob("*.json")):
+        try:
+            run = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        used = run.get("usage") or {}
+        reviewer = run.get("reviewer")
+        records.append(_record(
+            ts=run.get("ts"), vendor=_REVIEWER_VENDOR.get(reviewer, reviewer), tool=reviewer, model=run.get("model"),
+            tokens_in=used.get("input_tokens"), tokens_out=used.get("output_tokens"),
+            cache_read=used.get("cached_input_tokens"), reasoning_out=used.get("reasoning_output_tokens"),
+            scope="review", ref=run.get("ref"), source="wow-review"))
+    return records
+
+
 def collect(project: Path, cfg: dict, claude_root: Optional[Path] = None, codex_root: Optional[Path] = None) -> List[dict]:
     roots = cfg.get("usage") or {}
     claude_root = claude_root or Path(roots.get("claude_root", Path.home() / ".claude" / "projects")).expanduser()
     codex_root = codex_root or Path(roots.get("codex_root", Path.home() / ".codex" / "sessions")).expanduser()
-    records = claude_records(claude_root, project) + codex_records(codex_root, project) + cursor_records(project)
+    records = (claude_records(claude_root, project) + codex_records(codex_root, project) + cursor_records(project)
+               + review_records(project))
     return sorted(records, key=lambda r: r["ts"] or "")
 
 

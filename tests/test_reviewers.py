@@ -66,6 +66,36 @@ class PickTest(unittest.TestCase):
         self.assertIsNone(reviewers.command_spec({}, "unknown"))
 
 
+CODEX_JSON = """import sys
+sys.stdin.read()
+open(sys.argv[1], "w").write("VERDICT: APPROVED")
+print('{"type":"thread.started","thread_id":"t1"}')
+print('{"type":"turn.completed","usage":{"input_tokens":16425,"cached_input_tokens":7936,"cache_write_input_tokens":0,"output_tokens":5,"reasoning_output_tokens":2}}')
+"""
+
+
+class UsageCaptureTest(unittest.TestCase):
+    def test_codex_json_events_give_the_round_usage_and_the_text_stays_the_same(self):
+        project = make_project()
+        script = write(project, "fake_codex.py", CODEX_JSON)
+        spec = {"argv": [sys.executable, str(script), "{out}"], "stdin": True, "output": "file"}
+        text, used = reviewers.run_backend_with_usage(spec, "review", project)
+        self.assertEqual(text, "VERDICT: APPROVED")
+        self.assertEqual(used, {"input_tokens": 16425, "cached_input_tokens": 7936, "output_tokens": 5,
+                                "reasoning_output_tokens": 2})
+        self.assertIn("--json", reviewers.DEFAULT_COMMANDS["codex"]["argv"])
+
+    def test_no_json_events_means_no_usage(self):
+        spec = {"argv": [sys.executable, "-c", "print('VERDICT: APPROVED')"], "stdin": False, "output": "stdout"}
+        self.assertIsNone(reviewers.run_backend_with_usage(spec, "x", make_project())[1])
+
+    def test_codex_model_from_config(self):
+        project = make_project()
+        cfg = write(project, "config.toml", 'model_provider = "openai"\nmodel = "gpt-6-luna"\nmodel_reasoning_effort = "medium"\n')
+        self.assertEqual(reviewers.codex_model(cfg), "gpt-6-luna")
+        self.assertIsNone(reviewers.codex_model(project / "missing.toml"))
+
+
 class CodexOutsideGitTest(unittest.TestCase):
     def test_codex_runs_in_non_git_workspaces(self):
         # Multi-repo umbrellas (a workspace root holding many repos) are not git repositories; without this flag
