@@ -52,8 +52,41 @@ def scan(project: Path) -> dict:
     return {"children": [k.relative_to(project).as_posix() for k in kids], "docs": docs, "created": created}
 
 
+def _discovery_pairs(project: Path):
+    """Verified discovery copies (wow/context-pack/discovery/) and where Spec-Kit keeps each one."""
+    verified = project / "wow" / "context-pack" / "discovery"
+    for path in sorted(verified.glob("*.md")) if verified.is_dir() else []:
+        if path.name == "ERRATA.md":
+            target = project / ".spec-kit" / "discovery" / "ERRATA.md"
+        elif path.name == "local-constitution.md":
+            target = project / "local-constitution.md"
+        else:
+            target = project / ".spec-kit" / "discovery" / path.name
+        yield path, target
+
+
+def _drifted(project: Path) -> List[Path]:
+    return [target for source, target in _discovery_pairs(project)
+            if not target.is_file() or target.read_bytes() != source.read_bytes()]
+
+
+def restore_discovery(project: Path) -> List[str]:
+    """Copy the verified discovery back over what a new /spec-kit.discovery wrote; return what changed."""
+    restored = []
+    for source, target in _discovery_pairs(project):
+        if not target.is_file() or target.read_bytes() != source.read_bytes():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(source.read_bytes())
+            restored.append(target.relative_to(project).as_posix())
+    return restored
+
+
 def check(project: Path) -> List[str]:
     findings: List[str] = []
+    for target in _drifted(project):
+        rel = target.relative_to(project).as_posix()
+        findings.append(f"discovery: {rel} differs from its verified copy in wow/context-pack/discovery/ "
+                        f"(a new /spec-kit.discovery overwrote the corrections?): wow context restore puts them back")
     seen: Dict[str, str] = {}
     for name in CLAIM_FILES:
         path = project / "wow" / "context-pack" / name

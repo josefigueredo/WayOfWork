@@ -543,6 +543,15 @@ def _cmd_context_scan(args) -> int:
     return exitcodes.OK
 
 
+def _cmd_context_restore(args) -> int:
+    restored = contextpack.restore_discovery(_project(args))
+    for rel in restored:
+        print(f"restored {rel}")
+    if not restored:
+        print("discovery matches its verified copies")
+    return exitcodes.OK
+
+
 def _cmd_context_check(args) -> int:
     findings = contextpack.check(_project(args))
     for line in findings:
@@ -636,6 +645,8 @@ def build_parser() -> argparse.ArgumentParser:
     cxsub = cx.add_subparsers(dest="context_command", parser_class=_Parser)
     with_project(cxsub.add_parser("scan")).set_defaults(handler=_cmd_context_scan)
     with_project(cxsub.add_parser("check")).set_defaults(handler=_cmd_context_check)
+    with_project(cxsub.add_parser("restore", help="put the verified discovery copies back")).set_defaults(
+        handler=_cmd_context_restore)
 
     with_project(sub.add_parser("usage", help="summarize LLM usage by vendor and model")).set_defaults(handler=_cmd_usage)
 

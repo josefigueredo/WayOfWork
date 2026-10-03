@@ -16,9 +16,13 @@ description: Build the context pack (facts, metrics, decisions, contracts, owner
      /spec-kit.discovery) or the code; baselines are [MEDIDO] with where, when and how.
    - greenfield: keep discovery notes (interviews, benchmarks, exports) in the repo and cite them; most numbers
      are [ESTIMACIÓN] or [SIN DEFINIR] until launch.
-3. List owner decisions in `pending-owner.md` as `- [ ] <decision>`; the user marks them `[x]`.
-4. Run `wow context check` until it exits 0.
-5. Verify the facts with an independent reviewer:
+3. brownfield: Spec-Kit's discovery needs corrections (the pilot found 9). Check `.spec-kit/discovery/*.md` and
+   `local-constitution.md` against the code yourself, fix them in place, and keep the verified copies plus an
+   `ERRATA.md` (said / correction / evidence) in `wow/context-pack/discovery/`. From then on `wow context check`
+   fails if a new /spec-kit.discovery overwrites them, and `wow context restore` puts them back.
+4. List owner decisions in `pending-owner.md` as `- [ ] <decision>`; the user marks them `[x]`.
+5. Run `wow context check` until it exits 0.
+6. Verify the facts with an independent reviewer:
    `wow review --set claims --ref facts --doc wow/context-pack/facts.md --repo <repo>`.
 
 ## Rules
