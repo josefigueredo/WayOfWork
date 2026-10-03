@@ -1,6 +1,7 @@
 """wow close: what neither Product Brain nor Spec-Kit closes (subtasks and the epic), after the human approval."""
 from __future__ import annotations
 
+import io
 import json
 import os
 import unittest
@@ -119,6 +120,37 @@ class JiraClientTest(unittest.TestCase):
             return FakeResponse({"transitions": []})
         with self.assertRaises(SourceUnavailable):
             JiraClient(CREDS, opener=opener).close("IRIS-42")
+
+
+class JiraSafetyTest(unittest.TestCase):
+    def test_unknown_epic_key_is_unavailable_not_a_crash(self):
+        import urllib.error
+
+        def opener(request, timeout):
+            raise urllib.error.HTTPError(request.full_url, 400, "bad", {}, io.BytesIO(b""))
+        with self.assertRaises(SourceUnavailable):
+            JiraClient(CREDS, opener=opener).open_issues("IRIS-40")
+
+    def test_epic_link_sites_read_children_by_epic_link(self):
+        from config import JiraCreds
+        creds = JiraCreds("https://acme.atlassian.net", "dev@acme.io", "tok", "IRIS", "epic_link")
+        seen = []
+
+        def opener(request, timeout):
+            jql = json.loads(request.data.decode())["jql"]
+            seen.append(jql)
+            return FakeResponse({"issues": [{"key": "IRIS-40", "fields": {}}] if jql == "key = IRIS-40" else []})
+        JiraClient(creds, opener=opener).open_issues("IRIS-40")
+        self.assertIn('"Epic Link" = IRIS-40', seen)
+
+    def test_close_prefers_a_done_transition_over_cancelled(self):
+        def opener(request, timeout):
+            if request.get_method() == "GET":
+                return FakeResponse({"transitions": [
+                    {"id": "41", "to": {"name": "Won't Do", "statusCategory": {"key": "done"}}},
+                    {"id": "31", "to": {"name": "Done", "statusCategory": {"key": "done"}}}]})
+            return FakeResponse({})
+        self.assertEqual(JiraClient(CREDS, opener=opener).close("IRIS-42"), "Done")
 
 
 class CloseCommandTest(unittest.TestCase):

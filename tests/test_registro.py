@@ -22,7 +22,7 @@ BRIEF = """# Plan
 
 ## Contexto
 IRIS v2 corre sobre Lambda y la curación vive en el BFF (C1).
-El deploy coincide con main (medido, C8) y con D2.
+El deploy coincide con main (medido, C8) y con el BFF (D2).
 """
 H = "0123456789abcdef"
 
@@ -53,7 +53,7 @@ class RegistroPrdTest(unittest.TestCase):
         self.assertIn("Curar casos en IRIS v2", _section(self.text, "## Resumen Ejecutivo"))
         self.assertIn("Hoy los casos se curan a mano y sin auditoría", _section(self.text, "### Problema"))
         self.assertIn("IRIS v2 corre sobre Lambda", _section(self.text, "### Contexto"))
-        self.assertIn("El deploy coincide con main (medido) y con.", _section(self.text, "### Contexto"))
+        self.assertIn("El deploy coincide con main (medido) y con el BFF.", _section(self.text, "### Contexto"))
         self.assertIn("| 1 | migrar datos históricos |", self.text)
         self.assertIn("costo del juez ≤ USD 100", _section(self.text, "## Requerimientos No Funcionales"))
         self.assertIn("| 1 | Ninguna | Owner de producto | Cerrada |", self.text)
@@ -130,6 +130,43 @@ class HygieneCheckTest(unittest.TestCase):
         text = pack.render_prd(pb_ready_doc(), pack.parse_brief(BRIEF), H, registro=True)
         broken = text.replace("Curar casos en IRIS v2", "Curar casos en IRIS v2 (C9)", 1)
         self.assertTrue(any("C9" in e for e in pbcompletion.predict("prd", broken)["errors"]))
+
+
+class ReviewFindingsTest(unittest.TestCase):
+    def test_partly_filled_groups_keep_every_row(self):
+        doc = pb_ready_doc()
+        doc["epics"][0]["tasks"][1]["component"] = "FE"
+        prd = pack.render_prd(doc, pack.parse_brief(BRIEF), H, registro=True)
+        self.assertIn("| 2 | curación masiva | No aplica | No aplica |", prd)
+        rfc = pack.render_rfc(doc, pack.parse_brief(BRIEF), H, registro=True)
+        self.assertIn("| BE | No aplica | Model |", rfc)
+        self.assertIn("| FE | No aplica | API |", rfc)
+
+    def test_bare_ids_in_prose_are_content_not_references(self):
+        brief = BRIEF.replace("- Goal: Curar casos en IRIS v2",
+                              "- Goal: Subir la retención D1, D7 y D30 con diagramas C4 y D3.js")
+        text = pack.render_prd(pb_ready_doc(), pack.parse_brief(brief), H, registro=True)
+        self.assertIn("retención D1, D7 y D30 con diagramas C4 y D3.js", text)
+        self.assertEqual(pbcompletion.predict("prd", text)["errors"], [])
+
+    def test_tarea_in_prose_is_not_a_task_suffix(self):
+        brief = BRIEF.replace("costo del juez ≤ USD 100", "recálculo como job nocturno (tarea programada)")
+        text = pack.render_rfc(pb_ready_doc(), pack.parse_brief(brief), H, registro=True)
+        self.assertIn("(tarea programada)", text)
+        self.assertEqual(pbcompletion.predict("rfc", text)["errors"], [])
+
+    def test_single_braces_in_content_survive(self):
+        doc = pb_ready_doc()
+        doc["epics"][0]["tasks"][1]["title"] = "GET /orders/{orderId}"
+        text = pack.render_rfc(doc, pack.parse_brief(BRIEF), H, registro=True)
+        self.assertIn("GET /orders/{orderId}", text)
+
+    def test_decimal_commas_survive_in_epic_lists(self):
+        doc = pb_ready_doc()
+        doc["epics"][0]["product"]["insights"] = ["latencia p95 ≤ 1,5 s, medida en prod"]
+        text = pack.render_epic(doc, "E1", H)
+        self.assertIn("- latencia p95 ≤ 1,5 s; medida en prod\n", text)
+        self.assertEqual(pbcompletion.check_epic(fill(text))["errors"], [])
 
 
 class RegistroCliTest(unittest.TestCase):

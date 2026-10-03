@@ -11,6 +11,9 @@ from config import JiraCreds
 from sources import SourceUnavailable
 
 
+_DONE_NAMES = ("done", "listo", "finalizado", "finalizada", "hecho", "cerrado", "closed", "resolved", "resuelto")
+
+
 class _NotFound(Exception):
     """Internal: Jira answered 400 (unknown issue in JQL)."""
 
@@ -95,11 +98,16 @@ class JiraClient:
 
     def open_issues(self, epic_key: str) -> List[dict]:
         """The epic, its children and their subtasks, with whether each one is already in the done category."""
-        epic = self._search(f"key = {epic_key}")
-        if not epic:
-            raise SourceUnavailable(f"jira: {epic_key} is not visible to this account")
-        children = self._search(f"parent = {epic_key}")
-        subtasks = self._search(f"parent in ({', '.join(i['key'] for i in children)})") if children else []
+        try:
+            epic = self._search(f"key = {epic_key}")
+            if not epic:
+                raise SourceUnavailable(f"jira: {epic_key} is not visible to this account")
+            # Same child rule as epic_summary: reading children the wrong way would close the epic over open work.
+            link = f'"Epic Link" = {epic_key}' if self._creds.child_mode == "epic_link" else f"parent = {epic_key}"
+            children = self._search(link)
+            subtasks = self._search(f"parent in ({', '.join(i['key'] for i in children)})") if children else []
+        except _NotFound:
+            raise SourceUnavailable(f"jira: Jira rejected the search for {epic_key} (unknown key or project?)")
         return ([{"key": i["key"], "level": "epic", "done": self._done(i)} for i in epic]
                 + [{"key": i["key"], "level": "story", "done": self._done(i)} for i in children]
                 + [{"key": i["key"], "level": "subtask", "done": self._done(i)} for i in subtasks])
@@ -109,8 +117,11 @@ class JiraClient:
         path = f"/rest/api/3/issue/{key}/transitions"
         try:
             transitions = self._send("GET", path).get("transitions", [])
-            target = next((tr for tr in transitions
-                           if ((tr.get("to") or {}).get("statusCategory") or {}).get("key") == "done"), None)
+            done = [tr for tr in transitions
+                    if ((tr.get("to") or {}).get("statusCategory") or {}).get("key") == "done"]
+            # "Won't Do" and "Cancelled" are also in the done category: finished work prefers a plain done status.
+            target = next((tr for tr in done if (tr["to"].get("name") or "").lower() in _DONE_NAMES),
+                          done[0] if done else None)
             if target is None:
                 raise SourceUnavailable(f"jira: no done transition for {key}")
             self._send("POST", path, {"transition": {"id": target["id"]}})

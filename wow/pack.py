@@ -39,11 +39,13 @@ OWNER_ROLE = "Owner de producto"
 REGISTRO_REASON = "registro de la iniciativa; el plan y el detalle viven en el repo y en Spec-Kit."
 NA = "No aplica"
 # Context-pack claim ids (C14) and decision ids (D2) are internal: Product Brain copies them into Jira.
-# Criterion ids (AC1, E1.C1) stay, a word character or a dot before the letter protects them.
+# Only the shapes wow writes are references: "(C3)", "(C4, C5)", "(medido, C8)" and the "D1 " that opens a
+# decision. A bare "D7" or "C4" in prose is content (retention D7, the C4 model) and stays.
 _REF_GROUP_RE = re.compile(r"\s*\((?:[CD]\d+)(?:\s*[,;]\s*[CD]\d+)*\)")
-_REF_LEAD_RE = re.compile(r"(?<![\w.])D\d+\s+")
-_REF_BARE_RE = re.compile(r"\s*[,;]?\s*(?<![\w.])[CD]\d+\b")
+_REF_TAIL_RE = re.compile(r"(?:\s*[,;]\s*[CD]\d+)+(?=\s*\))")
+_DECISION_ID_RE = re.compile(r"^D\d+\s+")
 _TASK_REF_RE = re.compile(r"\s*\(tareas? [\d., y]+\)")
+_LIST_COMMA_RE = re.compile(r"(?<!\d),|,(?!\d)")  # decimal commas (1,5 s) are not separators
 INITIATIVE_TYPE = {"brownfield": "Evolución de sistema existente", "greenfield": "Iniciativa nueva"}
 PRIORITY_ES = {"high": "Alta", "medium": "Media", "low": "Baja"}
 _NONE = ("", "none", "ninguna", "ninguno")
@@ -59,8 +61,7 @@ def _items(value: str) -> List[str]:
 
 
 def strip_refs(text: str) -> str:
-    text = _TASK_REF_RE.sub("", _REF_GROUP_RE.sub("", text))
-    return _REF_BARE_RE.sub("", _REF_LEAD_RE.sub("", text))
+    return _REF_TAIL_RE.sub("", _TASK_REF_RE.sub("", _REF_GROUP_RE.sub("", text)))
 
 
 def _pb(text: str) -> str:
@@ -71,7 +72,7 @@ def _pb(text: str) -> str:
 
 def _list_item(value: str) -> str:
     # Product Brain splits list items on commas: one item with a comma becomes two broken bullets.
-    return strip_refs(_cell(value)).replace(",", ";")
+    return _LIST_COMMA_RE.sub(";", strip_refs(_cell(value)))
 
 
 def _cell(value: str) -> str:
@@ -121,15 +122,23 @@ def _registro(text: str, kind: str) -> str:
     """Collapse every unused numbered group to one row and mark every remaining placeholder."""
     _, groups = pbtemplate.units(kind)
     for prefix, group in groups.items():
-        if group["index_type"] == "numeric" and re.search(r"\{\{\s*" + re.escape(prefix) + r"_\d", text):
+        rows = [line for line in text.split("\n") if re.search(r"\{\{\s*" + re.escape(prefix) + r"_\d", line)]
+        # Only a group the renderer left untouched collapses; a populated one keeps every row.
+        if group["index_type"] == "numeric" and rows and all(_template_only(row) for row in rows):
             text = _rows(text, prefix, [{}])
     text = text.replace("{{open_questions}}", f"| 1 | Ninguna | {OWNER_ROLE} | Cerrada |")
     lines = []
     for line in text.split("\n"):
         short = line.lstrip().startswith(("|", "#")) or "`{{" in line
-        lines.append(pbtemplate.PLACEHOLDER_RE.sub(NA if short else f"{NA}: {REGISTRO_REASON}", line)
-                     if "{{" in line else line)
+        lines.append(_DOUBLE_RE.sub(NA if short else f"{NA}: {REGISTRO_REASON}", line) if "{{" in line else line)
     return "\n".join(lines)
+
+
+_DOUBLE_RE = re.compile(r"\{\{\s*[a-zA-Z0-9_.-]+\s*\}\}")
+
+
+def _template_only(line: str) -> bool:
+    return not re.sub(r"[\s|\-\d]", "", _DOUBLE_RE.sub("", line))
 
 
 def _bullets(items) -> str:
@@ -179,7 +188,8 @@ def render_rfc(doc: dict, brief: Dict[str, str], mhash: str, pending=(), owner_r
         values.update({"rfc_id": plan["id"], "authors": author,
                        "problem_definition": brief["Problem"] or brief.get("Context", ""),
                        "business_impact": "; ".join(closing), "security": "; ".join(_items(brief["Constraints"])),
-                       "alternatives": _bullets(f"Decidido: {d}" for d in _items(brief["Decisions"]))})
+                       "alternatives": _bullets(f"Decidido: {_DECISION_ID_RE.sub('', d)}"
+                                                for d in _items(brief["Decisions"]))})
         values = {k: v for k, v in values.items() if v}
     if brief["Goal"].strip():
         values["executive_summary"] = brief["Goal"].strip()

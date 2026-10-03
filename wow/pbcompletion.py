@@ -187,7 +187,10 @@ def _free_text(body: List[str], literals: List[str]) -> str:
     return "\n".join(kept)
 
 
-_REF_RE = re.compile(r"(?<![\w.])[CD]\d+\b")
+# The reference shapes wow strips (pack.strip_refs); a bare "D7" in prose is content.
+_REF_RE = re.compile(r"\((?:[CD]\d+)(?:\s*[,;]\s*[CD]\d+)*\)|[,;]\s*[CD]\d+(?=\s*\))")
+_TASK_REF_RE = re.compile(r"\(tareas? [\d., y]+\)")
+_LIST_COMMA_RE = re.compile(r"(?<!\d),|,(?!\d)")
 _API_EXTRA_RE = re.compile(r"^#{3,4}\s+([D-Z])\.\s")
 
 
@@ -199,7 +202,7 @@ def hygiene(kind: str, packet: str) -> List[str]:
         ref = _REF_RE.search(line)
         if ref:
             errors.append(f"internal reference {ref.group(0)} reaches Product Brain and Jira: {line.strip()[:80]}")
-        if "(tarea " in line:
+        if _TASK_REF_RE.search(line):
             errors.append(f"title suffix (tarea …) ends up in the Jira summary: {line.strip()[:80]}")
     if kind == "rfc":
         for line in text.splitlines():
@@ -210,7 +213,7 @@ def hygiene(kind: str, packet: str) -> List[str]:
         fixed = set(DOR) | set(DOD)
         for line in text.splitlines():
             item = line.strip()[2:] if line.strip().startswith("- ") else None
-            if item and "," in item and item.rsplit(" — ", 1)[0] not in fixed:
+            if item and _LIST_COMMA_RE.search(item) and item.rsplit(" — ", 1)[0] not in fixed:
                 errors.append(f"list item with a comma: Product Brain splits it in two: {item[:80]}")
     return errors
 
