@@ -8,11 +8,29 @@ Diseño: `docs/superpowers/specs/2026-10-01-wayofwork-design.md`.
 ## Instalación
 
 ```bash
-./install.sh                      # enlaza wow/wow en ~/.local/bin/wow
-npx skills add <repo> --skill wow-guide
+git clone <remote> ~/CurrentCode/WayOfWork && cd ~/CurrentCode/WayOfWork
+./install.sh --skills     # CLI en ~/.local/bin/wow + las 7 skills wow-* para Claude Code y Codex
+wow --version             # si falla, agregá ~/.local/bin al PATH
+wow hook install-cursor   # una vez por máquina: mide modelo y tokens de cada turno del chat de Cursor
 ```
 
-Requiere Python 3.9 o superior. No instala dependencias.
+`install.sh` solo crea symlinks hacia este repo, así que un `git pull` actualiza CLI y skills sin reinstalar. Las skills
+siguen el layout compartido: `~/.agents/skills/wow-*` apunta al repo, y `~/.claude/skills/wow-*` y
+`~/.codex/skills/wow-*` apuntan a `../../.agents/skills/wow-*`. Re-correrlo es seguro, y nunca reemplaza un directorio real
+con el mismo nombre: en ese caso sale con código 1 y dice cuál es. `--bin-dir DIR` instala el CLI en otro directorio.
+
+### Requisitos
+
+| Qué | Para qué | Si falta |
+|---|---|---|
+| Python 3.9+ y git | todo `wow`; no instala dependencias | no corre |
+| Spec-Kit (`uv tool install git+ssh://git@github.com/josefigueredo/spec-kit.git`) y Cursor | fases 4 a 6 | la guía se queda en la fase 3 |
+| CLI de Codex (o Copilot) logueado | revisor independiente de `wow review` y `wow pbchat audit --deep` | `wow review` sale con 2 (no pude evaluar) |
+| `gh` logueado | links a PRs en el snapshot y el dashboard | el snapshot marca GitHub como no disponible |
+| Token de Jira **sin scopes** (`IC_JIRA_*`, ver abajo) | estado de las épicas y `wow close` | Jira figura como no configurado |
+
+Un token de Jira con scopes responde 401 contra `https://<sitio>.atlassian.net` y Jira contesta como anónimo, así que
+parece falta de permisos. La prueba que separa los dos casos es `GET /rest/api/3/myself`.
 
 ## Uso
 
