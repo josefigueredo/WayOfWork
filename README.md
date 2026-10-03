@@ -35,7 +35,7 @@ wow plan guard                                              # ¿se puede editar 
 wow plan init 0001-x --title "X" --mode brownfield         # el modo cambia la fase 0 y los prompts
 wow manifest lint --pb                                      # lo que Product Brain exige por historia
 wow pack check prd | wow pack check epic --id E1           # predicción local del % de Product Brain
-wow close --epic E1 [--apply]                               # cerrar subtareas y épica (las historias las cierra Spec-Kit)
+wow close --epic E1 [--subtasks] [--apply]                               # --subtasks tras cada sync-status; sin él, subtareas y épica al final
 ```
 
 Product Brain registra el trabajo; no lo planifica. Por eso `wow pack prd` y `wow pack rfc` generan **paquetes de

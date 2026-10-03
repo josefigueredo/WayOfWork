@@ -44,6 +44,23 @@ def plan(project: Path, epic_id: str, jira) -> dict:
     return result
 
 
+def plan_subtasks(project: Path, epic_id: str, jira) -> dict:
+    """Open subtasks whose story Spec-Kit already closed: they can close as each story ends, not at the epic's end.
+    Subtasks of open stories wait for their story; the story's closure stays Spec-Kit's signal."""
+    key = manifest.load(project)["plan"]["export"]["epics"].get(epic_id)
+    result = {"epic": epic_id, "key": key, "blockers": [], "to_close": [], "already_done": 0, "waiting": 0}
+    if not key:
+        result["blockers"].append(f"{epic_id} is not exported to Jira: run wow plan freeze --epics {epic_id}=<KEY>")
+        return result
+    issues = jira.open_issues(key)
+    done_stories = {i["key"] for i in issues if i["level"] == "story" and i["done"]}
+    subtasks = [i for i in issues if i["level"] == "subtask"]
+    result["already_done"] = sum(1 for i in subtasks if i["done"])
+    result["to_close"] = [i["key"] for i in subtasks if not i["done"] and i.get("parent") in done_stories]
+    result["waiting"] = sum(1 for i in subtasks if not i["done"] and i.get("parent") not in done_stories)
+    return result
+
+
 def apply(result: dict, jira) -> List[str]:
     """Close in order (subtasks, then the epic); stop at the first failure so the epic never closes over open work."""
     if result["blockers"]:

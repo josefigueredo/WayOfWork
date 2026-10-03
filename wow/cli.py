@@ -485,7 +485,7 @@ def _cmd_close(args) -> int:
         sys.stderr.write("wow: Jira credentials not found (IC_JIRA_BASE_URL, IC_JIRA_USER_EMAIL, IC_JIRA_API_TOKEN)\n")
         return exitcodes.CANNOT_EVALUATE
     try:
-        result = closing.plan(project, args.epic, jira)
+        result = (closing.plan_subtasks if args.subtasks else closing.plan)(project, args.epic, jira)
     except (manifest.ManifestError, SourceUnavailable) as exc:
         sys.stderr.write(f"wow: {exc}\n")
         return exitcodes.CANNOT_EVALUATE
@@ -495,6 +495,9 @@ def _cmd_close(args) -> int:
         return exitcodes.FINDINGS
     print(f"{result['key']}: {result['already_done']} already done, {len(result['to_close'])} to close: "
           f"{', '.join(result['to_close']) or '-'}")
+    if result.get("waiting"):
+        print(f"{result['waiting']} subtask{'s wait' if result['waiting'] > 1 else ' waits'} for its story: "
+              f"Spec-Kit closes the story (sync-status), then run this again")
     if not args.apply:
         print("dry run: nothing changed; --apply closes them in this order")
         return exitcodes.OK
@@ -640,6 +643,8 @@ def build_parser() -> argparse.ArgumentParser:
     cl = with_project(sub.add_parser("close", help="close the subtasks and the epic Spec-Kit leaves open in Jira"))
     cl.add_argument("--epic", required=True, help="epic id from the manifest (E1)")
     cl.add_argument("--apply", action="store_true", help="apply the done transitions (default: dry run)")
+    cl.add_argument("--subtasks", action="store_true",
+                    help="only the subtasks of stories Spec-Kit already closed; run it after each sync-status")
     cl.set_defaults(handler=_cmd_close)
 
     pc = sub.add_parser("pbchat", help="audit local copies of Product Brain chats")

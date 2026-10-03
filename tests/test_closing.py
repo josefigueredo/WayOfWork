@@ -96,6 +96,32 @@ class OpenStoryTest(unittest.TestCase):
         self.assertEqual(jira.closed, [])
 
 
+class SubtasksTest(unittest.TestCase):
+    ISSUES = [{"key": "IRIS-40", "level": "epic", "done": False},
+              {"key": "IRIS-41", "level": "story", "done": True},
+              {"key": "IRIS-44", "level": "story", "done": False},
+              {"key": "IRIS-42", "level": "subtask", "done": False, "parent": "IRIS-41"},
+              {"key": "IRIS-43", "level": "subtask", "done": True, "parent": "IRIS-41"},
+              {"key": "IRIS-45", "level": "subtask", "done": False, "parent": "IRIS-44"}]
+
+    def test_closes_only_subtasks_of_stories_spec_kit_already_closed(self):
+        # No epic review and pending tasks: closing subtasks of a done story does not wait for the epic.
+        project = _project(tasks="- [x] T001 a\n  - jira: IRIS-41\n- [ ] T002 b\n  - jira: IRIS-44\n", review="")
+        result = closing.plan_subtasks(project, "E1", FakeJira(self.ISSUES))
+        self.assertEqual((result["blockers"], result["to_close"], result["waiting"]), ([], ["IRIS-42"], 1))
+        jira = FakeJira(self.ISSUES)
+        self.assertEqual(closing.apply(result, jira), [])
+        self.assertEqual(jira.closed, ["IRIS-42"])
+
+    def test_cli_subtasks_mode_dry_run(self):
+        project = _project(review="")
+        with mock.patch("cli._jira_for", return_value=FakeJira(self.ISSUES)):
+            code, out, _ = run_cli(["close", "--epic", "E1", "--subtasks", "--project", str(project)])
+        self.assertEqual(code, 0)
+        self.assertIn("IRIS-42", out)
+        self.assertIn("1 subtask waits for its story", out)
+
+
 class JiraClientTest(unittest.TestCase):
     def test_open_issues_reads_epic_stories_and_subtasks(self):
         def status(key, category):
@@ -105,13 +131,14 @@ class JiraClientTest(unittest.TestCase):
             jql = json.loads(request.data.decode())["jql"]
             pages = {"key = IRIS-40": [status("IRIS-40", "indeterminate")],
                      "parent = IRIS-40": [status("IRIS-41", "done")],
-                     "parent in (IRIS-41)": [status("IRIS-42", "new")]}
+                     "parent in (IRIS-41)": [dict(status("IRIS-42", "new"), fields=dict(
+                         status("IRIS-42", "new")["fields"], parent={"key": "IRIS-41"}))]}
             return FakeResponse({"issues": pages[jql]})
 
         issues = JiraClient(CREDS, opener=opener).open_issues("IRIS-40")
         self.assertEqual(issues, [{"key": "IRIS-40", "level": "epic", "done": False},
                                   {"key": "IRIS-41", "level": "story", "done": True},
-                                  {"key": "IRIS-42", "level": "subtask", "done": False}])
+                                  {"key": "IRIS-42", "level": "subtask", "done": False, "parent": "IRIS-41"}])
 
     def test_close_uses_the_transition_into_the_done_category(self):
         sent = []

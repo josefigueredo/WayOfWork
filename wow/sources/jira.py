@@ -80,10 +80,10 @@ class JiraClient:
         return {"key": key, "exists": True, "stories": len(issues), "done": done, "epic_done": self._done(epic[0]),
                 "story_keys": sorted(i["key"] for i in issues), "url": url}
 
-    def _search(self, jql: str) -> List[dict]:
+    def _search(self, jql: str, fields=("status",)) -> List[dict]:
         issues, token = [], None
         while True:
-            body = {"jql": jql, "fields": ["status"], "maxResults": 100}
+            body = {"jql": jql, "fields": list(fields), "maxResults": 100}
             if token:
                 body["nextPageToken"] = token
             page = self._post("/rest/api/3/search/jql", body)
@@ -105,12 +105,14 @@ class JiraClient:
             # Same child rule as epic_summary: reading children the wrong way would close the epic over open work.
             link = f'"Epic Link" = {epic_key}' if self._creds.child_mode == "epic_link" else f"parent = {epic_key}"
             children = self._search(link)
-            subtasks = self._search(f"parent in ({', '.join(i['key'] for i in children)})") if children else []
+            subtasks = self._search(f"parent in ({', '.join(i['key'] for i in children)})",
+                                    fields=("status", "parent")) if children else []
         except _NotFound:
             raise SourceUnavailable(f"jira: Jira rejected the search for {epic_key} (unknown key or project?)")
         return ([{"key": i["key"], "level": "epic", "done": self._done(i)} for i in epic]
                 + [{"key": i["key"], "level": "story", "done": self._done(i)} for i in children]
-                + [{"key": i["key"], "level": "subtask", "done": self._done(i)} for i in subtasks])
+                + [{"key": i["key"], "level": "subtask", "done": self._done(i),
+                    "parent": ((i.get("fields") or {}).get("parent") or {}).get("key")} for i in subtasks])
 
     def close(self, key: str) -> str:
         """Apply the transition that lands in the done status category; return that status name."""
