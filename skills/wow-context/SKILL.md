@@ -21,7 +21,9 @@ description: Build the context pack (facts, metrics, decisions, contracts, owner
    `ERRATA.md` (said / correction / evidence) in `wow/context-pack/discovery/`. From then on `wow context check`
    fails if a new /spec-kit.discovery overwrites them, and `wow context restore` puts them back.
 4. List owner decisions in `pending-owner.md` as `- [ ] <decision>`; the user marks them `[x]`.
-5. Run `wow context check` until it exits 0.
+5. Run `wow context check` until it exits 0: every `fuente: path:line` must exist and be in range.
+   For any other document that cites code (an audit report, a design doc), run
+   `wow cite check <doc> --root <repo> [--sha <commit>]`: deterministic, so it does not depend on the reviewer.
 6. Verify the facts with an independent reviewer:
    `wow review --set claims --ref facts --doc wow/context-pack/facts.md --repo <repo>`.
 

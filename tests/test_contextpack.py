@@ -27,7 +27,7 @@ class ScanTest(unittest.TestCase):
 class CheckTest(unittest.TestCase):
     def test_check_reports_each_problem(self):
         project = make_project()
-        write(project, "README.md", "x")
+        write(project, "README.md", "x\ny\nz\n")
         contextpack.scan(project)
         write(project, "wow/context-pack/facts.md",
               "# Hechos\n"

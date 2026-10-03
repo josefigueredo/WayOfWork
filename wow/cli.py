@@ -11,6 +11,7 @@ from typing import List
 
 import json
 
+import cites
 import closing
 import config
 import contextpack
@@ -557,6 +558,24 @@ def _cmd_context_scan(args) -> int:
     return exitcodes.OK
 
 
+def _cmd_cite_check(args) -> int:
+    doc = Path(args.doc)
+    if not doc.is_file():
+        sys.stderr.write(f"wow: {doc} not found\n")
+        return exitcodes.CANNOT_EVALUATE
+    try:
+        aliases = dict(a.split("=", 1) for a in args.alias if "=" in a)
+        result = cites.check(doc.read_text(encoding="utf-8", errors="replace"), Path(args.root).resolve(), args.sha,
+                             aliases)
+    except ValueError as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    for finding in result["findings"]:
+        print(finding)
+    print(f"{result['checked']} citations checked, {len(result['findings'])} findings")
+    return exitcodes.FINDINGS if result["findings"] else exitcodes.OK
+
+
 def _cmd_context_restore(args) -> int:
     restored = contextpack.restore_discovery(_project(args))
     for rel in restored:
@@ -661,6 +680,16 @@ def build_parser() -> argparse.ArgumentParser:
     cxsub = cx.add_subparsers(dest="context_command", parser_class=_Parser)
     with_project(cxsub.add_parser("scan")).set_defaults(handler=_cmd_context_scan)
     with_project(cxsub.add_parser("check")).set_defaults(handler=_cmd_context_check)
+    ct = sub.add_parser("cite", help="check that every path:line a document cites exists and is in range")
+    ctsub = ct.add_subparsers(dest="cite_command", required=True)
+    cc = ctsub.add_parser("check")
+    cc.add_argument("doc", help="Markdown or HTML document")
+    cc.add_argument("--root", default=".", help="directory the citations are relative to (default: .)")
+    cc.add_argument("--sha", default=None, help="read the files at this commit of --root instead of the working tree")
+    cc.add_argument("--alias", action="append", default=[], metavar="NAME=PATH",
+                    help="expand an abbreviation the document uses (NAME/file → PATH/file); repeatable")
+    cc.set_defaults(handler=_cmd_cite_check)
+
     with_project(cxsub.add_parser("restore", help="put the verified discovery copies back")).set_defaults(
         handler=_cmd_context_restore)
 

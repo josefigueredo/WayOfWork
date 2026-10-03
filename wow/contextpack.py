@@ -8,6 +8,7 @@ from typing import Dict, List
 from sources import repo
 
 CLAIM_FILES = ("facts.md", "metrics.md", "decisions.md", "contracts.md")
+_LINES_RE = re.compile(r"^:(\d+)(?:-(\d+))?")
 _CLAIM_START_RE = re.compile(r"^\s*-\s*(C[0-9]+):")
 _CLAIM_FULL_RE = re.compile(r"^\s*-\s*(C[0-9]+):\s*(.+?)\s*\[(MEDIDO|ESTIMACI[ÓO]N|SIN DEFINIR)\]\s*"
                             r"(?:\((?:fuente|source):\s*([^)]+)\))?\s*$")
@@ -120,4 +121,12 @@ def check(project: Path) -> List[str]:
                     findings.append(f"{name}:{number}: {claim_id} source outside the project: {rel}")
                 elif not target.exists():
                     findings.append(f"{name}:{number}: {claim_id} source not found: {rel}")
+                else:
+                    span = _LINES_RE.match(source.strip()[len(rel):])
+                    if span and target.is_file():
+                        end = int(span.group(2) or span.group(1))
+                        total = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
+                        if end > total:
+                            findings.append(f"{name}:{number}: {claim_id} source {rel}:{span.group(0)[1:]}: "
+                                            f"line {end} is past the end ({total} lines)")
     return findings

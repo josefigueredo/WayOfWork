@@ -48,6 +48,7 @@ wow usage                                                   # consumo por marca 
 wow sk status | wow sk cmd plan --feature specs/001-x       # preparar pasos de Spec-Kit
 wow context scan | wow context check                        # context pack con afirmaciones etiquetadas
 wow context restore                                         # reponer el discovery verificado si Spec-Kit lo pisó
+wow cite check doc.md --root ../repo [--sha SHA] [--alias X=ruta]   # cada `archivo:línea` citado existe y está en rango
 wow pack prd | wow pack rfc | wow pack epic --id E1         # paquetes para Product Brain
 wow pbchat audit prd --deep                                 # auditar la copia del chat de PB
 wow plan guard                                              # ¿se puede editar el manifiesto?
