@@ -270,6 +270,22 @@ class EpicPhasesTest(unittest.TestCase):
         done = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 2)}))
         self.assertEqual(done["epics"][0]["phase"], "done")
 
+    def test_standards_review_is_suggested_once_and_never_holds_done(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        add_feature(p)
+        write(p, "wow/reviews/IRIS-41.json", json.dumps({"final": "approved"}))
+        write(p, "wow/reviews/E1.json", json.dumps({"final": "approved"}))
+        closed = dict(summary("IRIS-40", 2, 2), epic_done=True)
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": closed}))
+        self.assertEqual(result["epics"][0]["phase"], "done")
+        step = next(s for s in result["next_steps"] if s["command"].startswith("wow review --set standards"))
+        self.assertEqual(step["command"], "wow review --set standards --ref E1")
+        self.assertTrue(step["recommended"])
+        write(p, "wow/reviews/E1.standards.json", json.dumps({"final": "hitl"}))
+        later = state.compute_state(p, CFG, FakeJira({"IRIS-40": closed}))
+        self.assertFalse(any("standards" in s["command"] for s in later["next_steps"]))
+
     def test_open_epic_in_jira_asks_for_wow_close(self):
         p = project_at_phase_3()
         close_chats(p)

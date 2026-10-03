@@ -335,9 +335,9 @@ def _cmd_review(args) -> int:
         if args.set == "readiness":
             packet = packets.readiness_packet(project)
         elif args.set == "story":
-            packet = packets.story_packet(project, args.ref, repo, args.base)
+            packet = packets.story_packet(project, args.ref, repo, args.base, ci=packets.ci_evidence)
         elif args.set == "epic":
-            packet = packets.epic_packet(project, args.ref, repo, args.base)
+            packet = packets.epic_packet(project, args.ref, repo, args.base, ci=packets.ci_evidence)
         elif args.set == "standards":
             packet = packets.standards_packet(project, args.ref, repo, args.base)
         else:

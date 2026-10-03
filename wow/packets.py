@@ -6,7 +6,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
-from typing import Callable, Dict
+from typing import Callable, Dict, Optional
 
 import manifest
 
@@ -41,6 +41,28 @@ def git_diff(repo: Path, base: str, runner: Callable = subprocess.run) -> str:
     return proc.stdout
 
 
+def ci_evidence(repo: Path, runner: Callable = subprocess.run) -> str:
+    """The CI runs GitHub recorded for HEAD: criteria about CI or deploy are judged on this, not on the diff alone
+    (two of the pilot's three HITL escalations were "the evidence lives in GitHub Actions")."""
+    head = runner(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True)
+    sha = head.stdout.strip() if head.returncode == 0 else ""
+    if not sha:
+        return "\n\n--- CI evidence unavailable: no HEAD commit ---\n"
+    try:
+        proc = runner(["gh", "run", "list", "--commit", sha, "--limit", "20",
+                       "--json", "name,status,conclusion,url"], capture_output=True, text=True, cwd=str(repo))
+    except (FileNotFoundError, OSError) as exc:
+        return f"\n\n--- CI evidence unavailable: {exc} ---\n"
+    if proc.returncode != 0:
+        return f"\n\n--- CI evidence unavailable: {proc.stderr.strip()[:200]} ---\n"
+    try:
+        runs = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError:
+        return "\n\n--- CI evidence unavailable: gh returned no JSON ---\n"
+    lines = [f"{r.get('name')}: {r.get('status')}/{r.get('conclusion') or '-'} {r.get('url')}" for r in runs]
+    return f"\n\n--- CI runs for HEAD {sha[:12]} ---\n" + ("\n".join(lines) or "(no runs for this commit)") + "\n"
+
+
 def _story_anchors(project: Path, key: str) -> Dict[str, str]:
     anchors: Dict[str, str] = {}
     for spec in sorted((project / "specs").glob("*/spec.md")):
@@ -64,15 +86,17 @@ def _story_anchors(project: Path, key: str) -> Dict[str, str]:
     return anchors
 
 
-def story_packet(project: Path, key: str, repo: Path, base: str, runner: Callable = subprocess.run) -> dict:
+def story_packet(project: Path, key: str, repo: Path, base: str, runner: Callable = subprocess.run,
+                 ci: Optional[Callable[[Path], str]] = None) -> dict:
     anchors = _story_anchors(project, key)
     if not anchors:
         raise PacketError(f"no acceptance criteria with AC ids found for {key} in specs/*/spec.md")
-    return {"anchor_set": "story", "ref": key, "anchors": anchors,
-            "body": git_diff(repo, base, runner), "cwd": repo}
+    body = git_diff(repo, base, runner) + (ci(repo) if ci else "")
+    return {"anchor_set": "story", "ref": key, "anchors": anchors, "body": body, "cwd": repo}
 
 
-def epic_packet(project: Path, epic_id: str, repo: Path, base: str, runner: Callable = subprocess.run) -> dict:
+def epic_packet(project: Path, epic_id: str, repo: Path, base: str, runner: Callable = subprocess.run,
+                ci: Optional[Callable[[Path], str]] = None) -> dict:
     doc = manifest.load(project)
     epic = next((e for e in doc["epics"] if e["id"] == epic_id), None)
     if epic is None:
@@ -80,8 +104,8 @@ def epic_packet(project: Path, epic_id: str, repo: Path, base: str, runner: Call
     anchors = {item.split(":", 1)[0]: item.split(":", 1)[1].strip() for item in epic["done_when"]}
     if not anchors:
         raise PacketError(f"epic {epic_id} has no done_when criteria")
-    return {"anchor_set": "epic", "ref": epic_id, "anchors": anchors,
-            "body": git_diff(repo, base, runner), "cwd": repo}
+    body = git_diff(repo, base, runner) + (ci(repo) if ci else "")
+    return {"anchor_set": "epic", "ref": epic_id, "anchors": anchors, "body": body, "cwd": repo}
 
 
 _STANDARD_DOCS = ("CONTRIBUTING.md", "CODING_STANDARDS.md", "AGENTS.md", "CLAUDE.md")
@@ -158,8 +182,10 @@ Do not modify any file.
 """
 
 _TASKS = {
-    "story": "The content is the diff of one Work Unit. Check that it satisfies each acceptance criterion.",
-    "epic": "The content is the cumulative diff of an epic. Check each done_when criterion.",
+    "story": "The content is the diff of one Work Unit. Check that it satisfies each acceptance criterion. "
+             "When a CI section follows the diff, judge criteria about CI, gates or deploy on it.",
+    "epic": "The content is the cumulative diff of an epic. Check each done_when criterion. "
+            "When a CI section follows the diff, judge criteria about CI, gates or deploy on it.",
     "readiness": "The content is a plan (Brief + manifest). Check each readiness criterion.",
     "claims": "The content is a document of claims. Verify each claim against the code in the current "
               "directory; a false or unsupported claim is a BLOCKER on its id.",

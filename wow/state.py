@@ -145,7 +145,7 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
 
     def finish(phase):
         out["phase"] = phase
-        out["missing"] = [s["action"] for s in steps]
+        out["missing"] = [s["action"] for s in steps if not s.get("recommended")]
         return {"epic": out, "steps": steps}
 
     if plan_phase < 3:
@@ -235,4 +235,11 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
         # /sync-status closes only stories; subtasks and the epic stay open unless someone closes them.
         steps.append(_step(eid, 6, f"close the subtasks and the epic {key} in Jira", "terminal", None,
                            f"wow close --epic {eid}", "the closure review is approved but the epic is open in Jira"))
-    return finish(6 if steps else "done")
+    if review_final(project, eid) in REVIEW_CLOSED and not (project / "wow" / "reviews" / f"{eid}.standards.json").is_file():
+        # Recommended, never blocking: a repo with no golden rules and no documented conventions has nothing to
+        # review against, and that must not keep the epic from closing.
+        step = _step(eid, 6, f"review the epic diff against the repo standards", "harness", models["reviewer"],
+                     f"wow review --set standards --ref {eid}", "second axis: golden rules, not the stories")
+        step["recommended"] = True
+        steps.append(step)
+    return finish(6 if any(not s.get("recommended") for s in steps) else "done")

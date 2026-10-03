@@ -90,6 +90,40 @@ MUST keep **functions small** and single-purpose.
 """
 
 
+class CiEvidenceTest(unittest.TestCase):
+    def test_ci_runs_for_head_are_appended_and_failures_are_explicit(self):
+        import json as _json
+
+        class Proc:
+            def __init__(self, code, out, err=""):
+                self.returncode, self.stdout, self.stderr = code, out, err
+
+        def runner(argv, **kwargs):
+            if argv[:2] == ["gh", "run"]:
+                return Proc(0, _json.dumps([{"name": "site", "status": "completed", "conclusion": "success",
+                                             "url": "https://github.com/o/r/actions/runs/1"}]))
+            return subprocess.run(argv, **kwargs)
+
+        repo = git_repo_with_change()
+        text = packets.ci_evidence(repo, runner)
+        self.assertIn("--- CI runs for HEAD", text)
+        self.assertIn("site: completed/success https://github.com/o/r/actions/runs/1", text)
+
+        def failing(argv, **kwargs):
+            if argv[:2] == ["gh", "run"]:
+                return Proc(1, "", "no git remotes found")
+            return subprocess.run(argv, **kwargs)
+        self.assertIn("CI evidence unavailable: no git remotes found", packets.ci_evidence(repo, failing))
+
+    def test_story_packet_carries_ci_evidence_when_asked(self):
+        project = make_project()
+        write(project, "specs/001-x/spec.md", SPEC)
+        packet = packets.story_packet(project, "IRIS-41", git_repo_with_change(), "main",
+                                      ci=lambda repo: "--- CI runs for HEAD abc ---\nsite: completed/success")
+        self.assertIn("site: completed/success", packet["body"])
+        self.assertIn("CI", packets.build_prompt(packet))
+
+
 class StandardsPacketTest(unittest.TestCase):
     def test_golden_rules_are_the_anchors_and_smells_only_warn(self):
         project = make_project()

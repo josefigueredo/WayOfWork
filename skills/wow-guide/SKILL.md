@@ -21,6 +21,7 @@ Read-only navigator. It never executes the steps it recommends.
    - Blockers first (owner decisions). They are human tasks, never resolve them by inference.
    - Then up to three next steps, each with: action, **where** (`harness`, `product-brain`,
      `terminal`, `cursor`), model, exact command, and the `why` field.
+   A step with `recommended: true` is optional: say so, it never holds a phase open.
    - Point out any epic whose phase is `unknown` and quote its `reason` verbatim.
    - Mention `sources` that are not `ok`.
 4. Stop. Do not run the recommended commands unless the user asks for that specific step.
