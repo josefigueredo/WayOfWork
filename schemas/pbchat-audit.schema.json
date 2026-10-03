@@ -13,6 +13,8 @@
     "missing_anchors": {"type": "array", "items": {"type": "string"}},
     "unsupported_checks": {"type": "array", "items": {"type": "object", "required": ["line", "text"]}},
     "inventions": {"type": "array", "items": {"type": "object", "required": ["term", "line", "text", "source"]}},
-    "corrections_to_paste": {"type": "string"}
+    "corrections_to_paste": {"type": "string"},
+    "pb_changes": {"type": ["array", "null"],
+                   "items": {"type": "object", "required": ["op", "section", "text"]}}
   }
 }

@@ -531,6 +531,14 @@ def _cmd_pbchat_audit(args) -> int:
     print(f"verdict: {result['verdict']}")
     if result["corrections_to_paste"]:
         print(result["corrections_to_paste"])
+    changes = result["pb_changes"]
+    if changes is None:
+        print(f"no wow/pb/chats/{args.doc}.final.md: copy the document from Product Brain's panel there "
+              f"to see what it changed against the packet")
+    else:
+        print(f"Product Brain changed {len(changes)} lines against the packet" + (":" if changes else ""))
+        for change in changes:
+            print(f"{change['op']} [{change['section']}] {change['text'][:160]}")
     return exitcodes.OK if result["verdict"] == "approved" else exitcodes.FINDINGS
 
 

@@ -75,6 +75,50 @@ class AuditTest(unittest.TestCase):
         self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["doc"], "prd")
 
 
+DOC_PACKET = """<!-- wow: manifest-hash=0123456789abcdef -->
+## Riesgos
+| Riesgo | Mitigacion |
+| --- | --- |
+| No aplica | No aplica |
+
+## SLA
+No aplica: registro.
+"""
+DOC_FINAL = """## Riesgos
+| Riesgo   | Mitigacion |
+|---|---|
+| No aplica | No aplica |
+| Caída del agente | Circuit breaker con reintentos |
+
+## SLA
+99.9% mensual.
+"""
+
+
+class DocChangesTest(unittest.TestCase):
+    def test_only_what_product_brain_added_or_removed_by_section(self):
+        project = make_project()
+        write(project, "wow/pb/rfc.md", DOC_PACKET)
+        write(project, "wow/pb/chats/rfc.final.md", DOC_FINAL)
+        changes = pbaudit.doc_changes(project, "rfc")
+        self.assertEqual(changes, [
+            {"op": "+", "section": "Riesgos", "text": "| Caída del agente | Circuit breaker con reintentos |"},
+            {"op": "-", "section": "SLA", "text": "No aplica: registro."},
+            {"op": "+", "section": "SLA", "text": "99.9% mensual."}])
+
+    def test_no_final_copy_means_no_changes_to_show(self):
+        project = make_project()
+        write(project, "wow/pb/rfc.md", DOC_PACKET)
+        self.assertIsNone(pbaudit.doc_changes(project, "rfc"))
+
+    def test_audit_carries_the_changes(self):
+        project = make_project()
+        write(project, "wow/pb/rfc.md", DOC_PACKET)
+        write(project, "wow/pb/chats/rfc.md", "Product Brain: listo.\n")
+        write(project, "wow/pb/chats/rfc.final.md", DOC_PACKET.split("\n", 1)[1])
+        self.assertEqual(pbaudit.audit(project, "rfc")["pb_changes"], [])
+
+
 class DeepAuditTest(unittest.TestCase):
     def test_parse_inventions_and_verdict_required(self):
         text = "VERDICT: CHANGES_REQUIRED\nINVENTION 12 — North Star del 30% — no figura en el contexto\n"

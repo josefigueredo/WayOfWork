@@ -4,6 +4,7 @@ Corrections are Spanish on purpose: they are pasted back into the Product Brain 
 """
 from __future__ import annotations
 
+import difflib
 import json
 import re
 import shutil
@@ -101,6 +102,44 @@ def _corrections(missing: List[str], inventions: List[dict], unsupported: List[d
     return "\n".join(lines)
 
 
+_SEPARATOR_RE = re.compile(r"^\|?\s*:?-{3,}")
+
+
+def _doc_lines(text: str) -> List[tuple]:
+    """(section, normalized line) for each content line: table padding, blanks, separators and comments out."""
+    lines, section = [], ""
+    for raw in re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL).splitlines():
+        line = raw.strip()
+        if not line or _SEPARATOR_RE.match(line):
+            continue
+        if line.startswith("|"):
+            line = "| " + " | ".join(c.strip() for c in line.strip("|").split("|")) + " |"
+        else:
+            line = re.sub(r"\s+", " ", line)
+        if line.startswith("#"):
+            section = line.lstrip("#").strip()
+        lines.append((section, line))
+    return lines
+
+
+def doc_changes(project: Path, doc: str) -> Optional[List[dict]]:
+    """What Product Brain added or removed against the packet, from the document copied out of its panel
+    (wow/pb/chats/<doc>.final.md). None when there is no copy: the chat alone does not carry the document."""
+    final = project / "wow" / "pb" / "chats" / f"{doc}.final.md"
+    packet = project / "wow" / "pb" / f"{doc}.md"
+    if not final.is_file() or not packet.is_file():
+        return None
+    old, new = _doc_lines(packet.read_text(encoding="utf-8")), _doc_lines(final.read_text(encoding="utf-8"))
+    changes: List[dict] = []
+    matcher = difflib.SequenceMatcher(a=[l for _, l in old], b=[l for _, l in new], autojunk=False)
+    for tag, a1, a2, b1, b2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        changes += [{"op": "-", "section": s, "text": l} for s, l in old[a1:a2]]
+        changes += [{"op": "+", "section": s, "text": l} for s, l in new[b1:b2]]
+    return changes
+
+
 def audit(project: Path, doc: str, extra_inventions: Optional[List[dict]] = None) -> dict:
     chat_path = project / "wow" / "pb" / "chats" / f"{doc}.md"
     if not chat_path.is_file():
@@ -135,7 +174,8 @@ def audit(project: Path, doc: str, extra_inventions: Optional[List[dict]] = None
     return {"schema_version": 1, "doc": doc, "verdict": verdict, "closed": parsed["closed"],
             "completion_pct": percents[-1] if percents else None, "open_questions": open_questions(text),
             "expected_anchors": expected, "missing_anchors": missing, "unsupported_checks": unsupported,
-            "inventions": inventions, "corrections_to_paste": _corrections(missing, inventions, unsupported)}
+            "inventions": inventions, "corrections_to_paste": _corrections(missing, inventions, unsupported),
+            "pb_changes": doc_changes(project, doc)}
 
 
 _INVENTION_RE = re.compile(r"^\s*INVENTION\s+(\d+)\s+[—–-]+\s*(.+?)\s+[—–-]+\s*(.+?)\s*$")
