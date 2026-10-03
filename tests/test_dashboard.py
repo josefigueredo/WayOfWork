@@ -179,6 +179,14 @@ assert.ok(R.renderDoc({name: "x.json", doc: {schema_version: 1}}).warnings.inclu
 const port = R.portfolio([{name: "a.json", doc: ex("full.json")}, {name: "b.json", doc: null, error: "not valid JSON"}], 0);
 assert.ok(port.includes("Portfolio (2 files)"));
 assert.ok(port.includes('data-select="1"'));
+const parkedDoc = ex("full.json");
+parkedDoc.current.plan.parked = true;
+parkedDoc.current.epics = parkedDoc.current.epics.map((e) => Object.assign({}, e, {phase: "draft"}));
+const pp = R.portfolio([{name: "p.json", doc: parkedDoc}], 0);
+assert.ok(pp.includes("parked"), "a parked plan says so instead of a bare phase number");
+assert.ok(pp.includes(`${parkedDoc.current.epics.length} draft`), "draft epics are counted as draft");
+assert.ok(R.renderDoc({name: "p", doc: parkedDoc}).html.includes("parked"), "the phase map marks the plan as parked");
+assert.ok(!R.portfolio([{name: "a.json", doc: ex("full.json")}], 0).includes("parked"));
 assert.ok(port.includes("not valid JSON"));
 const ownUnpriced = ex("full.json");
 ownUnpriced.current.pricing.per_mtok = {"composer-2.5": {in: 1.25, out: 10}};

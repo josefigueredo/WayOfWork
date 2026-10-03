@@ -353,7 +353,8 @@ const WowRender = (() => {
     const plan = cur.plan || {};
     const cell = (state, text) => `<td class="ph ${state}" ${tip(text)}><span class="sr">${esc(state)}</span></td>`;
     const head = C.PHASES.map((p, i) => `<th scope="col">${i} ${esc(p)}</th>`).join("");
-    const rows = [`<tr><th scope="row">Plan ${esc(plan.id || "")}</th>` + C.PHASES.map((p, i) => (i > 2
+    const parked = plan.parked ? ` ${badge("none", "parked: all epics draft")}` : "";
+    const rows = [`<tr><th scope="row">Plan ${esc(plan.id || "")}${parked}</th>` + C.PHASES.map((p, i) => (i > 2
       ? `<td class="ph na"></td>`
       : cell(C.phaseState(plan.phase, i), `Plan · ${i} ${p}: ${C.phaseState(plan.phase, i)}`))).join("") + `</tr>`];
     for (const e of arr(cur.epics)) {
@@ -591,9 +592,14 @@ const WowRender = (() => {
       const cur = e.doc && e.doc.current;
       const tokens = e.doc ? C.sumOrNull(arr(e.doc.usage).flatMap((r) => [r && r.tokens_in, r && r.tokens_out])) : null;
       const status = e.error ? esc(e.error) : esc(C.validate(e.doc).warnings.join("; ") || "ok");
+      // A parked plan (every epic draft) is not active: say so instead of showing a bare phase number.
+      const parked = Boolean(cur && cur.plan && cur.plan.parked);
+      const phaseCell = parked ? badge("none", "parked") : esc(cur && cur.plan ? cur.plan.phase : "—");
+      const drafts = cur ? arr(cur.epics).filter((x) => x && x.phase === "draft").length : 0;
+      const epicsCell = cur ? `${arr(cur.epics).length}${drafts ? ` (${drafts} draft)` : ""}` : "—";
       return `<tr${i === active ? ' aria-current="true"' : ""}><td><button type="button" data-select="${i}">${esc(e.name)}</button></td>` +
-        `<td>${esc(cur && cur.plan ? cur.plan.id ?? "—" : "—")}</td><td class="num">${esc(cur && cur.plan ? cur.plan.phase : "—")}</td>` +
-        `<td class="num">${cur ? arr(cur.epics).length : "—"}</td><td class="num">${cur ? arr(cur.next_steps).length : "—"}</td>` +
+        `<td>${esc(cur && cur.plan ? cur.plan.id ?? "—" : "—")}</td><td class="num">${phaseCell}</td>` +
+        `<td class="num">${epicsCell}</td><td class="num">${cur ? arr(cur.next_steps).length : "—"}</td>` +
         `<td class="num">${fmt(tokens)}</td><td>${status}</td></tr>`;
     }).join("");
     return `<section class="panel wide" id="panel-portfolio"><h2>Portfolio (${entries.length} files)</h2><div class="scroll"><table><thead><tr>` +
