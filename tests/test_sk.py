@@ -11,15 +11,19 @@ TASKS = ("## Phase 1: Setup\n- [x] T001 scaffold\n"
 
 
 class CommandsTest(unittest.TestCase):
-    def test_sync_uses_generate_model(self):
+    def test_sync_is_the_slash_command_for_the_cursor_chat(self):
+        # Headless cursor-agent skips the token hooks: Spec-Kit commands run in the Cursor chat.
         [line] = sk.commands_for("sync", config.DEFAULTS, epic="IRIS-40")
-        self.assertEqual(line, "cursor-agent -p '/spec-kit.sync --epic-key IRIS-40' --model composer-2.5 "
-                               "--trust --output-format json")
+        self.assertEqual(line, "/spec-kit.sync --epic-key IRIS-40")
 
-    def test_plan_points_to_draft_and_uses_reason_model(self):
+    def test_plan_points_to_draft(self):
         [line] = sk.commands_for("plan", config.DEFAULTS, feature="specs/001-curation")
-        self.assertIn("wow/sk/001-curation/plan-draft.md", line)
-        self.assertIn("--model claude-sonnet-5-5-high", line)
+        self.assertEqual(line, "/spec-kit.plan Use wow/sk/001-curation/plan-draft.md as the design input")
+        self.assertNotIn("cursor-agent", line)
+
+    def test_sync_status_targets_the_feature(self):
+        [line] = sk.commands_for("sync-status", config.DEFAULTS, feature="specs/001-curation")
+        self.assertEqual(line, "/spec-kit.sync-status specs/001-curation")
 
     def test_tasks_returns_two_lines(self):
         lines = sk.commands_for("tasks", config.DEFAULTS, feature="specs/001-curation")

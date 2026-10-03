@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import manifest
 import pbcompletion
+import sk
 from sources import SourceUnavailable, pbchat, repo, speckit
 
 _WHERE_RANK = {"human": 0, "harness": 1, "product-brain": 1, "terminal": 1, "cursor": 2}
@@ -197,15 +198,16 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
         return finish(4)
     if feature is None:
         steps.append(_step(eid, 4, "sync the epic into Spec-Kit", "cursor", models["cursor_generate"],
-                           f"wow sk cmd sync --epic {key}", f"no specs/*/spec.md declares **Jira Epic:** {key}"))
+                           sk.commands_for("sync", cfg, epic=key)[0], f"no specs/*/spec.md declares **Jira Epic:** {key}"))
         return finish(4)
     if not feature["has_plan"]:
         steps.append(_step(eid, 4, "ratify the plan", "cursor", models["cursor_reason"],
-                           f"wow sk cmd plan --feature {feature['dir']}", "plan.md is missing"))
+                           sk.commands_for("plan", cfg, feature=feature["dir"])[0], "plan.md is missing"))
         return finish(4)
     if not feature["has_tasks"] or not feature["has_work_units"]:
         steps.append(_step(eid, 4, "ratify tasks and work units", "cursor", models["cursor_reason"],
-                           f"wow sk cmd tasks --feature {feature['dir']}", "tasks.md or work-units.json is missing"))
+                           " then ".join(sk.commands_for("tasks", cfg, feature=feature["dir"])),
+                           "tasks.md or work-units.json is missing"))
         return finish(4)
 
     # Phase 5: implementation and per-story independent review.
@@ -223,8 +225,8 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
 
     # Phase 6: Jira closed and epic closure review.
     if summary["done"] < summary["stories"]:
-        steps.append(_step(eid, 6, f"close the stories of {key} in Jira", "terminal", None,
-                           f"spec-kit sync-status {feature['dir']} --dry-run",
+        steps.append(_step(eid, 6, f"close the stories of {key} in Jira", "cursor", None,
+                           sk.commands_for("sync-status", cfg, feature=feature["dir"])[0],
                            f"{summary['done']} of {summary['stories']} stories are done in Jira"))
     if review_final(project, eid) not in REVIEW_CLOSED:
         steps.append(_step(eid, 6, f"review epic {eid}", "harness", models["reviewer"],

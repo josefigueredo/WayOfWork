@@ -2,39 +2,36 @@
 from __future__ import annotations
 
 import re
-import shlex
 from pathlib import Path
 from typing import List, Optional
 
 from sources import speckit
 
-STEPS = ("sync", "clarify", "plan", "tasks")
+STEPS = ("sync", "clarify", "plan", "tasks", "sync-status")
 _SECTION_RE = re.compile(r"^##\s")
 _TASK_RE = re.compile(r"^\s*-\s*\[[ xX]\]")
 _JIRA_RE = re.compile(r"^\s*-\s*jira:\s*[A-Z][A-Z0-9]*-\d+\s*$", re.IGNORECASE)
 
 
-def _line(slash: str, model: str) -> str:
-    return shlex.join(["cursor-agent", "-p", slash, "--model", model, "--trust", "--output-format", "json"])
-
-
 def commands_for(step: str, cfg: dict, epic: Optional[str] = None, feature: Optional[str] = None) -> List[str]:
-    models = cfg["models"]
+    """The slash command to paste in the Cursor chat. Only the chat fires Cursor's token hooks and the command's
+    start/end telemetry: headless cursor-agent and the `spec-kit` terminal CLI report neither."""
     if step not in STEPS:
         raise ValueError(f"unknown step {step!r}; expected one of {', '.join(STEPS)}")
     if step == "sync":
         if not epic:
             raise ValueError("step 'sync' needs --epic KEY")
-        return [_line(f"/spec-kit.sync --epic-key {epic}", models["cursor_generate"])]
+        return [f"/spec-kit.sync --epic-key {epic}"]
     if not feature:
         raise ValueError(f"step '{step}' needs --feature DIR")
     name = Path(feature).name
-    reason = models["cursor_reason"]
     if step == "clarify":
-        return [_line(f"/spec-kit.clarify Use the answers in wow/sk/{name}/clarify-answers.md", reason)]
+        return [f"/spec-kit.clarify Use the answers in wow/sk/{name}/clarify-answers.md"]
     if step == "plan":
-        return [_line(f"/spec-kit.plan Use wow/sk/{name}/plan-draft.md as the design input", reason)]
-    return [_line("/spec-kit.tasks", reason), _line("/spec-kit.tasks.shape", reason)]
+        return [f"/spec-kit.plan Use wow/sk/{name}/plan-draft.md as the design input"]
+    if step == "sync-status":
+        return [f"/spec-kit.sync-status {feature}"]
+    return ["/spec-kit.tasks", "/spec-kit.tasks.shape"]
 
 
 def orphan_tasks(text: str) -> int:

@@ -225,7 +225,7 @@ class EpicPhasesTest(unittest.TestCase):
         self.assertEqual(epic["jira_url"], "https://acme.atlassian.net/browse/IRIS-40")
         step = result["next_steps"][0]
         self.assertEqual((step["where"], step["model"], step["command"]),
-                         ("cursor", "composer-2.5", "wow sk cmd sync --epic IRIS-40"))
+                         ("cursor", "composer-2.5", "/spec-kit.sync --epic-key IRIS-40"))
 
     def test_phase_5_pending_work_unit_and_progress(self):
         p = project_at_phase_3()
@@ -262,7 +262,9 @@ class EpicPhasesTest(unittest.TestCase):
         result = state.compute_state(p, CFG, jira)
         self.assertEqual(result["epics"][0]["phase"], 6)
         commands = [s["command"] for s in result["next_steps"]]
-        self.assertIn("spec-kit sync-status specs/001-curation --dry-run", commands)
+        self.assertIn("/spec-kit.sync-status specs/001-curation", commands)
+        sync_step = next(s for s in result["next_steps"] if s["command"].startswith("/spec-kit.sync-status"))
+        self.assertEqual(sync_step["where"], "cursor")  # the slash command is the one that reports telemetry
         self.assertIn("wow review --set epic --ref E1", commands)
         write(p, "wow/reviews/E1.json", json.dumps({"final": "approved"}))
         done = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 2)}))

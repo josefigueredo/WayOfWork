@@ -15,8 +15,9 @@ Goal: spend the scarce Cursor pool only on ratifying and generating, never on th
    - `wow/sk/<feature-name>/clarify-answers.md`: answers to the ambiguities, citing the RFC and the
      manifest; mark unknowns as [SIN DEFINIR].
    - `wow/sk/<feature-name>/plan-draft.md`: the design decisions, alternatives and contracts.
-3. Print the exact command with `wow sk cmd <sync|clarify|plan|tasks> --epic <KEY> | --feature specs/<dir>`
-   and hand it to the user. Do not run Spec-Kit commands yourself unless asked.
+3. Print the exact command with `wow sk cmd <sync|clarify|plan|tasks|sync-status> --epic <KEY> | --feature specs/<dir>`
+   and hand it to the user to paste in the Cursor chat. Never suggest the `spec-kit` terminal CLI or headless
+   `cursor-agent` instead: only the chat fires the token hooks and the command's start/end telemetry.
 4. For implementation, hand the user `/spec-kit.implement <WU-ID>` for the Cursor chat. Its tokens are recorded
    per turn in `harness/cursor-turns/` once `wow hook install-cursor` ran (once per machine).
 
