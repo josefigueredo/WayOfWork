@@ -229,4 +229,8 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
     if review_final(project, eid) not in REVIEW_CLOSED:
         steps.append(_step(eid, 6, f"review epic {eid}", "harness", models["reviewer"],
                            f"wow review --set epic --ref {eid}", "the epic has no approved closure review"))
+    elif not steps and summary.get("epic_done") is False:
+        # /sync-status closes only stories; subtasks and the epic stay open unless someone closes them.
+        steps.append(_step(eid, 6, f"close the subtasks and the epic {key} in Jira", "terminal", None,
+                           f"wow close --epic {eid}", "the closure review is approved but the epic is open in Jira"))
     return finish(6 if steps else "done")

@@ -11,6 +11,7 @@ from typing import List
 
 import json
 
+import closing
 import config
 import contextpack
 import evidence
@@ -477,6 +478,34 @@ def _cmd_pack(args) -> int:
     return exitcodes.OK
 
 
+def _cmd_close(args) -> int:
+    project = _project(args)
+    jira = _jira_for(project)
+    if jira is None:
+        sys.stderr.write("wow: Jira credentials not found (IC_JIRA_BASE_URL, IC_JIRA_USER_EMAIL, IC_JIRA_API_TOKEN)\n")
+        return exitcodes.CANNOT_EVALUATE
+    try:
+        result = closing.plan(project, args.epic, jira)
+    except (manifest.ManifestError, SourceUnavailable) as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    for blocker in result["blockers"]:
+        print(f"blocked: {blocker}")
+    if result["blockers"]:
+        return exitcodes.FINDINGS
+    print(f"{result['key']}: {result['already_done']} already done, {len(result['to_close'])} to close: "
+          f"{', '.join(result['to_close']) or '-'}")
+    if not args.apply:
+        print("dry run: nothing changed; --apply closes them in this order")
+        return exitcodes.OK
+    errors = closing.apply(result, jira)
+    for error in errors:
+        print(f"error: {error}")
+    if not errors:
+        print(f"closed {len(result['to_close'])} issues")
+    return exitcodes.FINDINGS if errors else exitcodes.OK
+
+
 def _cmd_pbchat_audit(args) -> int:
     project = _project(args)
     if not review_mod.safe_ref(args.doc):
@@ -590,6 +619,11 @@ def build_parser() -> argparse.ArgumentParser:
     pk.add_argument("--full", action="store_true",
                     help="deprecated: PRD/RFC with {{placeholders}} for an LLM to fill instead of the registro packet")
     pk.set_defaults(handler=_cmd_pack)
+
+    cl = with_project(sub.add_parser("close", help="close the subtasks and the epic Spec-Kit leaves open in Jira"))
+    cl.add_argument("--epic", required=True, help="epic id from the manifest (E1)")
+    cl.add_argument("--apply", action="store_true", help="apply the done transitions (default: dry run)")
+    cl.set_defaults(handler=_cmd_close)
 
     pc = sub.add_parser("pbchat", help="audit local copies of Product Brain chats")
     pcsub = pc.add_subparsers(dest="pbchat_command", parser_class=_Parser)

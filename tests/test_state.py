@@ -268,6 +268,19 @@ class EpicPhasesTest(unittest.TestCase):
         done = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 2)}))
         self.assertEqual(done["epics"][0]["phase"], "done")
 
+    def test_open_epic_in_jira_asks_for_wow_close(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        add_feature(p)
+        write(p, "wow/reviews/IRIS-41.json", json.dumps({"final": "approved"}))
+        write(p, "wow/reviews/E1.json", json.dumps({"final": "approved_by_human"}))
+        open_epic = dict(summary("IRIS-40", 2, 2), epic_done=False)
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": open_epic}))
+        self.assertEqual(result["epics"][0]["phase"], 6)
+        self.assertEqual(result["next_steps"][0]["command"], "wow close --epic E1")
+        closed = dict(open_epic, epic_done=True)
+        self.assertEqual(state.compute_state(p, CFG, FakeJira({"IRIS-40": closed}))["epics"][0]["phase"], "done")
+
     def test_at_most_three_steps_and_cursor_last(self):
         p = make_project()
         result = state.compute_state(p, CFG)

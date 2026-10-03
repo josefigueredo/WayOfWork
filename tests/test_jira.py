@@ -42,12 +42,12 @@ class EpicSummaryTest(unittest.TestCase):
             body = json.loads(request.data.decode())
             self.assertTrue(request.get_header("Authorization").startswith("Basic "))
             if body["jql"] == "key = IRIS-40":
-                return FakeResponse({"issues": [{"key": "IRIS-40", "fields": {}}]})
+                return FakeResponse({"issues": [issue("IRIS-40", "indeterminate")]})
             seen.append(body)
             return FakeResponse(pages[len(seen) - 1])
 
         summary = JiraClient(CREDS, opener=opener).epic_summary("IRIS-40")
-        self.assertEqual(summary, {"key": "IRIS-40", "exists": True, "stories": 2, "done": 1,
+        self.assertEqual(summary, {"key": "IRIS-40", "exists": True, "stories": 2, "done": 1, "epic_done": False,
                                    "story_keys": ["IRIS-41", "IRIS-42"],
                                    "url": "https://acme.atlassian.net/browse/IRIS-40"})
         self.assertEqual(seen[0]["jql"], "parent = IRIS-40 AND issuetype not in subTaskIssueTypes()")

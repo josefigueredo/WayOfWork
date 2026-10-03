@@ -32,3 +32,6 @@ Use `--base <ref>` when the diff base is not `main`.
   `wow review --decide approved|rejected --reason "<why, per BLOCKER>" --ref <REF>`: it works only after HITL,
   keeps the reviewer's rounds, and is stored as `approved_by_human` / `rejected_by_human`, never as `approved`.
 - Do not argue with the reviewer across rounds.
+- Once the epic review is approved, run `wow close --epic <E1>` (dry run): /spec-kit.sync-status closes only
+  stories, this lists the subtasks and the epic still open in Jira. Show the list and ask the user before
+  `wow close --epic <E1> --apply`: it writes to Jira.
