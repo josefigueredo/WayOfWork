@@ -74,7 +74,7 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
         if mode not in manifest.MODES:
             steps.append(_step(None, 1, "set the plan mode", "harness", models["author"],
                                "wow plan init --mode greenfield|brownfield (or edit plan.mode)",
-                               "greenfield and brownfield change phase 0 and the packet prompts"))
+                               "greenfield and brownfield change phase 0 and where Spec-Kit discovery fits"))
         lint = manifest.lint(doc)
         if lint:
             plan["phase"] = min(plan["phase"], 1)
