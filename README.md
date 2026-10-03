@@ -52,6 +52,16 @@ Para un resumen que se comparte como un solo archivo, `wow dashboard --out resum
 (repetí `--project` para un portfolio) refresca los snapshots y los deja embebidos: el HTML abre offline,
 sin arrastrar nada.
 
+Con `--backfill-git` (en `wow snapshot` y `wow dashboard`), la historia suma un punto por cada commit que tocó
+`specs/*/tasks.md`: velocity muestra el burn-up real aunque el primer snapshot llegue con la épica terminada.
+
+## Consumo de Cursor
+
+`wow hook install-cursor` agrega a `~/.cursor/hooks.json` un hook `stop` que guarda, por cada turno del agente,
+modelo y tokens en `harness/cursor-turns/` del repo que tenga `wow/`. Corre al lado del hook de telemetría de
+Spec-Kit sin cambiar lo que envía a New Relic, y no guarda el email ni la ruta del transcript.
+`wow usage` y `wow snapshot` leen esos turnos. Las revisiones de Codex quedan en `harness/reviews/`.
+
 Para ver costos estimados, cargá una tabla de precios (USD por millón de tokens) en `.wow/config.json`:
 
 ```json

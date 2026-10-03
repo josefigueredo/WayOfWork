@@ -118,6 +118,21 @@ def cursor_records(project: Path) -> List[dict]:
     return records
 
 
+def cursor_turn_records(project: Path) -> List[dict]:
+    """Cursor IDE agent turns the `wow hook cursor-stop` hook kept in the project (one JSON line per turn)."""
+    records: List[dict] = []
+    for path in sorted((project / "harness" / "cursor-turns").glob("*.jsonl")):
+        for turn in _lines(path):
+            if not isinstance(turn, dict):
+                continue
+            records.append(_record(
+                ts=turn.get("ts"), vendor="cursor", tool="cursor-ide", model=turn.get("model_id") or turn.get("model"),
+                tokens_in=turn.get("input_tokens"), tokens_out=turn.get("output_tokens"),
+                cache_read=turn.get("cache_read_tokens"), cache_write=turn.get("cache_write_tokens"),
+                scope="turn", ref=turn.get("conversation_id"), source="cursor-hook"))
+    return records
+
+
 _REVIEWER_VENDOR = {"codex": "openai", "copilot": "github"}
 
 
@@ -144,7 +159,7 @@ def collect(project: Path, cfg: dict, claude_root: Optional[Path] = None, codex_
     claude_root = claude_root or Path(roots.get("claude_root", Path.home() / ".claude" / "projects")).expanduser()
     codex_root = codex_root or Path(roots.get("codex_root", Path.home() / ".codex" / "sessions")).expanduser()
     records = (claude_records(claude_root, project) + codex_records(codex_root, project) + cursor_records(project)
-               + review_records(project))
+               + cursor_turn_records(project) + review_records(project))
     return sorted(records, key=lambda r: r["ts"] or "")
 
 

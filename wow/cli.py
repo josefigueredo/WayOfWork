@@ -163,8 +163,9 @@ def _github_prs(project: Path, cfg: dict):
     return prs, ("partial: " + "; ".join(errors)) if ok else errors[0]
 
 
-def _refresh_snapshot(project: Path):
-    """Compute state, write wow/progress.json and return (state, snapshot). Raises config.ConfigError."""
+def _refresh_snapshot(project: Path, backfill: bool = False):
+    """Compute state, write wow/progress.json and return (state, snapshot). Raises config.ConfigError.
+    With backfill, history also gets one point per git commit that touched specs/*/tasks.md."""
     cfg = config.load_config(project)
     result = state_mod.compute_state(project, cfg, _jira_for(project))
     prs, result["sources"]["github"] = _github_prs(project, cfg)
@@ -174,6 +175,13 @@ def _refresh_snapshot(project: Path):
     result["pricing"] = evidence.pricing(cfg)
     records = usage_mod.collect(project, cfg)
     snap = snapshot_mod.build(result, snapshot_mod.load_previous(project), _now(), usage=records)
+    if backfill:
+        try:
+            keys = manifest.load(project)["plan"]["export"]["epics"]
+        except (manifest.ManifestError, KeyError, TypeError):
+            keys = {}
+        epic_by_key = {key: eid for eid, key in keys.items() if key}
+        snap["history"] = snapshot_mod.merge_history(snap["history"], snapshot_mod.backfill_points(project, epic_by_key))
     snapshot_mod.write(project, snap)
     return result, snap
 
@@ -184,7 +192,7 @@ def _cmd_dashboard(args) -> int:
     docs = []
     for project in projects:
         try:
-            _, snap = _refresh_snapshot(project)
+            _, snap = _refresh_snapshot(project, backfill=args.backfill_git)
         except config.ConfigError as exc:
             sys.stderr.write(f"wow: {project}: {exc}\n")
             return exitcodes.CANNOT_EVALUATE
@@ -196,10 +204,26 @@ def _cmd_dashboard(args) -> int:
     return exitcodes.OK
 
 
+def _cmd_hook(args) -> int:
+    import cursorhook
+    if args.hook_command == "install-cursor":
+        changed = cursorhook.install(Path(args.hooks_file).expanduser(), cursorhook.default_command())
+        print(f"{args.hooks_file}: {'stop hook added' if changed else 'stop hook already present'}")
+        return exitcodes.OK
+    # cursor-stop runs inside Cursor's agent loop: it must never fail and always answers with JSON.
+    try:
+        payload = json.loads(sys.stdin.read() or "{}")
+        cursorhook.record_turn(payload, _now())
+    except Exception:  # noqa: BLE001 — a hook that crashes would surface in every agent turn
+        pass
+    print("{}")
+    return exitcodes.OK
+
+
 def _cmd_snapshot(args) -> int:
     project = _project(args)
     try:
-        result, _ = _refresh_snapshot(project)
+        result, _ = _refresh_snapshot(project, backfill=args.backfill_git)
     except config.ConfigError as exc:
         sys.stderr.write(f"wow: {exc}\n")
         return exitcodes.CANNOT_EVALUATE
@@ -518,11 +542,21 @@ def build_parser() -> argparse.ArgumentParser:
     gd.set_defaults(handler=_cmd_plan_guard)
 
     with_project(sub.add_parser("state", help="print the derived state as JSON")).set_defaults(handler=_cmd_state)
-    with_project(sub.add_parser("snapshot", help="write wow/progress.json")).set_defaults(handler=_cmd_snapshot)
+    sp = with_project(sub.add_parser("snapshot", help="write wow/progress.json"))
+    sp.add_argument("--backfill-git", action="store_true",
+                    help="add history points from the git commits that touched specs/*/tasks.md")
+    sp.set_defaults(handler=_cmd_snapshot)
+    hk = sub.add_parser("hook", help="Cursor hook entry points")
+    hk.add_argument("hook_command", choices=["cursor-stop", "install-cursor"])
+    hk.add_argument("--hooks-file", default=str(Path.home() / ".cursor" / "hooks.json"),
+                    help="Cursor user hooks file for install-cursor (default: ~/.cursor/hooks.json)")
+    hk.set_defaults(handler=_cmd_hook)
     db = sub.add_parser("dashboard", help="write a standalone offline HTML summary with fresh snapshots embedded")
     db.add_argument("--out", required=True, help="HTML file to write")
     db.add_argument("--project", action="append", default=None,
                     help="project root; repeat for a portfolio (default: current directory)")
+    db.add_argument("--backfill-git", action="store_true",
+                    help="add history points from the git commits that touched specs/*/tasks.md")
     db.set_defaults(handler=_cmd_dashboard)
 
     rv = with_project(sub.add_parser("review", help="run an anchored independent review"))

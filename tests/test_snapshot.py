@@ -19,6 +19,34 @@ def fake_state(progress="3/4"):
             "blockers": [], "next_steps": [], "steps_total": 1, "sources": {"jira": "ok"}}
 
 
+class BackfillTest(unittest.TestCase):
+    def test_tasks_md_commits_become_history_points(self):
+        import os
+        import subprocess
+        repo = make_project()
+
+        def git(*args, date=None):
+            env = dict(os.environ, GIT_AUTHOR_DATE=date or "", GIT_COMMITTER_DATE=date or "")
+            subprocess.run(["git", "-C", str(repo), "-c", "user.email=t@t", "-c", "user.name=t", *args],
+                           check=True, capture_output=True, text=True, env=env)
+
+        git("init", "-q", "-b", "main")
+        write(repo, "specs/001-x/spec.md", "**Jira Epic:** [IRIS-40](https://x/browse/IRIS-40)\n")
+        write(repo, "specs/001-x/tasks.md", "- [x] T001 a\n- [ ] T002 b\n- [ ] T003 c\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "tasks", date="2026-10-02T20:00:00+00:00")
+        write(repo, "specs/001-x/tasks.md", "- [x] T001 a\n- [x] T002 b\n- [x] T003 c\n")
+        git("commit", "-q", "-am", "done", date="2026-10-02T21:00:00+00:00")
+        points = snapshot.backfill_points(repo, {"IRIS-40": "E1"})
+        self.assertEqual([(p["ts"], p["tasks_done"], p["tasks_total"], p["epics"], p["source"]) for p in points],
+                         [("2026-10-02T20:00:00Z", 1, 3, {"E1": {"done": 1, "total": 3}}, "git"),
+                          ("2026-10-02T21:00:00Z", 3, 3, {"E1": {"done": 3, "total": 3}}, "git")])
+        existing = [{"ts": "2026-10-03T03:00:00Z", "plan_phase": 3, "phases": {}, "tasks_done": 3, "tasks_total": 3}]
+        merged = snapshot.merge_history(existing, points + points)  # idempotent: rerunning adds nothing twice
+        self.assertEqual([p["ts"] for p in merged], ["2026-10-02T20:00:00Z", "2026-10-02T21:00:00Z", "2026-10-03T03:00:00Z"])
+        self.assertEqual(snapshot.backfill_points(make_project(), {"IRIS-40": "E1"}), [])  # not a git repo
+
+
 class SnapshotTest(unittest.TestCase):
     def test_history_point_sums_known_progress(self):
         point = snapshot.history_point(fake_state(), "2026-10-02T10:00:00Z")
