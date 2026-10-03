@@ -8,7 +8,7 @@ Diseño: `docs/superpowers/specs/2026-10-01-wayofwork-design.md`.
 ## Instalación
 
 ```bash
-git clone <remote> ~/CurrentCode/WayOfWork && cd ~/CurrentCode/WayOfWork
+cd ~/CurrentCode/WayOfWork   # sin remoto por ahora: copiá el repo con su .git (zip o rsync)
 ./install.sh --skills     # CLI en ~/.local/bin/wow + las 7 skills wow-* para Claude Code y Codex
 wow --version             # si falla, agregá ~/.local/bin al PATH
 wow hook install-cursor   # una vez por máquina: mide modelo y tokens de cada turno del chat de Cursor

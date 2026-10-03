@@ -5,7 +5,7 @@ iniciativa por Product Brain (registro), Spec-Kit (ejecución en Cursor) y Jira,
 
 ## Instalar en una máquina nueva
 
-1. Clonar el repo y correr `./install.sh --skills`. Si sale con 1, informá qué directorio bloqueó y no lo borres.
+1. El repo no tiene remoto por ahora: llega como copia (con su `.git`). Desde su raíz, correr `./install.sh --skills`. Si sale con 1, informá qué directorio bloqueó y no lo borres.
 2. Verificar con `wow --version`. Si no está en el PATH, agregá `~/.local/bin`.
 3. Correr `wow hook install-cursor` (una vez por máquina).
 4. Revisar los requisitos de la tabla del README. Pedile al usuario lo que falte, sin instalar credenciales por tu cuenta.
