@@ -43,6 +43,7 @@ wow manifest validate | lint
 wow plan init 0001-mi-iniciativa --title "Mi iniciativa"
 wow plan freeze --epics E1=IRIS-40   # sumar épicas después es válido; cambiar una key ya registrada pide --reopen "<motivo>"
 wow review --set story --ref IRIS-41 --repo ../backend-api   # review independiente anclado (Codex)
+wow review --set standards --ref E1 --repo ../backend-api   # segundo eje: golden rules + smells (no el spec)
 wow usage                                                   # consumo por marca y modelo
 wow sk status | wow sk cmd plan --feature specs/001-x       # preparar pasos de Spec-Kit
 wow context scan | wow context check                        # context pack con afirmaciones etiquetadas

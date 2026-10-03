@@ -84,6 +84,39 @@ def epic_packet(project: Path, epic_id: str, repo: Path, base: str, runner: Call
             "body": git_diff(repo, base, runner), "cwd": repo}
 
 
+_STANDARD_DOCS = ("CONTRIBUTING.md", "CODING_STANDARDS.md", "AGENTS.md", "CLAUDE.md")
+
+
+def _golden_rules(*roots: Path) -> Dict[str, str]:
+    """Spec-Kit golden rules installed in .cursor/rules (`spec-kit rules install`): name -> its MUST lines."""
+    found: Dict[str, str] = {}
+    for root in roots:
+        for path in sorted((root / ".cursor" / "rules").glob("*golden_rules*.mdc")):
+            musts = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()
+                     if line.strip().startswith("MUST")]
+            if musts and path.stem not in found:
+                found[path.stem] = " ".join(musts)
+    return found
+
+
+def standards_packet(project: Path, ref: str, repo: Path, base: str, runner: Callable = subprocess.run) -> dict:
+    """Second review axis: the diff against the repo's standards, not against the story (the story axis does that).
+    Anchors are the installed golden rules; without them, the conventions the repo documents."""
+    rules = _golden_rules(repo, project)
+    body = git_diff(repo, base, runner)
+    if rules:
+        anchors = {f"G{n}": f"{name}: {musts}" for n, (name, musts) in enumerate(sorted(rules.items()), 1)}
+    else:
+        docs = [name for name in _STANDARD_DOCS if (repo / name).is_file()]
+        if not docs:
+            raise PacketError(f"no standards to review against in {repo}: install Spec-Kit golden rules "
+                              f"(spec-kit rules install) or document conventions in CONTRIBUTING.md")
+        anchors = {"DOC": "the conventions documented in " + ", ".join(docs)}
+        body += "".join(f"\n\n--- documented standards: {name} ---\n" + (repo / name).read_text(encoding="utf-8")
+                        for name in docs)
+    return {"anchor_set": "standards", "ref": ref, "anchors": anchors, "body": body, "cwd": repo}
+
+
 def readiness_packet(project: Path) -> dict:
     doc = manifest.load(project)
     # plan.readiness is review state written by every round: excluding it keeps the diff hash stable.
@@ -130,6 +163,14 @@ _TASKS = {
     "readiness": "The content is a plan (Brief + manifest). Check each readiness criterion.",
     "claims": "The content is a document of claims. Verify each claim against the code in the current "
               "directory; a false or unsupported claim is a BLOCKER on its id.",
+    # Smell baseline adapted from mattpocock/skills code-review (MIT), after Fowler, Refactoring ch. 3.
+    "standards": "The content is a diff. Check it against each standard anchor; a broken MUST is a BLOCKER on that "
+                 "anchor. Do not check whether it implements the story: another review does that.\n"
+                 "Also flag these code smells, always as WARNING (a judgement call, never a BLOCKER), and drop any "
+                 "the anchors endorse: a golden rule overrides the baseline. Mysterious Name, Duplicated Code, "
+                 "Feature Envy, Data Clumps, Primitive Obsession, Repeated Switches, Shotgun Surgery, Divergent "
+                 "Change, Speculative Generality, Message Chains, Middle Man, Refused Bequest. "
+                 "Skip what linters or formatters already enforce.",
 }
 
 

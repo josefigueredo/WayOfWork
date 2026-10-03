@@ -173,6 +173,18 @@ def _review_project(answer: str):
 
 
 class ReviewCommandTest(unittest.TestCase):
+    def test_standards_axis_keeps_its_own_rounds_and_smells_never_block(self):
+        from test_packets import GOLDEN, git_repo_with_change
+        project, _ = _review_project("VERDICT: CHANGES_REQUIRED\nBLOCKER S9 app.py:1 — Speculative Generality\n")
+        repo = git_repo_with_change()
+        write(repo, ".cursor/rules/core_clean-code_golden_rules_clean-code.mdc", GOLDEN)
+        code, out, _ = run_cli(["review", "--set", "standards", "--ref", "IRIS-41", "--repo", str(repo),
+                                "--project", str(project)])
+        self.assertEqual(code, 0, out)  # S9 is not an anchor: downgraded to a warning, the round approves
+        saved = _json.loads((project / "wow/reviews/IRIS-41.standards.json").read_text(encoding="utf-8"))
+        self.assertEqual((saved["anchor_set"], saved["final"]), ("standards", "approved"))
+        self.assertFalse((project / "wow/reviews/IRIS-41.json").exists())
+
     def test_readiness_approved_updates_manifest(self):
         project, _ = _review_project("VERDICT: APPROVED\n")
         code, out, _ = run_cli(["review", "--set", "readiness", "--ref", "plan", "--project", str(project)])

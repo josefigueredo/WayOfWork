@@ -12,6 +12,9 @@ The host model never reviews its own work. This skill only runs the command and 
 - `wow review --set readiness --ref plan` — anchors R1–R5 over PLAN.md + manifest.
 - `wow review --set story --ref <JIRA-KEY> --repo <child-repo>` — anchors: the story's AC ids in specs/*/spec.md.
 - `wow review --set epic --ref <E1> --repo <child-repo>` — anchors: the epic's done_when.
+- `wow review --set standards --ref <KEY|E1> --repo <child-repo>` — second axis: the diff against the repo's
+  standards (installed Spec-Kit golden rules, else CONTRIBUTING/AGENTS.md), not the story. Code smells only warn.
+  Kept apart as `<ref>.standards`; decide its HITL with `--ref <ref>.standards`. Run it on the epic diff at least.
 - `wow review --set claims --ref <name> --doc <path> --repo <repo>` — anchors: C1, C2… claim ids.
 
 Use `--base <ref>` when the diff base is not `main`.

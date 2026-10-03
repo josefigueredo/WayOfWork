@@ -326,7 +326,7 @@ def _cmd_review(args) -> int:
     if args.decide:
         return _cmd_review_decide(args, project)
     if not args.set:
-        sys.stderr.write("wow: review needs --set readiness|story|epic|claims (or --decide after HITL)\n")
+        sys.stderr.write("wow: review needs --set readiness|story|epic|standards|claims (or --decide after HITL)\n")
         return exitcodes.CANNOT_EVALUATE
     try:
         cfg = config.load_config(project)
@@ -337,6 +337,8 @@ def _cmd_review(args) -> int:
             packet = packets.story_packet(project, args.ref, repo, args.base)
         elif args.set == "epic":
             packet = packets.epic_packet(project, args.ref, repo, args.base)
+        elif args.set == "standards":
+            packet = packets.standards_packet(project, args.ref, repo, args.base)
         else:
             if not args.doc:
                 sys.stderr.write("wow: --set claims requires --doc PATH\n")
@@ -346,7 +348,8 @@ def _cmd_review(args) -> int:
         sys.stderr.write(f"wow: {exc}\n")
         return exitcodes.CANNOT_EVALUATE
 
-    ref = args.ref
+    # The standards axis of a story or epic keeps its own rounds: it never closes or reopens the spec axis.
+    ref = f"{args.ref}.standards" if args.set == "standards" else args.ref
     summary = review_mod.load_summary(project, ref, args.set)
     dhash = packets.diff_hash(packet["body"])
     action = review_mod.next_action(summary, dhash)
@@ -620,7 +623,7 @@ def build_parser() -> argparse.ArgumentParser:
     db.set_defaults(handler=_cmd_dashboard)
 
     rv = with_project(sub.add_parser("review", help="run an anchored independent review"))
-    rv.add_argument("--set", default=None, choices=["readiness", "story", "epic", "claims"])
+    rv.add_argument("--set", default=None, choices=["readiness", "story", "epic", "standards", "claims"])
     rv.add_argument("--decide", default=None, choices=["approved", "rejected"],
                     help="record a human verdict on a review escalated to HITL (needs --reason)")
     rv.add_argument("--reason", default=None, help="why the human decided (required with --decide)")

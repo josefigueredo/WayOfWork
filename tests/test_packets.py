@@ -73,6 +73,54 @@ class StoryPacketTest(unittest.TestCase):
             packets.story_packet(project, "IRIS-41", repo, "main")
 
 
+GOLDEN = """---
+description: Non-negotiable clean-code habits
+alwaysApply: false
+---
+
+# Clean code (core)
+
+## CORE (read first)
+
+MUST use **intention-revealing** names; MUST NOT rely on cryptic abbreviations.
+
+MUST keep **functions small** and single-purpose.
+
+**Full reference:** [clean-code.md](./clean-code.md)
+"""
+
+
+class StandardsPacketTest(unittest.TestCase):
+    def test_golden_rules_are_the_anchors_and_smells_only_warn(self):
+        project = make_project()
+        repo = git_repo_with_change()
+        write(repo, ".cursor/rules/core_clean-code_golden_rules_clean-code.mdc", GOLDEN)
+        write(repo, ".cursor/rules/spec-kit-core.mdc", "MUST run /spec-kit.implement\n")  # process rule, not a standard
+        packet = packets.standards_packet(project, "IRIS-41", repo, "main")
+        self.assertEqual(list(packet["anchors"]), ["G1"])
+        self.assertIn("clean-code", packet["anchors"]["G1"])
+        self.assertIn("MUST keep **functions small**", packet["anchors"]["G1"])
+        self.assertNotIn("spec-kit", " ".join(packet["anchors"].values()))
+        self.assertIn("+print('v2')", packet["body"])
+        prompt = packets.build_prompt(packet)
+        self.assertIn("Speculative Generality", prompt)
+        self.assertIn("WARNING", prompt)
+        self.assertIn("golden rule overrides", prompt)
+
+    def test_documented_conventions_when_no_golden_rules(self):
+        project = make_project()
+        repo = git_repo_with_change()
+        write(repo, "CONTRIBUTING.md", "Use type hints everywhere.\n")
+        packet = packets.standards_packet(project, "E1", repo, "main")
+        self.assertEqual(list(packet["anchors"]), ["DOC"])
+        self.assertIn("CONTRIBUTING.md", packet["anchors"]["DOC"])
+        self.assertIn("Use type hints everywhere.", packet["body"])
+
+    def test_nothing_to_review_against_raises(self):
+        with self.assertRaises(packets.PacketError):
+            packets.standards_packet(make_project(), "IRIS-41", git_repo_with_change(), "main")
+
+
 class OtherPacketsTest(unittest.TestCase):
     def test_epic_anchors_from_manifest(self):
         project = make_project()
