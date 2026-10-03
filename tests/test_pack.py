@@ -62,10 +62,10 @@ class EpicTest(unittest.TestCase):
     def test_epic_packet_has_pb_shape_and_checks_clean_when_filled(self):
         text = pack.render_epic(pb_ready_doc(), "E1", H)
         self.assertIn("| Criticidad (criticality) | Alta |", text)
-        self.assertIn("### US-002 — [BE] API (tarea 1.2)", text)
+        self.assertIn("### US-002 — [BE] API\n", text)
         self.assertIn("| Story points (story_points) | 2 |", text)
         self.assertIn("| Prioridad (priority) | Media |", text)
-        self.assertIn("- US-001 (tarea 1.1)", text)
+        self.assertIn("- US-001\n", text)
         self.assertIn("- AC1 — Dado un caso Cuando el analista lo cura Entonces queda auditado", text)
         self.assertIn("- " + pbcompletion.DOR[0], text)
         self.assertIn("- " + pbcompletion.DOD[10] + " — no", text)

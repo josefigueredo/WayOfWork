@@ -145,5 +145,10 @@ y actualizalos antes de usarlos.
 - **Modo `greenfield|brownfield`** en el manifiesto. En brownfield, la guía pide `/spec-kit.discovery`, que escribe en
   **`.spec-kit/discovery/architecture.md`** (verificado en `scripts/bash/spec-kit-discovery-orchestrator.sh`).
 - **La auditoría** ignora encabezados y cláusulas negadas, y suma "circuit breaker" y "Kong" a la lista semilla.
+- **Paquetes de registro (2026-10-03, después del piloto PLATE-491):** `wow pack prd|rfc` sale por defecto con todo
+  campo lleno: contenido real donde el plan orienta (Goal, Problem, Contexto, Constraints, Non-goals, Decisions,
+  done_when, componentes) y `No aplica: …` en el resto, porque el backend cuenta ese texto como lleno. `--full` (deprecado)
+  conserva el modo con `{{campo}}`. `wow pack check` también falla con lo que PB rompe o filtra a Jira en el piloto:
+  ids C14/D2, sufijos "(tarea x.y)", ítems de lista con comas (PB los parte) y bloques de API más allá de A–C.
 - **Límite conocido:** la predicción lee el paquete alineado por secciones; PB lo mapea con Gemini. Si Gemini mapea
   distinto puede haber diferencias chicas, y la cifra autoritativa sigue siendo `**Completitud del documento:** N%`.

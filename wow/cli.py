@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import shlex
+import subprocess
 import sys
 from pathlib import Path
 from typing import List
@@ -428,6 +429,11 @@ def _cmd_pack_check(args, project: Path) -> int:
     return exitcodes.OK if pbcompletion.ready(result) else exitcodes.FINDINGS
 
 
+def _git_author(project: Path) -> str:
+    proc = subprocess.run(["git", "-C", str(project), "config", "user.name"], capture_output=True, text=True)
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
 def _cmd_pack(args) -> int:
     project = _project(args)
     if args.kind == "check":
@@ -449,10 +455,13 @@ def _cmd_pack(args) -> int:
                 sys.stderr.write("wow: pack epic needs --id E<n>\n")
                 return exitcodes.CANNOT_EVALUATE
             name, text = f"epic-{args.id}", pack.render_epic(doc, args.id, mhash)
-        elif args.kind == "prd":
-            name, text = "prd", pack.render_prd(doc, brief, mhash, pending=repo_src.pending_items(project))
         else:
-            name, text = "rfc", pack.render_rfc(doc, brief, mhash, pending=repo_src.pending_items(project))
+            if args.full:
+                sys.stderr.write("wow: --full is deprecated: Product Brain registers the work, the plan already "
+                                 "carries it; the default registro packet scores 100% with nothing to fill\n")
+            render = pack.render_prd if args.kind == "prd" else pack.render_rfc
+            name, text = args.kind, render(doc, brief, mhash, pending=repo_src.pending_items(project),
+                                           registro=not args.full, author=_git_author(project))
     except ValueError as exc:
         sys.stderr.write(f"wow: {exc}\n")
         return exitcodes.CANNOT_EVALUATE
@@ -576,6 +585,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="packet to check, only with kind 'check'")
     pk.add_argument("--id", default=None, help="epic id for kind 'epic'")
     pk.add_argument("--force", action="store_true", help="overwrite an existing packet")
+    pk.add_argument("--full", action="store_true",
+                    help="deprecated: PRD/RFC with {{placeholders}} for an LLM to fill instead of the registro packet")
     pk.set_defaults(handler=_cmd_pack)
 
     pc = sub.add_parser("pbchat", help="audit local copies of Product Brain chats")

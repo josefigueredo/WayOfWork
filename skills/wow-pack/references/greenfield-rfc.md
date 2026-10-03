@@ -1,5 +1,8 @@
 # Greenfield RFC prompt (fill `wow/pb/rfc.md` so Product Brain scores 100%)
 
+> **Legado (deprecado):** solo aplica a `wow pack prd|rfc --full`. El camino por defecto es el paquete de registro,
+> que sale completo de `wow pack prd|rfc` y no necesita este prompt.
+
 Evidence and scoring rules: `reference/product-brain/README.md`.
 - The template has fixed `API Gateway` and `SLA` sections.
 - The EM Agent needs stack, authentication, architecture, deployment, volume and rollout before it drafts.

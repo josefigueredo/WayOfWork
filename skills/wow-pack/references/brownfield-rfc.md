@@ -1,5 +1,8 @@
 # Brownfield RFC prompt (fill `wow/pb/rfc.md` so Product Brain scores 100%)
 
+> **Legado (deprecado):** solo aplica a `wow pack prd|rfc --full`. El camino por defecto es el paquete de registro,
+> que sale completo de `wow pack prd|rfc` y no necesita este prompt.
+
 Evidence: `reference/product-brain/README.md` (Product Brain backend read at commit 9b19a89). In short:
 - The scoring rules are the same as the PRD's.
 - The template has FIXED `### API Gateway` and `### SLA` sections, and the RFC Agent's checklist asks for a

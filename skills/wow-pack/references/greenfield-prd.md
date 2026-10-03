@@ -1,5 +1,8 @@
 # Greenfield PRD prompt (fill `wow/pb/prd.md` so Product Brain scores 100%)
 
+> **Legado (deprecado):** solo aplica a `wow pack prd|rfc --full`. El camino por defecto es el paquete de registro,
+> que sale completo de `wow pack prd|rfc` y no necesita este prompt.
+
 Evidence and scoring rules: `reference/product-brain/README.md`.
 - Any non-empty text fills a field.
 - Each table counts as one unit, filled by one complete row.

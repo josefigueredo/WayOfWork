@@ -13,8 +13,9 @@ description: Turn an initiative into a Brief and an upstream kanban (epics, task
    (brownfield = change to an existing system; it changes phase 0 and the packet prompts).
 2. Clarify with the user ONE question at a time (use a brainstorming skill if the host has one).
    Record answers in `wow/plan/PLAN.md` under `## Brief` as bullets:
-   `- Goal:`, `- Decisions: D1 … · D2 …`, `- Constraints:`, `- Non-goals:`, `- Open questions:`.
-   Owner decisions you cannot get go to Open questions; never invent them.
+   `- Goal:`, `- Problem:`, `- Decisions: D1 … · D2 …`, `- Constraints:`, `- Non-goals:`, `- Open questions:`,
+   plus a `## Contexto` paragraph. These are what the Product Brain packets carry; everything else is marked
+   "No aplica". Owner decisions you cannot get go to Open questions; never invent them.
 3. Do not decompose while a blocking open question remains.
 4. Edit `wow/plan/manifest.json`. Each task becomes one Product Brain story, each subtask one Product Brain task:
    - epics: `done_when` ("E1.C1: …") and `product` (objective, problem, dates YYYY-MM-DD, quarter Q4/2026,

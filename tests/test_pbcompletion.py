@@ -78,7 +78,7 @@ class EpicCheckTest(unittest.TestCase):
     def test_epic_errors_for_invalid_values(self):
         packet = ("# Épica E1 — X\n\n## Datos de la épica\n| Campo | Valor |\n| --- | --- |\n"
                   "| Criticidad (criticality) | [SIN DEFINIR] |\n| Fecha de inicio (start_date) | pronto |\n"
-                  "| Quarter (quarter) | {{quarter}} |\n\n## Historias\n\n### US-001 — [Backend] API (tarea 1.1)\n"
+                  "| Quarter (quarter) | {{quarter}} |\n\n## Historias\n\n### US-001 — [Backend] API\n"
                   "| Campo | Valor |\n| --- | --- |\n| Story points (story_points) | 4 |\n| Componente (component) | Backend |\n"
                   "| Historia (user_story_text) | Quiero curar |\n\n#### Criterios de aceptación (acceptance_criteria)\n"
                   "- AC1 — devuelve 200\n")

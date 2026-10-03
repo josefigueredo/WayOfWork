@@ -187,6 +187,34 @@ def _free_text(body: List[str], literals: List[str]) -> str:
     return "\n".join(kept)
 
 
+_REF_RE = re.compile(r"(?<![\w.])[CD]\d+\b")
+_API_EXTRA_RE = re.compile(r"^#{3,4}\s+([D-Z])\.\s")
+
+
+def hygiene(kind: str, packet: str) -> List[str]:
+    """What Product Brain breaks or leaks into Jira, seen in the PLATE-491 pilot."""
+    errors: List[str] = []
+    text = _COMMENT_RE.sub("", packet)
+    for line in text.splitlines():
+        ref = _REF_RE.search(line)
+        if ref:
+            errors.append(f"internal reference {ref.group(0)} reaches Product Brain and Jira: {line.strip()[:80]}")
+        if "(tarea " in line:
+            errors.append(f"title suffix (tarea …) ends up in the Jira summary: {line.strip()[:80]}")
+    if kind == "rfc":
+        for line in text.splitlines():
+            extra = _API_EXTRA_RE.match(line)
+            if extra:
+                errors.append(f"API {extra.group(1)}: Product Brain scores only APIs A, B and C; drop this block")
+    if kind == "epic":
+        fixed = set(DOR) | set(DOD)
+        for line in text.splitlines():
+            item = line.strip()[2:] if line.strip().startswith("- ") else None
+            if item and "," in item and item.rsplit(" — ", 1)[0] not in fixed:
+                errors.append(f"list item with a comma: Product Brain splits it in two: {item[:80]}")
+    return errors
+
+
 def predict(kind: str, packet: str) -> dict:
     meta, group_meta, literals = _template_map(kind)
     clean = _COMMENT_RE.sub("", packet)
@@ -243,7 +271,7 @@ def predict(kind: str, packet: str) -> dict:
     total = len(states)
     return {"kind": kind, "percentage": round(units / total * 100) if total else 0, "units": units, "total": total,
             "pending": [{"field": f, "state": s, "section": sec} for f, s, sec in states if s != "filled"],
-            "errors": []}
+            "errors": hygiene(kind, packet)}
 
 EPIC_FIELDS = [("epic_name", "Nombre"), ("objective", "Objetivo"), ("problem", "Problema"),
                ("strategic_objective", "Objetivo estratégico"), ("expected_impact", "Impacto esperado"),
@@ -355,6 +383,7 @@ def check_epic(text: str) -> dict:
         dod = story.get("definition_of_done", [])
         if [d.rsplit(" — ", 1)[0] for d in dod] != DOD or any(d.rsplit(" — ", 1)[-1] not in ("si", "no") for d in dod):
             errors.append(f"{sid} definition_of_done: must be the 11 fixed Product Brain items with si/no")
+    errors += hygiene("epic", text)
     states: List[Tuple[str, str]] = []
     for key, _ in EPIC_FIELDS:
         states.append((key, value_state(epic[key][0]) if epic.get(key) else "empty"))

@@ -6,6 +6,7 @@ Unknown fields stay as {{placeholder}}, the marker Product Brain's backend count
 from __future__ import annotations
 
 import re
+from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -13,7 +14,7 @@ import pbcompletion
 import pbtemplate
 
 UNDEFINED = "[SIN DEFINIR]"
-_BRIEF_KEYS = ("Goal", "Decisions", "Constraints", "Non-goals", "Open questions")
+_BRIEF_KEYS = ("Goal", "Problem", "Decisions", "Constraints", "Non-goals", "Open questions")
 _BULLET_RE = re.compile(r"^\s*-\s*([A-Za-z -]+?):\s*(.*)$")
 
 PREAMBLE = """Reglas para este documento (aplicalas en todas las secciones):
@@ -33,6 +34,16 @@ PREAMBLE = """Reglas para este documento (aplicalas en todas las secciones):
 """
 
 OWNER_ROLE = "Owner de producto"
+# Registro packets: Product Brain records the work, it does not plan it. Every field the plan does not orient
+# carries this explicit marker, which Product Brain's backend counts as filled.
+REGISTRO_REASON = "registro de la iniciativa; el plan y el detalle viven en el repo y en Spec-Kit."
+NA = "No aplica"
+# Context-pack claim ids (C14) and decision ids (D2) are internal: Product Brain copies them into Jira.
+# Criterion ids (AC1, E1.C1) stay, a word character or a dot before the letter protects them.
+_REF_GROUP_RE = re.compile(r"\s*\((?:[CD]\d+)(?:\s*[,;]\s*[CD]\d+)*\)")
+_REF_LEAD_RE = re.compile(r"(?<![\w.])D\d+\s+")
+_REF_BARE_RE = re.compile(r"\s*[,;]?\s*(?<![\w.])[CD]\d+\b")
+_TASK_REF_RE = re.compile(r"\s*\(tareas? [\d., y]+\)")
 INITIATIVE_TYPE = {"brownfield": "Evolución de sistema existente", "greenfield": "Iniciativa nueva"}
 PRIORITY_ES = {"high": "Alta", "medium": "Media", "low": "Baja"}
 _NONE = ("", "none", "ninguna", "ninguno")
@@ -45,6 +56,22 @@ def _header(mhash: str, command: str) -> str:
 def _items(value: str) -> List[str]:
     parts = [p.strip() for p in re.split(r"[·;]", value or "")]
     return [p for p in parts if p.lower() not in _NONE]
+
+
+def strip_refs(text: str) -> str:
+    text = _TASK_REF_RE.sub("", _REF_GROUP_RE.sub("", text))
+    return _REF_BARE_RE.sub("", _REF_LEAD_RE.sub("", text))
+
+
+def _pb(text: str) -> str:
+    """Packet body as Product Brain receives it: no internal references; the wow header comment is kept."""
+    header, _, body = text.partition("\n")
+    return header + "\n" + "\n".join(strip_refs(line) for line in body.split("\n"))
+
+
+def _list_item(value: str) -> str:
+    # Product Brain splits list items on commas: one item with a comma becomes two broken bullets.
+    return strip_refs(_cell(value)).replace(",", ";")
 
 
 def _cell(value: str) -> str:
@@ -86,9 +113,40 @@ def _open_questions(brief: Dict[str, str], pending, owner_role: str) -> Optional
     return None
 
 
-def render_prd(doc: dict, brief: Dict[str, str], mhash: str, pending=(), owner_role: str = OWNER_ROLE) -> str:
+def _quarter(today: date) -> str:
+    return f"Q{(today.month - 1) // 3 + 1}/{today.year}"
+
+
+def _registro(text: str, kind: str) -> str:
+    """Collapse every unused numbered group to one row and mark every remaining placeholder."""
+    _, groups = pbtemplate.units(kind)
+    for prefix, group in groups.items():
+        if group["index_type"] == "numeric" and re.search(r"\{\{\s*" + re.escape(prefix) + r"_\d", text):
+            text = _rows(text, prefix, [{}])
+    text = text.replace("{{open_questions}}", f"| 1 | Ninguna | {OWNER_ROLE} | Cerrada |")
+    lines = []
+    for line in text.split("\n"):
+        short = line.lstrip().startswith(("|", "#")) or "`{{" in line
+        lines.append(pbtemplate.PLACEHOLDER_RE.sub(NA if short else f"{NA}: {REGISTRO_REASON}", line)
+                     if "{{" in line else line)
+    return "\n".join(lines)
+
+
+def _bullets(items) -> str:
+    return "\n".join(f"- {item}" for item in items)
+
+
+def render_prd(doc: dict, brief: Dict[str, str], mhash: str, pending=(), owner_role: str = OWNER_ROLE,
+               registro: bool = False, author: str = "", today: Optional[date] = None) -> str:
     plan = doc["plan"]
     values = {"title": plan["title"], "prd_status": "Borrador"}
+    if registro:
+        closing = [item for epic in doc["epics"] for item in epic["done_when"]]
+        values.update({"objective": brief["Goal"], "expected_outcome": "; ".join(closing),
+                       "problem": brief["Problem"] or brief.get("Context", ""),
+                       "context": brief.get("Context", "") or brief["Problem"],
+                       "quarter_year": _quarter(today or date.today()), "author": author})
+        values = {k: v for k, v in values.items() if v}
     if plan.get("mode") in INITIATIVE_TYPE:
         values["initiative_type"] = INITIATIVE_TYPE[plan["mode"]]
     if brief["Goal"].strip():
@@ -106,12 +164,23 @@ def render_prd(doc: dict, brief: Dict[str, str], mhash: str, pending=(), owner_r
     text = _rows(text, "in_scope", [{"name": f"{e['id']}: {e['title']}", "description": "; ".join(e["done_when"]) or e["title"]}
                                     for e in doc["epics"]])
     text = _rows(text, "out_scope", [{"name": item} for item in _items(brief["Non-goals"])])
-    return _header(mhash, "wow pack prd") + "\n" + text
+    if registro:
+        text = _rows(text, "nfr", [{"category": "Restricción", "requirement": c} for c in _items(brief["Constraints"])])
+        text = _registro(text, "prd")
+    return _pb(_header(mhash, "wow pack prd") + "\n" + text)
 
 
-def render_rfc(doc: dict, brief: Dict[str, str], mhash: str, pending=(), owner_role: str = OWNER_ROLE) -> str:
+def render_rfc(doc: dict, brief: Dict[str, str], mhash: str, pending=(), owner_role: str = OWNER_ROLE,
+               registro: bool = False, author: str = "") -> str:
     plan = doc["plan"]
     values = {"title": plan["title"], "status": "Borrador", "version": "0.1"}
+    if registro:
+        closing = [item for epic in doc["epics"] for item in epic["done_when"]]
+        values.update({"rfc_id": plan["id"], "authors": author,
+                       "problem_definition": brief["Problem"] or brief.get("Context", ""),
+                       "business_impact": "; ".join(closing), "security": "; ".join(_items(brief["Constraints"])),
+                       "alternatives": _bullets(f"Decidido: {d}" for d in _items(brief["Decisions"]))})
+        values = {k: v for k, v in values.items() if v}
     if brief["Goal"].strip():
         values["executive_summary"] = brief["Goal"].strip()
     if plan.get("mode") == "greenfield":
@@ -128,7 +197,14 @@ def render_rfc(doc: dict, brief: Dict[str, str], mhash: str, pending=(), owner_r
         eta = f"{sum(estimates)} story points" if all(e is not None for e in estimates) else ""
         milestones.append({"phase": epic["id"], "deliverable": epic["title"], "eta": eta})
     text = _rows(text, "milestone", milestones)
-    return _header(mhash, "wow pack rfc") + "\n" + text
+    if registro:
+        tasks = [t for epic in doc["epics"] for t in epic["tasks"]]
+        components = sorted({t["component"] for t in tasks if t.get("component")})
+        text = _rows(text, "component", [{"name": c, "responsibility": "; ".join(t["title"] for t in tasks
+                                                                                  if t.get("component") == c)}
+                                         for c in components])
+        text = _registro(text, "rfc")
+    return _pb(_header(mhash, "wow pack rfc") + "\n" + text)
 
 
 def _ph(key: str) -> str:
@@ -162,7 +238,7 @@ def render_epic(doc: dict, epic_id: str, mhash: str) -> str:
     lines += [f"| {label} ({field}) | {_cell(scalar[field]) if scalar.get(field) else _ph(field)} |"
               for field, label in pbcompletion.EPIC_FIELDS]
     for field, label in pbcompletion.EPIC_LISTS:
-        lines += ["", f"### {label} ({field})"] + ([f"- {_cell(v)}" for v in lists[field]] or [f"- {_ph(field)}"])
+        lines += ["", f"### {label} ({field})"] + ([f"- {_list_item(v)}" for v in lists[field]] or [f"- {_ph(field)}"])
     lines += ["", "## Historias"]
     for task in tasks:
         story = dict(task.get("story") or {})
@@ -171,12 +247,12 @@ def render_epic(doc: dict, epic_id: str, mhash: str) -> str:
                   "priority": PRIORITY_ES.get(task["priority"] or "", ""), "component": task.get("component", ""),
                   "status": "todo"}
         values.update({k: v for k, v in story.items() if isinstance(v, str)})
-        lines += ["", f"### {stories[task['id']]} — [{component}] {task['title']} (tarea {task['id']})",
+        lines += ["", f"### {stories[task['id']]} — [{component}] {task['title']}",
                   "| Campo | Valor |", "| --- | --- |"]
         lines += [f"| {label} ({field}) | {_cell(values[field]) if values.get(field) else _ph(field)} |"
                   for field, label in pbcompletion.STORY_FIELDS]
         story_lists = {k: list(story.get(k) or []) for k in ("assumptions", "business_rules", "edge_cases", "assets")}
-        story_lists["dependencies"] = [f"{stories[d]} (tarea {d})" if d in stories else f"{d} (otra épica)"
+        story_lists["dependencies"] = [stories[d] if d in stories else f"{d} (otra épica)"
                                        for d in task["depends_on"]] or ["Ninguna"]
         story_lists["acceptance_criteria"] = [a.replace(": ", " — ", 1) for a in task["acceptance"]]
         story_lists["definition_of_ready"] = list(pbcompletion.DOR)
@@ -188,21 +264,26 @@ def render_epic(doc: dict, epic_id: str, mhash: str) -> str:
                 f"{sub['title']} — Propósito: {sub.get('purpose') or _ph('purpose')} — Cómo: {sub.get('how_to') or _ph('how_to')}"
                 f" — Componente: {sub.get('component') or component} — Estado: todo")
         for field, label in pbcompletion.STORY_LISTS:
-            lines += ["", f"#### {label} ({field})"] + ([f"- {_cell(v)}" for v in story_lists[field]] or [f"- {_ph(field)}"])
+            fixed = field in ("definition_of_ready", "definition_of_done")  # Product Brain's own text, commas included
+            item = _cell if fixed else _list_item
+            lines += ["", f"#### {label} ({field})"] + ([f"- {item(v)}" for v in story_lists[field]] or [f"- {_ph(field)}"])
     lines.append("")
-    return "\n".join(lines)
+    return _pb("\n".join(lines))
 
 
 def parse_brief(text: str) -> Dict[str, str]:
     brief = {key: "" for key in _BRIEF_KEYS}
-    inside = False
+    section, context = "", []
     for line in text.splitlines():
         if line.startswith("## "):
-            inside = line.strip().lower() == "## brief"
+            section = line.strip().lower()[3:]
             continue
-        match = _BULLET_RE.match(line) if inside else None
+        if section == "contexto" and line.strip():
+            context.append(line.strip())
+        match = _BULLET_RE.match(line) if section == "brief" else None
         if match and match.group(1).strip() in brief:
             brief[match.group(1).strip()] = match.group(2).strip()
+    brief["Context"] = " ".join(context)
     return brief
 
 

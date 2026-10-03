@@ -37,10 +37,15 @@ wow manifest lint --pb                                      # lo que Product Bra
 wow pack check prd | wow pack check epic --id E1           # predicción local del % de Product Brain
 ```
 
-Los paquetes de `wow pack` tienen la forma exacta de las plantillas de Product Brain y dejan `{{campo}}` donde falta
-el dato. Los prompts para completarlos están en `skills/wow-pack/references/` (brownfield, greenfield y épica).
+Product Brain registra el trabajo; no lo planifica. Por eso `wow pack prd` y `wow pack rfc` generan **paquetes de
+registro**: la forma exacta de la plantilla de Product Brain, con contenido real donde el plan orienta la épica (Goal,
+Problem, Contexto, Constraints, Non-goals, Decisions y criterios de cierre) y `No aplica: …` en el resto. Salen al 100%
+sin nada que completar. `--full` (deprecado) deja `{{campo}}` para llenarlos con los prompts de
+`skills/wow-pack/references/`.
+
 `wow pack check` predice el porcentaje que va a marcar Product Brain con sus mismas reglas
-(`reference/product-brain/README.md`).
+(`reference/product-brain/README.md`) y falla con lo que Product Brain rompe o filtra a Jira: ids del context pack
+(C14, D2), sufijos "(tarea x.y)", ítems de lista con comas y bloques de API más allá de A, B y C.
 
 ## Dashboard
 
