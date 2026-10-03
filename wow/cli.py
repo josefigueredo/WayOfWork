@@ -163,13 +163,9 @@ def _github_prs(project: Path, cfg: dict):
     return prs, ("partial: " + "; ".join(errors)) if ok else errors[0]
 
 
-def _cmd_snapshot(args) -> int:
-    project = _project(args)
-    try:
-        cfg = config.load_config(project)
-    except config.ConfigError as exc:
-        sys.stderr.write(f"wow: {exc}\n")
-        return exitcodes.CANNOT_EVALUATE
+def _refresh_snapshot(project: Path):
+    """Compute state, write wow/progress.json and return (state, snapshot). Raises config.ConfigError."""
+    cfg = config.load_config(project)
     result = state_mod.compute_state(project, cfg, _jira_for(project))
     prs, result["sources"]["github"] = _github_prs(project, cfg)
     result = links.build_links(project, result, prs)
@@ -179,6 +175,34 @@ def _cmd_snapshot(args) -> int:
     records = usage_mod.collect(project, cfg)
     snap = snapshot_mod.build(result, snapshot_mod.load_previous(project), _now(), usage=records)
     snapshot_mod.write(project, snap)
+    return result, snap
+
+
+def _cmd_dashboard(args) -> int:
+    import standalone
+    projects = [Path(p).expanduser().resolve() for p in (args.project or ["."])]
+    docs = []
+    for project in projects:
+        try:
+            _, snap = _refresh_snapshot(project)
+        except config.ConfigError as exc:
+            sys.stderr.write(f"wow: {project}: {exc}\n")
+            return exitcodes.CANNOT_EVALUATE
+        docs.append((f"{project.name}/{snapshot_mod.PROGRESS_REL}", snap))
+    out = Path(args.out).expanduser().resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(standalone.embed(standalone.TEMPLATE.read_text(encoding="utf-8"), docs), encoding="utf-8")
+    print(f"wrote {out} ({len(docs)} snapshot(s) embedded; opens offline, no drop needed)")
+    return exitcodes.OK
+
+
+def _cmd_snapshot(args) -> int:
+    project = _project(args)
+    try:
+        result, _ = _refresh_snapshot(project)
+    except config.ConfigError as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
     print(f"wrote {snapshot_mod.PROGRESS_REL}")
     for blocker in result["blockers"]:
         print(f"! {blocker}")
@@ -487,6 +511,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     with_project(sub.add_parser("state", help="print the derived state as JSON")).set_defaults(handler=_cmd_state)
     with_project(sub.add_parser("snapshot", help="write wow/progress.json")).set_defaults(handler=_cmd_snapshot)
+    db = sub.add_parser("dashboard", help="write a standalone offline HTML summary with fresh snapshots embedded")
+    db.add_argument("--out", required=True, help="HTML file to write")
+    db.add_argument("--project", action="append", default=None,
+                    help="project root; repeat for a portfolio (default: current directory)")
+    db.set_defaults(handler=_cmd_dashboard)
 
     rv = with_project(sub.add_parser("review", help="run an anchored independent review"))
     rv.add_argument("--set", default=None, choices=["readiness", "story", "epic", "claims"])

@@ -106,6 +106,20 @@ class StateCommandTest(unittest.TestCase):
 
 
 class SnapshotCommandTest(unittest.TestCase):
+    def test_dashboard_writes_a_standalone_html_with_fresh_snapshots(self):
+        project = make_project()
+        write(project, ".wow/config.json", _json.dumps({"github": {"enabled": False}, "usage": {"claude_root": str(project / "none-c"),
+                                                                    "codex_root": str(project / "none-x")}}))
+        out_file = project / "out" / "resumen.html"
+        code, out, _ = run_cli(["dashboard", "--out", str(out_file), "--project", str(project)])
+        self.assertEqual(code, 0, out)
+        self.assertTrue((project / "wow/progress.json").is_file())  # refreshed, not just read
+        html = out_file.read_text(encoding="utf-8")
+        block = _re.search(r'<script type="application/json" id="wow-embedded">(.*?)</script>', html, _re.S).group(1)
+        [entry] = _json.loads(block)
+        self.assertEqual(entry["doc"]["schema_version"], _json.loads((project / "wow/progress.json").read_text())["schema_version"])
+        self.assertIn(str(out_file), out)
+
     def test_snapshot_writes_file_and_grows_history(self):
         project = make_project()
         write(project, ".wow/config.json", _json.dumps({"github": {"enabled": False}, "usage": {"claude_root": str(project / "none-c"),

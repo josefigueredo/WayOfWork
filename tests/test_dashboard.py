@@ -206,6 +206,24 @@ class AppStaticTest(unittest.TestCase):
                        "repeating-linear-gradient(45deg", "#1baf7a", "#199e70", "forced-colors"):
             self.assertIn(needle, text, needle)
 
+    def test_embedded_snapshots_load_without_a_drop(self):
+        self.assertIn('<script type="application/json" id="wow-embedded">[]</script>', html_text())
+        self.assertIn('getElementById("wow-embedded")', script("wow-app"))
+
+
+class EmbedTest(unittest.TestCase):
+    def test_embed_inlines_snapshots_and_cannot_close_the_script(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "wow"))
+        import standalone
+        hostile = {"plan": {"id": "p1", "title": "</script><img src=x onerror=alert(1)>"}}
+        out = standalone.embed(html_text(), [("site/progress.json", hostile)])
+        block = re.search(r'<script type="application/json" id="wow-embedded">(.*?)</script>', out, re.S).group(1)
+        self.assertNotIn("</script", block)
+        self.assertEqual(json.loads(block), [{"name": "site/progress.json", "doc": hostile}])
+        self.assertEqual(out.count('id="wow-embedded"'), 1)
+        self.assertIn("Content-Security-Policy", out)  # the offline CSP travels with the file
+
 
 if __name__ == "__main__":
     unittest.main()

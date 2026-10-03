@@ -604,6 +604,7 @@ const WowRender = (() => {
   return {esc, safeUrl, renderAll, renderDoc, portfolio};
 })();
 </script>
+<script type="application/json" id="wow-embedded">[]</script>
 <script id="wow-app">
 (() => {
   "use strict";
@@ -660,6 +661,19 @@ const WowRender = (() => {
     load(event.dataTransfer ? event.dataTransfer.files : []);
   });
   $("#file").addEventListener("change", (event) => { load(event.target.files); event.target.value = ""; });
+
+  // `wow dashboard --out` bakes snapshots into this block: the summary opens with them, no drop needed.
+  try {
+    const embedded = JSON.parse(document.getElementById("wow-embedded").textContent || "[]");
+    if (Array.isArray(embedded) && embedded.length) {
+      for (const entry of embedded) state.docs.push({name: String(entry.name ?? "progress.json"), doc: entry.doc ?? null});
+      state.active = 0;
+      render();
+    }
+  } catch (e) {
+    state.docs.push({name: "embedded", doc: null, error: "embedded snapshot is not valid JSON"});
+    render();
+  }
 
   function copy(text, button) {
     const done = () => { button.textContent = "Copied"; setTimeout(() => { button.textContent = "Copy"; }, 1200); };

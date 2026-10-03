@@ -48,6 +48,10 @@ Abrí `dashboard/wow-dashboard.html` en el navegador y arrastrá uno o varios `w
 (los genera `wow snapshot`). No usa red: una Content-Security-Policy bloquea toda conexión saliente.
 Con varios archivos aparece la vista de portfolio. En `dashboard/examples/` hay tres snapshots de ejemplo.
 
+Para un resumen que se comparte como un solo archivo, `wow dashboard --out resumen.html --project <ruta>`
+(repetí `--project` para un portfolio) refresca los snapshots y los deja embebidos: el HTML abre offline,
+sin arrastrar nada.
+
 Para ver costos estimados, cargá una tabla de precios (USD por millón de tokens) en `.wow/config.json`:
 
 ```json
