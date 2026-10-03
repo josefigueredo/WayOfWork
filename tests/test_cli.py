@@ -204,6 +204,26 @@ class ReviewCommandTest(unittest.TestCase):
         project, _ = _review_project("VERDICT: APPROVED\n")
         self.assertEqual(run_cli(["review", "--set", "claims", "--ref", "facts", "--project", str(project)])[0], 2)
 
+    def test_decide_records_a_human_verdict_only_after_hitl(self):
+        import review as _review
+        project = make_project()
+        decide = ["review", "--decide", "approved", "--reason", "AC3 did not fire", "--ref", "IRIS-41",
+                  "--project", str(project)]
+        code, _, err = run_cli(decide)
+        self.assertEqual(code, 2)
+        self.assertIn("only after HITL", err)
+        summary = _review.new_summary("IRIS-41", "story")
+        blocked = _review.parse_verdict("VERDICT: CHANGES_REQUIRED\nBLOCKER AC1 a.py:1 — x\n")
+        for n in range(3):
+            summary = _review.record_round(summary, blocked, {"AC1"}, f"h{n}")
+        _review.save_summary(project, summary)
+        self.assertEqual(run_cli(decide[:3] + ["--ref", "IRIS-41", "--project", str(project)])[0], 2)  # no reason
+        code, out, _ = run_cli(decide)
+        self.assertEqual(code, 0)
+        saved = _json.loads((project / "wow/reviews/IRIS-41.json").read_text())
+        self.assertEqual((saved["final"], saved["decision"]["reason"]), ("approved_by_human", "AC3 did not fire"))
+        self.assertIn("approved by a human", out)
+
 
 class UsageCommandTest(unittest.TestCase):
     def test_usage_prints_cursor_rows_and_snapshot_includes_them(self):

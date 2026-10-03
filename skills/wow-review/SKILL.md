@@ -28,4 +28,7 @@ Use `--base <ref>` when the diff base is not `main`.
 
 - Never rerun a review without changing the diff after a BLOCKER: wow refuses and so should you.
 - After 3 rounds with a BLOCKER the review is HITL: present the BLOCKERs to the user and stop.
+- Only the user decides a HITL review. Record their verdict with
+  `wow review --decide approved|rejected --reason "<why, per BLOCKER>" --ref <REF>`: it works only after HITL,
+  keeps the reviewer's rounds, and is stored as `approved_by_human` / `rejected_by_human`, never as `approved`.
 - Do not argue with the reviewer across rounds.

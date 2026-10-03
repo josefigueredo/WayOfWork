@@ -243,10 +243,38 @@ def _cmd_run_wu(args) -> int:
     return exitcodes.OK if code == 0 else exitcodes.FINDINGS
 
 
+def _decision_author(project: Path) -> str:
+    import os
+    import subprocess
+    name = subprocess.run(["git", "-C", str(project), "config", "user.name"], capture_output=True, text=True).stdout
+    return name.strip() or os.environ.get("USER", "unknown")
+
+
+def _cmd_review_decide(args, project: Path) -> int:
+    if not args.reason or not args.reason.strip():
+        sys.stderr.write("wow: --decide needs --reason \"<why>\"\n")
+        return exitcodes.CANNOT_EVALUATE
+    summary = review_mod.load_summary(project, args.ref, args.set or "story")
+    now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        summary = review_mod.decide(summary, args.decide, args.reason, _decision_author(project), now)
+    except ValueError as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    review_mod.save_summary(project, summary)
+    print(f"{args.ref}: {args.decide} by a human after HITL — {summary['decision']['reason']}")
+    return exitcodes.OK
+
+
 def _cmd_review(args) -> int:
     project = _project(args)
     if not review_mod.safe_ref(args.ref):
         sys.stderr.write(f"wow: unsafe ref {args.ref!r}: use letters, digits, '.', '_' or '-'\n")
+        return exitcodes.CANNOT_EVALUATE
+    if args.decide:
+        return _cmd_review_decide(args, project)
+    if not args.set:
+        sys.stderr.write("wow: review needs --set readiness|story|epic|claims (or --decide after HITL)\n")
         return exitcodes.CANNOT_EVALUATE
     try:
         cfg = config.load_config(project)
@@ -271,8 +299,11 @@ def _cmd_review(args) -> int:
     dhash = packets.diff_hash(packet["body"])
     action = review_mod.next_action(summary, dhash)
     if action == "done":
-        print(f"{ref}: approved")
+        print(f"{ref}: approved" + (" by a human after HITL" if summary["final"] == "approved_by_human" else ""))
         return exitcodes.OK
+    if action == "rejected":
+        print(f"{ref}: rejected by a human after HITL — {summary['decision']['reason']}")
+        return exitcodes.FINDINGS
     if action in ("hitl", "wait_for_changes"):
         last = summary["rounds"][-1]
         if action == "hitl":
@@ -458,7 +489,10 @@ def build_parser() -> argparse.ArgumentParser:
     with_project(sub.add_parser("snapshot", help="write wow/progress.json")).set_defaults(handler=_cmd_snapshot)
 
     rv = with_project(sub.add_parser("review", help="run an anchored independent review"))
-    rv.add_argument("--set", required=True, choices=["readiness", "story", "epic", "claims"])
+    rv.add_argument("--set", default=None, choices=["readiness", "story", "epic", "claims"])
+    rv.add_argument("--decide", default=None, choices=["approved", "rejected"],
+                    help="record a human verdict on a review escalated to HITL (needs --reason)")
+    rv.add_argument("--reason", default=None, help="why the human decided (required with --decide)")
     rv.add_argument("--ref", required=True, help="plan | Jira story key | epic id | claims doc name")
     rv.add_argument("--repo", default=None, help="repository to diff or to verify claims against")
     rv.add_argument("--base", default="main", help="git base for story/epic diffs (default: main)")

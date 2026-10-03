@@ -244,6 +244,15 @@ class EpicPhasesTest(unittest.TestCase):
         self.assertEqual(result["epics"][0]["phase"], 5)
         self.assertEqual(result["next_steps"][0]["command"], "wow review --set story --ref IRIS-41")
 
+    def test_story_approved_by_a_human_after_hitl_closes_its_review(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        add_feature(p)
+        write(p, "wow/reviews/IRIS-41.json", json.dumps({"final": "approved_by_human"}))
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 1)}))
+        self.assertNotIn("wow review --set story --ref IRIS-41", [s["command"] for s in result["next_steps"]])
+        self.assertEqual(result["epics"][0]["phase"], 6)
+
     def test_phase_6_and_done(self):
         p = project_at_phase_3()
         close_chats(p)

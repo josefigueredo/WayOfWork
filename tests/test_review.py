@@ -57,6 +57,25 @@ class RoundsTest(unittest.TestCase):
         self.assertEqual(summary["final"], "hitl")
         self.assertEqual(review.next_action(summary, "h9"), "hitl")
 
+    def test_human_decision_only_after_hitl_records_who_and_why(self):
+        summary = review.new_summary("IRIS-41", "story")
+        blocked = review.parse_verdict("VERDICT: CHANGES_REQUIRED\nBLOCKER AC1 a.py:1 — still broken\n")
+        with self.assertRaises(ValueError):  # no HITL yet: a human decision cannot skip the reviewer
+            review.decide(summary, "approved", "looks fine", "ana", "2026-10-02T22:00:00Z")
+        for n in range(3):
+            summary = review.record_round(summary, blocked, {"AC1"}, f"h{n}")
+        with self.assertRaises(ValueError):
+            review.decide(summary, "approved", "  ", "ana", "2026-10-02T22:00:00Z")
+        approved = review.decide(summary, "approved", "AC1 is conditional and did not fire", "ana", "2026-10-02T22:00:00Z")
+        self.assertEqual(approved["final"], "approved_by_human")
+        self.assertEqual(approved["decision"], {"by": "human", "author": "ana", "verdict": "approved",
+                                                "reason": "AC1 is conditional and did not fire",
+                                                "at": "2026-10-02T22:00:00Z"})
+        self.assertEqual(len(approved["rounds"]), 3)  # the reviewer's rounds stay on record
+        self.assertEqual(review.next_action(approved, "h9"), "done")
+        rejected = review.decide(summary, "rejected", "needs a semantic audit", "ana", "2026-10-02T22:00:00Z")
+        self.assertEqual((rejected["final"], review.next_action(rejected, "h9")), ("rejected_by_human", "rejected"))
+
     def test_next_action_rules(self):
         empty = review.new_summary("IRIS-41", "story")
         self.assertEqual(review.next_action(empty, "h1"), "run")

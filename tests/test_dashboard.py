@@ -111,6 +111,9 @@ const q = C.quality([{ref: "a", rounds: 1, final: "approved", first_pass: true},
   {ref: "b", rounds: 3, final: "hitl", first_pass: false}, {ref: "c", rounds: 1, final: null, first_pass: false}]);
 assert.deepStrictEqual([q.total, q.decided, q.firstPassRate, q.hitl], [3, 2, 0.5, 1]);
 assert.strictEqual(C.quality([]).firstPassRate, null);
+const h = C.quality([{ref: "d", rounds: 3, final: "approved_by_human", first_pass: false},
+  {ref: "e", rounds: 3, final: "rejected_by_human", first_pass: false}]);
+assert.deepStrictEqual([h.decided, h.hitl, h.firstPassRate], [2, 2, 0]);
 console.log("core ok");
 """
         proc = run_node(js)

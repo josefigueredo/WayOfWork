@@ -74,14 +74,31 @@ def save_summary(project: Path, summary: dict) -> Path:
 
 
 def next_action(summary: dict, diff_hash: str) -> str:
-    if summary["final"] == "approved":
+    if summary["final"] in ("approved", "approved_by_human"):
         return "done"
     if summary["final"] == "hitl":
         return "hitl"
+    if summary["final"] == "rejected_by_human":
+        return "rejected"
     rounds = summary["rounds"]
     if rounds and rounds[-1]["blockers"] and rounds[-1]["diff_hash"] == diff_hash:
         return "wait_for_changes"
     return "run"
+
+
+def decide(summary: dict, verdict: str, reason: str, author: str, now: str) -> dict:
+    """Record a human verdict on a review the reviewer escalated to HITL. It never stands in for the reviewer:
+    it is only possible after HITL, it needs a reason, and it is kept apart from a reviewer approval."""
+    if summary["final"] != "hitl":
+        raise ValueError(f"{summary['ref']}: a human decision is recorded only after HITL (final is {summary['final']!r})")
+    if verdict not in ("approved", "rejected"):
+        raise ValueError(f"verdict must be approved or rejected, not {verdict!r}")
+    if not reason.strip():
+        raise ValueError("a human decision needs a reason")
+    result = copy.deepcopy(summary)
+    result["decision"] = {"by": "human", "author": author, "verdict": verdict, "reason": reason.strip(), "at": now}
+    result["final"] = f"{verdict}_by_human"
+    return result
 
 
 def record_round(summary: dict, parsed: dict, anchors: Iterable[str], diff_hash: str) -> dict:

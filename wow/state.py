@@ -11,6 +11,8 @@ from sources import SourceUnavailable, pbchat, repo, speckit
 
 _WHERE_RANK = {"human": 0, "harness": 1, "product-brain": 1, "terminal": 1, "cursor": 2}
 _CHAT_LABEL = {"prd": "PRD", "rfc": "RFC"}
+# A review is closed by the reviewer's approval or, after HITL, by a recorded human approval.
+REVIEW_CLOSED = ("approved", "approved_by_human")
 
 
 def review_final(project: Path, ref: str) -> Optional[str]:
@@ -212,7 +214,7 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
         steps.append(_step(eid, 5, f"implement {wu}", "cursor", models["cursor_generate"], f"wow run-wu {wu}",
                            f"{wu} is not checked in tasks.md"))
     for story, counts in sorted(feature["stories"].items()):
-        if counts["done"] == counts["total"] and review_final(project, story) != "approved":
+        if counts["done"] == counts["total"] and review_final(project, story) not in REVIEW_CLOSED:
             steps.append(_step(eid, 5, f"review story {story}", "harness", models["reviewer"],
                                f"wow review --set story --ref {story}",
                                "all its tasks are done and it has no approved review"))
@@ -224,7 +226,7 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
         steps.append(_step(eid, 6, f"close the stories of {key} in Jira", "terminal", None,
                            f"spec-kit sync-status {feature['dir']} --dry-run",
                            f"{summary['done']} of {summary['stories']} stories are done in Jira"))
-    if review_final(project, eid) != "approved":
+    if review_final(project, eid) not in REVIEW_CLOSED:
         steps.append(_step(eid, 6, f"review epic {eid}", "harness", models["reviewer"],
                            f"wow review --set epic --ref {eid}", "the epic has no approved closure review"))
     return finish(6 if steps else "done")

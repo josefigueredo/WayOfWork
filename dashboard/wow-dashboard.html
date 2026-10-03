@@ -297,11 +297,13 @@ const WowCore = (() => {
 
   function quality(reviews) {
     const rows = arr(reviews).filter((r) => r && typeof r === "object");
-    const decided = rows.filter((r) => r.final === "approved" || r.final === "hitl");
+    // A human decision after HITL still counts as escalated: the reviewer did not close it.
+    const escalated = (r) => r.final === "hitl" || r.final === "approved_by_human" || r.final === "rejected_by_human";
+    const decided = rows.filter((r) => r.final === "approved" || escalated(r));
     const firstPass = decided.filter((r) => r.first_pass).length;
     return {total: rows.length, decided: decided.length,
             firstPassRate: decided.length ? firstPass / decided.length : null,
-            hitl: rows.filter((r) => r.final === "hitl").length, rows};
+            hitl: rows.filter(escalated).length, rows};
   }
 
   return {PHASES, VENDORS, arr, validate, phaseState, sumOrNull, median, quantile, vendorKey, pool,
@@ -478,9 +480,10 @@ const WowRender = (() => {
       `<div class="tile"><div class="label">Reviews</div><div class="value">${q.total}</div><div class="sub">story, epic, readiness, claims</div></div></div>`;
     const rows = q.rows.map((r) => {
       const final = r.final === "approved" ? "approved" : r.final === "hitl" ? "hitl" : "pending";
+      const human = r.final === "approved_by_human" ? "approved by human" : r.final === "rejected_by_human" ? "rejected by human" : null;
       const width = Math.max(4, (Math.min(3, r.rounds) / 3) * 100);
       return `<tr><td>${esc(r.ref)}</td><td>${esc(r.anchor_set ?? "—")}</td><td><span class="meter" ${tip(`${r.ref}: ${r.rounds} round(s), ${fmt(r.blockers)} blocker(s) · source: wow/reviews/${r.ref}.json`)}><span style="width:${width}%"></span></span> ${esc(r.rounds)}</td>` +
-        `<td class="num">${fmt(r.blockers)}</td><td>${badge(final)}</td></tr>`;
+        `<td class="num">${fmt(r.blockers)}</td><td>${human ? badge("hitl", human) : badge(final)}</td></tr>`;
     }).join("");
     const body = tiles + `<div class="scroll"><table><thead><tr><th>Ref</th><th>Set</th><th>Rounds (max 3)</th><th class="num">Blockers</th><th>Final</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     return panel("panel-quality", "Quality", body, "wow/reviews/*.json (independent reviewer: Codex or Copilot)");
