@@ -20,14 +20,17 @@ Read-only navigator. It never executes the steps it recommends.
 3. Explain the result to the user:
    - Blockers first (owner decisions). They are human tasks, never resolve them by inference.
    - Then up to three next steps, each with: action, **where** (`harness`, `product-brain`,
-     `terminal`, `cursor`), model, exact command, and the `why` field.
+     `cursor`), model, exact command, and the `why` field.
    A step with `recommended: true` is optional: say so, it never holds a phase open.
    - Point out any epic whose phase is `unknown` and quote its `reason` verbatim.
    - Mention `sources` that are not `ok`.
-4. Stop. Do not run the recommended commands unless the user asks for that specific step.
+4. Let the user choose the next step: if the host has a multiple-choice question tool (Claude Code: AskUserQuestion), use it: single-select, recommended option first and marked "(Recomendado)", the tradeoff in each option's description, up to 4 options and 4 questions per call. Otherwise, numbered options in text.
+   Options: up to three next steps (label = the action in ≤5 words; description = where + why) plus
+   "Explicame el estado". Then stop, and run only the step the user picked.
 
 ## Rules
 
+- IDs defined earlier in the conversation (E1, D10, C14, AC1, WU-005, US-001) get a few-word gloss the first time each message mentions them, e.g. "E2 (cifras del motor al día)": the user must not have to scroll back to know what they are.
 - Do not infer phases from prose: the JSON is the source of truth.
 - Never invent a step that is not in `next_steps`; if the list is empty and every epic is `done`,
   say the plan is complete.

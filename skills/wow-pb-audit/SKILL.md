@@ -21,5 +21,6 @@ description: Audit the local copy of a Product Brain chat (PRD, RFC or epic) aga
 
 ## Rules
 
+- IDs defined earlier in the conversation (E1, D10, C14, AC1, WU-005, US-001) get a few-word gloss the first time each message mentions them, e.g. "E2 (cifras del motor al día)": the user must not have to scroll back to know what they are.
 - Never edit an `.audit.json` by hand and never mark a chat approved yourself.
 - A closed chat (100%) with a failing audit is still not done: Product Brain checklists are not evidence.

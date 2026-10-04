@@ -23,6 +23,7 @@ packets only register them in the shape Product Brain and Jira expect.
 
 ## Rules
 
+- IDs defined earlier in the conversation (E1, D10, C14, AC1, WU-005, US-001) get a few-word gloss the first time each message mentions them, e.g. "E2 (cifras del motor al día)": the user must not have to scroll back to know what they are.
 - Epic enums and dates still come from `product` in the manifest: an invalid value breaks the Jira export.
 - Never rename headings or remove template tables; Product Brain maps fields by structure.
 - `--full` (deprecated) emits PRD/RFC with `{{placeholders}}` for an LLM to fill with the legacy prompts

@@ -24,6 +24,7 @@ Goal: spend the scarce Cursor pool only on ratifying and generating, never on th
 
 ## Rules
 
+- IDs defined earlier in the conversation (E1, D10, C14, AC1, WU-005, US-001) get a few-word gloss the first time each message mentions them, e.g. "E2 (cifras del motor al día)": the user must not have to scroll back to know what they are.
 - Never replace a `/spec-kit.*` command with your own implementation: telemetry must see it.
 - Escalate a work unit to a stronger Cursor model after its third NEEDS_REVISION, not before.
 - `wow run-wu` (headless cursor-agent) is deprecated: the pilot ran every work unit in the Cursor chat.

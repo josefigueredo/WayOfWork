@@ -10,8 +10,9 @@ description: Turn an initiative into a Brief and an upstream kanban (epics, task
 1. Run `wow plan guard`. Exit 1 means the manifest is frozen: stop and explain the scope-change path
    (Product Brain Artifact Engine + /spec-kit.amend). Exit 2 means there is no manifest yet:
    run `wow plan init <NNNN-name> --title "<title>" --mode greenfield|brownfield`
-   (brownfield = change to an existing system; it changes phase 0 and the packet prompts).
-2. Clarify with the user ONE question at a time (use a brainstorming skill if the host has one).
+   (brownfield = change to an existing system; it changes phase 0 and where Spec-Kit discovery fits).
+2. Clarify with the user ONE question at a time (use a brainstorming skill if the host has one). For a decision
+   with 2-4 discrete alternatives, if the host has a multiple-choice question tool (Claude Code: AskUserQuestion), use it: single-select, recommended option first and marked "(Recomendado)", the tradeoff in each option's description, up to 4 options and 4 questions per call. Otherwise, numbered options in text.
    Record answers in `wow/plan/PLAN.md` under `## Brief` as bullets:
    `- Goal:`, `- Problem:`, `- Decisions: D1 … · D2 …`, `- Constraints:`, `- Non-goals:`, `- Open questions:`,
    plus a `## Contexto` paragraph. These are what the Product Brain packets carry; everything else is marked
@@ -35,5 +36,6 @@ description: Turn an initiative into a Brief and an upstream kanban (epics, task
 
 ## Rules
 
+- IDs defined earlier in the conversation (E1, D10, C14, AC1, WU-005, US-001) get a few-word gloss the first time each message mentions them, e.g. "E2 (cifras del motor al día)": the user must not have to scroll back to know what they are.
 - Acceptance criteria must be verifiable; vague ones fail readiness R1.
 - Keep task ids stable once packets exist: renaming breaks the AC anchors used in later reviews.

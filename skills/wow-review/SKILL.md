@@ -32,9 +32,11 @@ Use `--base <ref>` when the diff base is not `main`.
 
 ## Rules
 
+- IDs defined earlier in the conversation (E1, D10, C14, AC1, WU-005, US-001) get a few-word gloss the first time each message mentions them, e.g. "E2 (cifras del motor al día)": the user must not have to scroll back to know what they are.
 - Never rerun a review without changing the diff after a BLOCKER: wow refuses and so should you.
 - After 3 rounds with a BLOCKER the review is HITL: present the BLOCKERs to the user and stop.
-- Only the user decides a HITL review. Record their verdict with
+- Only the user decides a HITL review: present each BLOCKER and offer approve / reject as a choice (with the host's
+  multiple-choice question tool if it has one; the reason goes in the free-text answer). Record their verdict with
   `wow review --decide approved|rejected --reason "<why, per BLOCKER>" --ref <REF>`: it works only after HITL,
   keeps the reviewer's rounds, and is stored as `approved_by_human` / `rejected_by_human`, never as `approved`.
 - Do not argue with the reviewer across rounds.
