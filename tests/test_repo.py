@@ -11,7 +11,7 @@ H = "0123456789abcdef"
 class ContextPackTest(unittest.TestCase):
     def test_empty_project(self):
         self.assertEqual(repo.context_pack_status(make_project()),
-                         {"facts": False, "pending_file": False, "pending_open": 0})
+                         {"facts": False, "pending_file": False, "pending_open": 0, "pending_absorbed": 0})
 
     def test_counts_unchecked_items_only(self):
         project = make_project()
@@ -19,7 +19,7 @@ class ContextPackTest(unittest.TestCase):
         write(project, "wow/context-pack/pending-owner.md",
               "- [ ] North Star\n- [x] SLA: [SIN DEFINIR] (accepted)\n  - [ ] rollout\n")
         self.assertEqual(repo.context_pack_status(project),
-                         {"facts": True, "pending_file": True, "pending_open": 2})
+                         {"facts": True, "pending_file": True, "pending_open": 2, "pending_absorbed": 0})
 
 
 class SkeletonFactsTest(unittest.TestCase):
@@ -55,6 +55,15 @@ class PacketTemplateTest(unittest.TestCase):
         write(project, "wow/pb/rfc.md", f"<!-- wow: manifest-hash={H} -->\n")
         status = repo.packet_status(project, H, [])
         self.assertEqual((status["prd"], status["rfc"]), ("ok", "stale"))
+
+    def test_absorbed_decisions_are_counted_apart_and_stay_open_questions(self):
+        project = make_project()
+        write(project, "wow/context-pack/facts.md", "- C1: x [MEDIDO] (fuente: README.md)\n")
+        write(project, "wow/context-pack/pending-owner.md", "- [ ] North Star\n- [~] Menú → plan: tarea 1.4\n- [x] SLA\n")
+        status = repo.context_pack_status(project)
+        self.assertEqual((status["pending_open"], status["pending_absorbed"]), (1, 1))
+        # Still undecided: Product Brain packets list them as open questions.
+        self.assertEqual(repo.pending_items(project), ["North Star", "Menú → plan: tarea 1.4"])
 
     def test_pending_items(self):
         project = make_project()

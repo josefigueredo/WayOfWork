@@ -20,7 +20,9 @@ description: Build the context pack (facts, metrics, decisions, contracts, owner
    `local-constitution.md` against the code yourself, fix them in place, and keep the verified copies plus an
    `ERRATA.md` (said / correction / evidence) in `wow/context-pack/discovery/`. From then on `wow context check`
    fails if a new /spec-kit.discovery overwrites them, and `wow context restore` puts them back.
-4. List owner decisions in `pending-owner.md` as `- [ ] <decision>`; the user marks them `[x]`. When you ask them,
+4. List owner decisions in `pending-owner.md` as `- [ ] <decision>`; the user marks them `[x]`. A decision the user
+   lets the plan absorb (a task with a default in its criteria) is `- [~] <decision> → plan: <task>`: it stops
+   blocking but stays an open question for Product Brain. When you ask them,
    group them in blocks and, for those with discrete alternatives, if the host has a multiple-choice question tool (Claude Code: AskUserQuestion), use it: single-select, recommended option first and marked "(Recomendado)", the tradeoff in each option's description, up to 4 options and 4 questions per call. Otherwise, numbered options in text.
 5. Run `wow context check` until it exits 0: every `fuente: path:line` must exist and be in range.
    For any other document that cites code (an audit report, a design doc), run

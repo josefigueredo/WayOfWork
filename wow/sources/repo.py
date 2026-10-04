@@ -9,20 +9,26 @@ import pbtemplate
 
 HASH_RE = re.compile(r"manifest-hash=([0-9a-f]{16})")
 TEMPLATE_RE = re.compile(r"template=(pb-[0-9a-f]{7})")
-_PENDING_RE = re.compile(r"^\s*-\s*\[ \]\s*(.+?)\s*$")
+# `- [ ]` open (blocks the plan) · `- [~]` absorbed into the plan as a task with a default (does not block, still
+# undecided) · `- [x]` decided or accepted as [SIN DEFINIR].
+_PENDING_RE = re.compile(r"^\s*-\s*\[[ ~]\]\s*(.+?)\s*$")
 _UNCHECKED_RE = re.compile(r"^\s*-\s*\[ \]")
+_ABSORBED_RE = re.compile(r"^\s*-\s*\[~\]")
 _CLAIM_RE = re.compile(r"^\s*-\s*C[0-9]+:", re.MULTILINE)
 
 
 def context_pack_status(project: Path) -> dict:
     base = project / "wow" / "context-pack"
     pending = base / "pending-owner.md"
-    open_items = 0
+    open_items = absorbed = 0
     if pending.is_file():
-        open_items = sum(1 for line in pending.read_text(encoding="utf-8").splitlines() if _UNCHECKED_RE.match(line))
+        lines = pending.read_text(encoding="utf-8").splitlines()
+        open_items = sum(1 for line in lines if _UNCHECKED_RE.match(line))
+        absorbed = sum(1 for line in lines if _ABSORBED_RE.match(line))
     facts = base / "facts.md"
     has_claims = facts.is_file() and bool(_CLAIM_RE.search(facts.read_text(encoding="utf-8")))
-    return {"facts": has_claims, "pending_file": pending.is_file(), "pending_open": open_items}
+    return {"facts": has_claims, "pending_file": pending.is_file(), "pending_open": open_items,
+            "pending_absorbed": absorbed}
 
 
 def _packet(path: Path, mhash: str) -> str:

@@ -17,7 +17,8 @@ description: Turn an initiative into a Brief and an upstream kanban (epics, task
    `- Goal:`, `- Problem:`, `- Decisions: D1 … · D2 …`, `- Constraints:`, `- Non-goals:`, `- Open questions:`,
    plus a `## Contexto` paragraph. These are what the Product Brain packets carry; everything else is marked
    "No aplica". Owner decisions you cannot get go to Open questions; never invent them.
-3. Do not decompose while a blocking open question remains.
+3. Do not decompose while a blocking open question remains. If the user lets a decision ride on a default that the
+   plan carries as a task, mark it `- [~] <decision> → plan: <task>` in `pending-owner.md`: it no longer blocks.
 4. Edit `wow/plan/manifest.json`. Each task becomes one Product Brain story, each subtask one Product Brain task:
    - epics: `done_when` ("E1.C1: …") and `product` (objective, problem, dates YYYY-MM-DD, quarter Q4/2026,
      criticality/priority Alta|Media|Baja, owner, insights…); `status: "draft"` parks an epic: `wow state` asks for

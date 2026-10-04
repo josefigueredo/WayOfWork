@@ -131,6 +131,16 @@ class PlanPhasesTest(unittest.TestCase):
         self.assertEqual(result["blockers"], ["owner: 2 decision(s) open in wow/context-pack/pending-owner.md"])
         self.assertEqual(result["next_steps"][0]["command"], "wow-plan")
 
+    def test_decisions_absorbed_into_the_plan_do_not_block(self):
+        p = make_project()
+        write(p, "wow/context-pack/facts.md", "- C1: hecho de prueba [MEDIDO] (fuente: README.md)\n")
+        write(p, "wow/context-pack/pending-owner.md",
+              "- [ ] North Star\n- [~] Menú → plan: tarea 1.4\n- [~] Limpieza del repo → plan: tarea 1.5\n")
+        result = state.compute_state(p, CFG)
+        self.assertEqual(result["blockers"], ["owner: 1 decision(s) open in wow/context-pack/pending-owner.md"])
+        write(p, "wow/context-pack/pending-owner.md", "- [x] North Star\n- [~] Menú → plan: tarea 1.4\n")
+        self.assertEqual(state.compute_state(p, CFG)["blockers"], [])
+
     def test_readiness_pending_is_phase_1(self):
         p = make_project()
         write(p, "wow/context-pack/facts.md", "- C1: hecho de prueba [MEDIDO] (fuente: README.md)\n")

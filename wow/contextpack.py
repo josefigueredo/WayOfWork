@@ -19,7 +19,9 @@ SKELETONS: Dict[str, str] = {
     "decisions.md": f"# Decisiones y alternativas descartadas\n\n{_CLAIM_FORMAT}\n",
     "contracts.md": f"# Contratos\n\n{_CLAIM_FORMAT}\n",
     "pending-owner.md": "# Decisiones pendientes del owner\n\n"
-                        "<!-- one per line: - [ ] <decision>; mark - [x] when decided or accepted as [SIN DEFINIR] -->\n",
+                        "<!-- one per line: - [ ] <decision> (blocks the plan); - [x] decided or accepted as [SIN DEFINIR]; "
+                        "- [~] <decision> → plan: <task> when it is absorbed into the plan as a task with a default "
+                        "(does not block, still an open question for Product Brain) -->\n",
 }
 
 
