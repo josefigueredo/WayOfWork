@@ -119,6 +119,64 @@ class DocChangesTest(unittest.TestCase):
         self.assertEqual(pbaudit.audit(project, "rfc")["pb_changes"], [])
 
 
+API_PACKET = """<!-- wow -->
+### Especificaciones de API (Contrato)
+
+#### A. Sin endpoints nuevos
+- Endpoint: `No aplica`
+- Descripcion: el sitio no expone API
+- Request:
+No aplica
+- Response:
+No aplica
+
+### Modelo de Datos
+No aplica
+"""
+# What Product Brain left in its panel in the IRIS pilot: A-C untouched, the content appended as D (uncounted).
+API_FINAL = """### Especificaciones de API (Contrato)
+
+#### A. {{api_a_name}}
+- Endpoint: `{{api_a_endpoint}}`
+- Descripcion: {{api_a_description}}
+
+#### D. Sin endpoints nuevos
+- Endpoint: `No aplica`
+
+### Modelo de Datos
+No aplica
+"""
+
+
+class EditorFixTest(unittest.TestCase):
+    def test_a_section_left_with_placeholders_gets_the_packet_section_to_paste(self):
+        project = make_project()
+        write(project, "wow/pb/rfc.md", API_PACKET)
+        write(project, "wow/pb/chats/rfc.final.md", API_FINAL)
+        [fix] = pbaudit.editor_fixes(project, "rfc")
+        self.assertEqual(fix["section"], "### Especificaciones de API (Contrato)")
+        self.assertIn("#### A. Sin endpoints nuevos", fix["replace_with"])
+        self.assertNotIn("{{", fix["replace_with"])
+        self.assertNotIn("#### D.", fix["replace_with"])
+        self.assertIn("placeholder", fix["reason"])
+
+    def test_no_fix_when_the_panel_kept_the_packet(self):
+        project = make_project()
+        write(project, "wow/pb/rfc.md", API_PACKET)
+        write(project, "wow/pb/chats/rfc.final.md", API_PACKET.split("\n", 1)[1])
+        self.assertEqual(pbaudit.editor_fixes(project, "rfc"), [])
+
+    def test_cli_prints_the_fix_with_only_the_panel_copy(self):
+        from helpers import run_cli
+        project = make_project()
+        write(project, "wow/pb/rfc.md", API_PACKET)
+        write(project, "wow/pb/chats/rfc.final.md", API_FINAL)
+        code, out, _ = run_cli(["pbchat", "audit", "rfc", "--project", str(project)])
+        self.assertEqual(code, 1)
+        self.assertIn('replace the section "### Especificaciones de API (Contrato)"', out)
+        self.assertIn("#### A. Sin endpoints nuevos", out)
+
+
 class DeepAuditTest(unittest.TestCase):
     def test_parse_inventions_and_verdict_required(self):
         text = "VERDICT: CHANGES_REQUIRED\nINVENTION 12 — North Star del 30% — no figura en el contexto\n"

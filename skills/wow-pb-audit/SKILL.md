@@ -15,7 +15,13 @@ description: Audit the local copy of a Product Brain chat (PRD, RFC or epic) aga
 3. Exit 1: show the corrections block verbatim so the user pastes it into Product Brain, then wait
    for the user to update the chat copy and audit again.
 4. Exit 0: the chat is approved; the audit file `wow/pb/chats/<doc>.audit.json` records it.
-5. Review only the `+`/`-` lines the audit prints ("Product Brain changed N lines against the packet"):
+5. "Fix in Product Brain's document editor": Product Brain left a section with template placeholders
+   (`{{api_a_name}}`…) while the packet filled it. Its merge appends a block it cannot match by name after
+   the template rows (the IRIS RFC API landed as an uncounted "D", so the document stopped at 97%). The
+   chat cannot repair it. Show the block verbatim and tell the user to replace that whole section in the
+   panel's document editor, then copy the panel again into `<doc>.final.md` and re-run the audit. This
+   works with only the panel copy; the chat copy is not required for it.
+6. Review only the `+`/`-` lines the audit prints ("Product Brain changed N lines against the packet"):
    a registro packet already scores 100%, so every change is Product Brain's own. Keep it, or paste a
    correction that restores the packet line.
 

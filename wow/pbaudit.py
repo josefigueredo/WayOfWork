@@ -140,6 +140,44 @@ def doc_changes(project: Path, doc: str) -> Optional[List[dict]]:
     return changes
 
 
+_SECTION_HEAD_RE = re.compile(r"^#{1,3}\s")
+
+
+def _md_sections(text: str) -> dict:
+    """Heading (levels 1-3) -> its block, deeper headings included (#### A. stays inside its API section)."""
+    sections, current, body = {}, None, []
+    for line in re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL).splitlines():
+        if _SECTION_HEAD_RE.match(line):
+            if current is not None:
+                sections[current] = "\n".join(body).strip("\n")
+            current, body = line.strip(), [line]
+        elif current is not None:
+            body.append(line)
+    if current is not None:
+        sections[current] = "\n".join(body).strip("\n")
+    return sections
+
+
+def editor_fixes(project: Path, doc: str) -> List[dict]:
+    """Sections Product Brain left with template placeholders although the packet filled them. Its merge appends a
+    list it cannot match by name after the template rows (field-groups.ts mergeGroupArrays), so in the IRIS pilot the
+    API block landed as an uncounted "D" while A-C stayed empty. The deterministic fix is the one done by hand in the
+    PRISM pilot: paste the packet's section in Product Brain's document editor."""
+    final = project / "wow" / "pb" / "chats" / f"{doc}.final.md"
+    packet = project / "wow" / "pb" / f"{doc}.md"
+    if not final.is_file() or not packet.is_file():
+        return []
+    ours = _md_sections(packet.read_text(encoding="utf-8"))
+    fixes = []
+    for heading, block in _md_sections(final.read_text(encoding="utf-8")).items():
+        mine = ours.get(heading)
+        if mine and "{{" in block and "{{" not in mine:
+            fixes.append({"section": heading, "replace_with": mine,
+                          "reason": "Product Brain left template placeholders here (its merge appended the content "
+                                    "after the template rows, where it does not count)"})
+    return fixes
+
+
 def audit(project: Path, doc: str, extra_inventions: Optional[List[dict]] = None) -> dict:
     chat_path = project / "wow" / "pb" / "chats" / f"{doc}.md"
     if not chat_path.is_file():
@@ -170,12 +208,13 @@ def audit(project: Path, doc: str, extra_inventions: Optional[List[dict]] = None
                    if _CHECK_RE.search(line) and not _CITATION_RE.search(line)]
     authoritative = [int(m) for m in AUTHORITATIVE_RE.findall(text) if int(m) <= 100]
     percents = authoritative or [int(m) for m in _COMPLETION_RE.findall(text) if int(m) <= 100]
-    verdict = "approved" if not (missing or inventions or unsupported) else "changes_required"
+    fixes = editor_fixes(project, doc)
+    verdict = "approved" if not (missing or inventions or unsupported or fixes) else "changes_required"
     return {"schema_version": 1, "doc": doc, "verdict": verdict, "closed": parsed["closed"],
             "completion_pct": percents[-1] if percents else None, "open_questions": open_questions(text),
             "expected_anchors": expected, "missing_anchors": missing, "unsupported_checks": unsupported,
             "inventions": inventions, "corrections_to_paste": _corrections(missing, inventions, unsupported),
-            "pb_changes": doc_changes(project, doc)}
+            "pb_changes": doc_changes(project, doc), "editor_fixes": editor_fixes(project, doc)}
 
 
 _INVENTION_RE = re.compile(r"^\s*INVENTION\s+(\d+)\s+[—–-]+\s*(.+?)\s+[—–-]+\s*(.+?)\s*$")

@@ -534,6 +534,12 @@ def _cmd_close(args) -> int:
     return exitcodes.FINDINGS if errors else exitcodes.OK
 
 
+def _print_editor_fixes(fixes) -> None:
+    for fix in fixes:
+        print(f"\nFix in Product Brain's document editor: replace the section \"{fix['section']}\" with "
+              f"(the chat cannot fix it: {fix['reason']}):\n\n{fix['replace_with']}\n")
+
+
 def _cmd_pbchat_audit(args) -> int:
     project = _project(args)
     if not review_mod.safe_ref(args.doc):
@@ -553,8 +559,13 @@ def _cmd_pbchat_audit(args) -> int:
     try:
         result = pbaudit.audit(project, args.doc, extra_inventions=extra)
     except FileNotFoundError:
-        sys.stderr.write(f"wow: wow/pb/chats/{args.doc}.md not found; copy the Product Brain chat there first\n")
-        return exitcodes.CANNOT_EVALUATE
+        fixes = pbaudit.editor_fixes(project, args.doc)
+        if not fixes:
+            sys.stderr.write(f"wow: wow/pb/chats/{args.doc}.md not found; copy the Product Brain chat there first\n")
+            return exitcodes.CANNOT_EVALUATE
+        print(f"no wow/pb/chats/{args.doc}.md: only the panel copy was checked")
+        _print_editor_fixes(fixes)
+        return exitcodes.FINDINGS
     pbaudit.write_audit(project, result)
     print(f"verdict: {result['verdict']}")
     if result["corrections_to_paste"]:
@@ -567,6 +578,7 @@ def _cmd_pbchat_audit(args) -> int:
         print(f"Product Brain changed {len(changes)} lines against the packet" + (":" if changes else ""))
         for change in changes:
             print(f"{change['op']} [{change['section']}] {change['text'][:160]}")
+    _print_editor_fixes(result["editor_fixes"])
     return exitcodes.OK if result["verdict"] == "approved" else exitcodes.FINDINGS
 
 

@@ -53,6 +53,7 @@ wow ref check doc.md                                        # cada `nombre @ sha
 wow estimate [--history ../epica-anterior]                 # horas y fecha calibradas con épicas pasadas + modelo por tarea
 wow pack prd | wow pack rfc | wow pack epic --id E1         # paquetes para Product Brain
 wow pbchat audit prd --deep                                 # auditar la copia del chat de PB
+wow pbchat audit rfc                                        # con solo chats/rfc.final.md: la sección para pegar en el editor de PB
 wow plan guard                                              # ¿se puede editar el manifiesto?
 wow plan init 0001-x --title "X" --mode brownfield         # el modo cambia la fase 0 y los prompts
 wow manifest lint --pb                                      # lo que Product Brain exige por historia
