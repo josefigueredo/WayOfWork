@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Tuple
 import manifest
 
 DEFAULTS = {"minutes_per_point": 20.0, "minutes_per_estimated_hour": 7.0, "rounds_per_story": 2.0,
-            "rounds_per_epic": 2.0, "minutes_per_round": 2.0, "product_brain_minutes": 60.0,
+            "rounds_per_epic": 2.0, "minutes_per_round": 18.0, "product_brain_minutes_per_chat": 20.0,
             "operator_minutes_per_story": 15.0, "hours_per_day": 4.0}
 _DELICATE_COMPONENTS = {"INFRA", "DEVOPS", "AI"}
 _DELICATE_LABELS = {"architecture", "arquitectura", "security", "seguridad", "migration", "migracion", "migración"}
@@ -97,13 +97,20 @@ def history_metrics(project: Path) -> dict:
         key = {"story": "story_rounds", "epic": "epic_rounds"}.get(summary.get("anchor_set"))
         if key and summary.get("rounds"):
             metrics[key].append(len(summary["rounds"]))
+    # A round costs the review plus the fix before the next one, so its cost is the gap between consecutive rounds
+    # of the same review. The reviewer call alone (duration_ms, under a minute) would undercount it ~10x.
+    by_ref: Dict[str, List[dt.datetime]] = {}
     for path in sorted((project / "harness" / "reviews").glob("*.json")):
         try:
-            duration = json.loads(path.read_text(encoding="utf-8")).get("duration_ms")
+            row = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
-        if duration:
-            metrics["round_minutes"].append(duration / 60000)
+        if row.get("ts") and row.get("ref"):
+            by_ref.setdefault(row["ref"], []).append(_ts(row["ts"]))
+    for stamps in by_ref.values():
+        stamps.sort()
+        gaps = [(b - a).total_seconds() / 60 for a, b in zip(stamps, stamps[1:])]
+        metrics["round_minutes"] += [g for g in gaps if 0 < g <= 180]  # longer gaps are waits (HITL, CI), not rounds
     return metrics
 
 
@@ -153,8 +160,10 @@ def estimate(project: Path, histories: List[Path], cfg: dict, today: Optional[dt
     components.append({"name": "independent reviews", "minutes": rounds * (per_round or knobs["minutes_per_round"]),
                        "source": "measured" if measured_reviews else "assumed",
                        "basis": f"{rounds:.1f} rounds x {per_round or knobs['minutes_per_round']:.1f} min (HITL waits not included)"})
-    components.append({"name": "Product Brain", "minutes": knobs["product_brain_minutes"], "source": "assumed",
-                       "basis": "PRD, RFC and epic chats; Product Brain leaves no readable timing"})
+    chats = 2 + len(epics)  # PRD, RFC and one chat per epic (the PRISM pilot: 3 chats in 58 min)
+    components.append({"name": "Product Brain", "minutes": chats * knobs["product_brain_minutes_per_chat"],
+                       "source": "assumed", "basis": f"{chats} chats x {knobs['product_brain_minutes_per_chat']:g} min; "
+                                                     "Product Brain leaves no readable timing"})
     components.append({"name": "operator", "minutes": len(tasks) * knobs["operator_minutes_per_story"], "source": "assumed",
                        "basis": f"{len(tasks)} stories x {knobs['operator_minutes_per_story']:g} min (PR, merge, sync-status)"})
     total = sum(c["minutes"] for c in components)

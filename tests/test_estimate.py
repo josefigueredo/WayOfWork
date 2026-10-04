@@ -30,8 +30,10 @@ def _history_project():
             {"ref": ref, "anchor_set": "story", "final": "approved", "rounds": [{"n": n} for n in range(rounds)]}))
     write(project, "wow/reviews/E1.json", json.dumps(
         {"ref": "E1", "anchor_set": "epic", "final": "approved", "rounds": [{"n": 1}, {"n": 2}]}))
-    write(project, "harness/reviews/20261002T214000Z-IRIS-41-r1.json", json.dumps({"duration_ms": 180000}))
-    write(project, "harness/reviews/20261002T214300Z-IRIS-41-r2.json", json.dumps({"duration_ms": 60000}))
+    # A round's cost is the review plus the fix before the next one: the gap between consecutive rounds.
+    for ts, n in (("2026-10-02T21:40:00Z", 1), ("2026-10-02T21:58:00Z", 2), ("2026-10-02T22:16:00Z", 3)):
+        write(project, f"harness/reviews/x-IRIS-41-r{n}.json",
+              json.dumps({"ts": ts, "ref": "IRIS-41", "round": n, "duration_ms": 40000}))
     return project
 
 
@@ -49,7 +51,7 @@ class HistoryTest(unittest.TestCase):
     def test_metrics_read_from_a_finished_epic(self):
         m = estimate.history_metrics(_history_project())
         self.assertEqual((m["impl_minutes"], m["est_hours"], m["story_points"]), (117.0, 17.5, 7))
-        self.assertEqual((m["story_rounds"], m["epic_rounds"], m["round_minutes"]), ([3, 1], [2], [3.0, 1.0]))
+        self.assertEqual((m["story_rounds"], m["epic_rounds"], m["round_minutes"]), ([3, 1], [2], [18.0, 18.0]))
 
 
 class EstimateTest(unittest.TestCase):
@@ -59,9 +61,9 @@ class EstimateTest(unittest.TestCase):
         impl = next(c for c in result["components"] if c["name"] == "implementation")
         self.assertEqual((round(impl["minutes"]), impl["source"]), (134, "measured"))  # 8 SP x 117/7
         review = next(c for c in result["components"] if c["name"] == "independent reviews")
-        self.assertEqual((round(review["minutes"]), review["source"]), (12, "measured"))  # (2x2 + 1x2) rounds x 2 min
+        self.assertEqual((round(review["minutes"]), review["source"]), (108, "measured"))  # (2x2 + 1x2) rounds x 18 min
         pb = next(c for c in result["components"] if c["name"] == "Product Brain")
-        self.assertEqual(pb["source"], "assumed")
+        self.assertEqual((pb["source"], pb["minutes"]), ("assumed", 60.0))  # PRD + RFC + 1 epic chat x 20 min
         self.assertLess(result["low_minutes"], result["minutes"])
         self.assertLess(result["minutes"], result["high_minutes"])
         self.assertEqual(result["start"], "2026-10-05")
@@ -75,6 +77,11 @@ class EstimateTest(unittest.TestCase):
         impl = next(c for c in result["components"] if c["name"] == "implementation")
         self.assertEqual(round(impl["minutes"]), 47)  # 7 h x 117/17.5
         self.assertIn("work-unit", impl["basis"])
+
+    def test_without_round_gaps_the_assumption_is_the_pilot_cycle_not_the_call(self):
+        result = estimate.estimate(_current_project(), [], config.DEFAULTS, today=dt.date(2026, 10, 4))
+        review = next(c for c in result["components"] if c["name"] == "independent reviews")
+        self.assertIn("18.0 min", review["basis"])
 
     def test_no_history_means_every_number_is_assumed(self):
         result = estimate.estimate(_current_project(), [], config.DEFAULTS, today=dt.date(2026, 10, 4))
