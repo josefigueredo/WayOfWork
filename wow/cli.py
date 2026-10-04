@@ -12,6 +12,7 @@ from typing import List
 import json
 
 import cites
+import estimate
 import closing
 import config
 import contextpack
@@ -375,7 +376,9 @@ def _cmd_review(args) -> int:
 
     try:
         name, spec = reviewers.pick_reviewer(cfg, packet["cwd"])
+        started = _dt.datetime.now(_dt.timezone.utc)
         text, used = reviewers.run_backend_with_usage(spec, packets.build_prompt(packet), packet["cwd"])
+        duration_ms = int((_dt.datetime.now(_dt.timezone.utc) - started).total_seconds() * 1000)
     except reviewers.NoReviewer as exc:
         sys.stderr.write(f"wow: {exc}\n")
         return exitcodes.CANNOT_EVALUATE
@@ -390,7 +393,8 @@ def _cmd_review(args) -> int:
     usage_file.parent.mkdir(parents=True, exist_ok=True)
     usage_file.write_text(json.dumps({
         "schema_version": 1, "ts": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "ref": ref, "set": args.set, "round": number,
-        "reviewer": name, "model": reviewers.codex_model() if name == "codex" else None, "usage": used}, indent=2) + "\n",
+        "reviewer": name, "model": reviewers.codex_model() if name == "codex" else None, "usage": used,
+        "duration_ms": duration_ms}, indent=2) + "\n",
         encoding="utf-8")
     raw = project / ".wow" / "reviews" / ref / f"round-{number}.md"
     raw.parent.mkdir(parents=True, exist_ok=True)
@@ -561,6 +565,27 @@ def _cmd_context_scan(args) -> int:
     return exitcodes.OK
 
 
+def _cmd_estimate(args) -> int:
+    project = _project(args)
+    try:
+        cfg = config.load_config(project)
+        histories = [Path(h).expanduser().resolve() for h in (args.history or (cfg.get("estimate") or {}).get("history", []))]
+        result = estimate.estimate(project, histories, cfg)
+    except (manifest.ManifestError, config.ConfigError, ValueError) as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    print(f"calibrated on {result['histories']} past epic(s); hours per day: {result['hours_per_day']:g}")
+    for c in result["components"]:
+        print(f"  {c['name']:<20} {c['minutes'] / 60:5.1f} h  {c['source']:<8} {c['basis']}")
+    print(f"total: {result['minutes'] / 60:.1f} h (range {result['low_minutes'] / 60:.1f}-{result['high_minutes'] / 60:.1f} h)")
+    print(f"start: {result['start']}  end: {result['end_likely']} (likely) - {result['end_high']} (high)")
+    rows = result["units"] or result["tasks"]
+    print("suggested model per " + ("work unit" if result["units"] else "task") + " (Product Brain and Spec-Kit set none):")
+    for row in rows:
+        print(f"  {row['id']:<8} {row['model']:<26} {row['why']}")
+    return exitcodes.OK
+
+
 def _cmd_cite_check(args) -> int:
     doc = Path(args.doc)
     if not doc.is_file():
@@ -683,6 +708,11 @@ def build_parser() -> argparse.ArgumentParser:
     cxsub = cx.add_subparsers(dest="context_command", parser_class=_Parser)
     with_project(cxsub.add_parser("scan")).set_defaults(handler=_cmd_context_scan)
     with_project(cxsub.add_parser("check")).set_defaults(handler=_cmd_context_check)
+    es = with_project(sub.add_parser("estimate", help="estimate the plan from past epics and suggest a model per task"))
+    es.add_argument("--history", action="append", default=None, metavar="PROJECT",
+                    help="a finished epic's project to calibrate on; repeatable (default: estimate.history in config)")
+    es.set_defaults(handler=_cmd_estimate)
+
     ct = sub.add_parser("cite", help="check that every path:line a document cites exists and is in range")
     ctsub = ct.add_subparsers(dest="cite_command", required=True)
     cc = ctsub.add_parser("check")

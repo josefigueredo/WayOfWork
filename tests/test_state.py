@@ -270,6 +270,19 @@ class EpicPhasesTest(unittest.TestCase):
         done = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 2)}))
         self.assertEqual(done["epics"][0]["phase"], "done")
 
+    def test_each_work_unit_gets_its_suggested_model(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        add_feature(p, "- [x] T010 WU-001 model\n  - jira: IRIS-41\n- [ ] T011 WU-002 api\n  - jira: IRIS-41\n")
+        units = json.loads((p / "specs/001-curation/work-units.json").read_text(encoding="utf-8"))
+        items = units["work_units"] if isinstance(units, dict) else units
+        items[1]["estimated_hours"] = 6  # WU-001 is already checked in the fixture; WU-002 is pending
+        (p / "specs/001-curation/work-units.json").write_text(json.dumps(units), encoding="utf-8")
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
+        step = next(s for s in result["next_steps"] if s["command"] == f"/spec-kit.implement {items[1]['id']}")
+        self.assertEqual(step["model"], CFG["models"]["cursor_reason"])
+        self.assertIn("6 estimated hours", step["why"])
+
     def test_standards_review_is_suggested_once_and_never_holds_done(self):
         p = project_at_phase_3()
         close_chats(p)

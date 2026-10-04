@@ -280,6 +280,10 @@
                       }
                     }
                   }
+                },
+                "model": {
+                  "type": "string",
+                  "description": "Cursor model for this task; overrides wow's suggestion"
                 }
               }
             }

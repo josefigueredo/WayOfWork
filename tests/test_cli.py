@@ -205,6 +205,12 @@ class ReviewCommandTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("round 2: APPROVED", out)
 
+    def test_each_round_records_how_long_it_took(self):
+        project, _ = _review_project("VERDICT: APPROVED\n")
+        run_cli(["review", "--set", "readiness", "--ref", "plan", "--project", str(project)])
+        [usage] = list((project / "harness/reviews").glob("*.json"))
+        self.assertIsInstance(_json.loads(usage.read_text(encoding="utf-8"))["duration_ms"], int)
+
     def test_each_round_records_its_usage_in_the_project(self):
         # Recorded where the review belongs, not where the command ran: codex runs --ephemeral, so its own session
         # log is never written and the usage collector would not see the round otherwise.

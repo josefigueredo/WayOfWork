@@ -87,5 +87,6 @@ def features(project: Path) -> List[dict]:
             "tasks_done": parsed["done"],
             "stories": parsed["stories"],
             "pending_work_units": pending,
+            "units": {unit["id"]: unit for unit in units},
         })
     return result

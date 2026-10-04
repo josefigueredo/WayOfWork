@@ -29,7 +29,9 @@ description: Turn an initiative into a Brief and an upstream kanban (epics, task
      `labels`, `depends_on`;
    - subtasks: a string, or `{"title", "purpose", "how_to", "component"}`.
 5. Run `wow manifest validate`, `wow manifest lint` and `wow manifest lint --pb` until all exit 0.
-6. Hand off to readiness: `wow review --set readiness --ref plan`. Never set `plan.readiness` yourself.
+6. Estimate with `wow estimate --history <a finished epic's project>`: give the user the range and end date it prints,
+   saying which numbers are measured and which are assumed. A task can pin a Cursor model with `model`.
+7. Hand off to readiness: `wow review --set readiness --ref plan`. Never set `plan.readiness` yourself.
 
 ## Rules
 
