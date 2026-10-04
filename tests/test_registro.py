@@ -126,6 +126,15 @@ class HygieneCheckTest(unittest.TestCase):
         extra = text.replace("### Modelo de Datos", "#### D. Extra\n- Endpoint: `x`\n\n### Modelo de Datos", 1)
         self.assertTrue(any("API D" in e for e in pbcompletion.predict("rfc", extra)["errors"]))
 
+    def test_bare_commit_is_an_error_but_a_full_commit_url_is_fine(self):
+        text = pack.render_prd(pb_ready_doc(), pack.parse_brief(BRIEF), H, registro=True)
+        bare = text.replace("Curar casos en IRIS v2", "Curar casos (motor @ 53fd100, tablero @ b65505c)", 1)
+        errors = pbcompletion.predict("prd", bare)["errors"]
+        self.assertTrue(any("53fd100" in e and "github.com/<owner>/<repo>/commit/" in e for e in errors), errors)
+        url = text.replace("Curar casos en IRIS v2",
+                           "Curar casos (https://github.com/acme/engine/commit/53fd100fa3b04295f91b4960b442a7259e401895)", 1)
+        self.assertEqual(pbcompletion.predict("prd", url)["errors"], [])
+
     def test_prd_reference_is_an_error(self):
         text = pack.render_prd(pb_ready_doc(), pack.parse_brief(BRIEF), H, registro=True)
         broken = text.replace("Curar casos en IRIS v2", "Curar casos en IRIS v2 (C9)", 1)

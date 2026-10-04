@@ -190,6 +190,9 @@ def _free_text(body: List[str], literals: List[str]) -> str:
 # The reference shapes wow strips (pack.strip_refs); a bare "D7" in prose is content.
 _REF_RE = re.compile(r"\((?:[CD]\d+)(?:\s*[,;]\s*[CD]\d+)*\)|[,;]\s*[CD]\d+(?=\s*\))")
 _TASK_REF_RE = re.compile(r"\(tareas? [\d., y]+\)")
+# Product Brain resolves a bare SHA against a single repo (IRIS pilot: the tablero commit tried on the motor repo
+# came back "No commit found for the ref"); a full commit URL names its repo.
+_BARE_SHA_RE = re.compile(r"@\s*([0-9a-f]{7,40})\b")
 _LIST_COMMA_RE = re.compile(r"(?<!\d),|,(?!\d)")
 _API_EXTRA_RE = re.compile(r"^#{3,4}\s+([D-Z])\.\s")
 
@@ -202,6 +205,10 @@ def hygiene(kind: str, packet: str) -> List[str]:
         ref = _REF_RE.search(line)
         if ref:
             errors.append(f"internal reference {ref.group(0)} reaches Product Brain and Jira: {line.strip()[:80]}")
+        bare = _BARE_SHA_RE.search(line)
+        if bare:
+            errors.append(f"bare commit @ {bare.group(1)}: Product Brain resolves it against a single repo; "
+                          f"write https://github.com/<owner>/<repo>/commit/<sha>: {line.strip()[:80]}")
         if _TASK_REF_RE.search(line):
             errors.append(f"title suffix (tarea …) ends up in the Jira summary: {line.strip()[:80]}")
     if kind == "rfc":
