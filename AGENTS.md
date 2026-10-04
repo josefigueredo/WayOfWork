@@ -20,6 +20,7 @@ iniciativa por Product Brain (registro), Spec-Kit (ejecución en Cursor) y Jira,
   confirmación. Las historias las cierra Spec-Kit (`sync-status`), nunca `wow`.
 - Para estimar, usá `wow estimate --history <épica terminada>` y decí qué números son medidos y cuáles supuestos.
   El modelo de Cursor para cada WU lo sugiere `wow state`; no lo elijas a ojo.
+- **Medir, no especular.** Todo valor que se pueda medir (un conteo, un tiempo, un commit, una URL, un estado) se mide antes de afirmarlo, y se cita. Todo repo, rama, commit o URL que se entrega tiene que existir y estar en la rama por defecto del remoto: verificalo con `wow ref check`. Lo que no se puede medir se rotula como inferencia y nunca se presenta como causa.
 - Códigos de salida: 0 OK · 1 hallazgos · 2 no pude evaluar.
 
 ## Desarrollar

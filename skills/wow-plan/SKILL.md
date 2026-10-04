@@ -37,6 +37,7 @@ description: Turn an initiative into a Brief and an upstream kanban (epics, task
 
 ## Rules
 
+- Measure, do not speculate: a value you can measure (a count, a time, a commit, a URL, a status) is measured before you state it, and cited. Every repo, branch, commit or URL you hand out must exist and be reachable on the remote's default branch: check it (`wow ref check`). What cannot be measured is labelled as an inference and never presented as a cause.
 - IDs defined earlier in the conversation (E1, D10, C14, AC1, WU-005, US-001) get a few-word gloss the first time each message mentions them, e.g. "E2 (cifras del motor al día)": the user must not have to scroll back to know what they are.
 - Acceptance criteria must be verifiable; vague ones fail readiness R1.
 - Keep task ids stable once packets exist: renaming breaks the AC anchors used in later reviews.

@@ -30,6 +30,7 @@ Read-only navigator. It never executes the steps it recommends.
 
 ## Rules
 
+- Measure, do not speculate: a value you can measure (a count, a time, a commit, a URL, a status) is measured before you state it, and cited. Every repo, branch, commit or URL you hand out must exist and be reachable on the remote's default branch: check it before handing it out. What cannot be measured is labelled as an inference and never presented as a cause.
 - IDs defined earlier in the conversation (E1, D10, C14, AC1, WU-005, US-001) get a few-word gloss the first time each message mentions them, e.g. "E2 (cifras del motor al día)": the user must not have to scroll back to know what they are.
 - Do not infer phases from prose: the JSON is the source of truth.
 - Never invent a step that is not in `next_steps`; if the list is empty and every epic is `done`,

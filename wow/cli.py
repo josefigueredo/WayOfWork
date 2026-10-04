@@ -24,6 +24,7 @@ import pack
 import packets
 import pbcompletion
 import pbaudit
+import refs
 import review as review_mod
 import reviewers
 import runwu
@@ -442,6 +443,8 @@ def _cmd_pack_check(args, project: Path) -> int:
     if result is None:
         sys.stderr.write(f"wow: wow/pb/{name}.md not found; run wow pack {args.target} first\n")
         return exitcodes.CANNOT_EVALUATE
+    # Product Brain resolves commits with the user's GitHub access: one that is not on a remote breaks the paste.
+    result["errors"] += refs.check((project / "wow" / "pb" / f"{name}.md").read_text(encoding="utf-8"), project)
     units = f"{result['units']:g}"
     print(f"predicted completion: {result['percentage']}% ({units}/{result['total']} units)")
     for item in result["pending"]:
@@ -597,6 +600,19 @@ def _cmd_estimate(args) -> int:
     return exitcodes.OK
 
 
+def _cmd_ref_check(args) -> int:
+    doc = Path(args.doc)
+    if not doc.is_file():
+        sys.stderr.write(f"wow: {doc} not found\n")
+        return exitcodes.CANNOT_EVALUATE
+    text = doc.read_text(encoding="utf-8", errors="replace")
+    findings = refs.check(text, _project(args))
+    for finding in findings:
+        print(finding)
+    print(f"{len(refs.extract(text))} references checked, {len(findings)} findings")
+    return exitcodes.FINDINGS if findings else exitcodes.OK
+
+
 def _cmd_cite_check(args) -> int:
     doc = Path(args.doc)
     if not doc.is_file():
@@ -723,6 +739,12 @@ def build_parser() -> argparse.ArgumentParser:
     es.add_argument("--history", action="append", default=None, metavar="PROJECT",
                     help="a finished epic's project to calibrate on; repeatable (default: estimate.history in config)")
     es.set_defaults(handler=_cmd_estimate)
+
+    rf = sub.add_parser("ref", help="check that every commit or GitHub URL a document hands out exists on its remote")
+    rfsub = rf.add_subparsers(dest="ref_command", required=True)
+    rc = with_project(rfsub.add_parser("check"))
+    rc.add_argument("doc", help="any text document (packet, Brief, manifest)")
+    rc.set_defaults(handler=_cmd_ref_check)
 
     ct = sub.add_parser("cite", help="check that every path:line a document cites exists and is in range")
     ctsub = ct.add_subparsers(dest="cite_command", required=True)
