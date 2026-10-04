@@ -126,14 +126,23 @@ class HygieneCheckTest(unittest.TestCase):
         extra = text.replace("### Modelo de Datos", "#### D. Extra\n- Endpoint: `x`\n\n### Modelo de Datos", 1)
         self.assertTrue(any("API D" in e for e in pbcompletion.predict("rfc", extra)["errors"]))
 
-    def test_bare_commit_is_an_error_but_a_full_commit_url_is_fine(self):
+    def test_packets_carry_no_commit_and_no_github_url(self):
+        # Pasting text with a GitHub URL opens Product Brain's file picker and drops the text
+        # (chat-composer.tsx:198-207); a bare SHA is resolved against a single repo.
+        brief = BRIEF.replace("- Goal: Curar casos en IRIS v2",
+                              "- Goal: Curar casos (motor @ 53fd100, tablero "
+                              "https://github.com/acme/tablero/commit/b65505c3a700aa)")
+        text = pack.render_prd(pb_ready_doc(), pack.parse_brief(brief), H, registro=True)
+        self.assertIn("Curar casos (motor, tablero tablero)", text)
+        self.assertNotIn("github.com", text)
+        self.assertEqual(pbcompletion.predict("prd", text)["errors"], [])
+
+    def test_check_flags_a_github_url_or_a_bare_commit_left_in_a_packet(self):
         text = pack.render_prd(pb_ready_doc(), pack.parse_brief(BRIEF), H, registro=True)
-        bare = text.replace("Curar casos en IRIS v2", "Curar casos (motor @ 53fd100, tablero @ b65505c)", 1)
-        errors = pbcompletion.predict("prd", bare)["errors"]
-        self.assertTrue(any("53fd100" in e and "github.com/<owner>/<repo>/commit/" in e for e in errors), errors)
-        url = text.replace("Curar casos en IRIS v2",
-                           "Curar casos (https://github.com/acme/engine/commit/53fd100fa3b04295f91b4960b442a7259e401895)", 1)
-        self.assertEqual(pbcompletion.predict("prd", url)["errors"], [])
+        for planted, needle in (("motor @ 53fd100", "bare commit"),
+                                ("https://github.com/acme/engine/blob/main/x.py", "file picker")):
+            errors = pbcompletion.predict("prd", text.replace("Curar casos en IRIS v2", planted, 1))["errors"]
+            self.assertTrue(any(needle in e for e in errors), (planted, errors))
 
     def test_prd_reference_is_an_error(self):
         text = pack.render_prd(pb_ready_doc(), pack.parse_brief(BRIEF), H, registro=True)

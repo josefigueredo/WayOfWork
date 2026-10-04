@@ -45,6 +45,10 @@ _REF_GROUP_RE = re.compile(r"\s*\((?:[CD]\d+)(?:\s*[,;]\s*[CD]\d+)*\)")
 _REF_TAIL_RE = re.compile(r"(?:\s*[,;]\s*[CD]\d+)+(?=\s*\))")
 _DECISION_ID_RE = re.compile(r"^D\d+\s+")
 _TASK_REF_RE = re.compile(r"\s*\(tareas? [\d., y]+\)")
+# Product Brain only registers: commits are internal evidence (they stay in wow/). A pasted GitHub URL opens its file
+# picker and drops the whole text (chat-composer.tsx:198-207); a bare SHA is resolved against a single repo.
+_GITHUB_URL_RE = re.compile(r"https?://(?:www\.)?github\.com/[\w.-]+/([\w.-]+)(?:/[^\s)\]]*)?")
+_AT_SHA_RE = re.compile(r"\s*@\s*[0-9a-f]{7,40}\b")
 _LIST_COMMA_RE = re.compile(r"(?<!\d),|,(?!\d)")  # decimal commas (1,5 s) are not separators
 INITIATIVE_TYPE = {"brownfield": "Evolución de sistema existente", "greenfield": "Iniciativa nueva"}
 PRIORITY_ES = {"high": "Alta", "medium": "Media", "low": "Baja"}
@@ -61,6 +65,7 @@ def _items(value: str) -> List[str]:
 
 
 def strip_refs(text: str) -> str:
+    text = _AT_SHA_RE.sub("", _GITHUB_URL_RE.sub(lambda m: m.group(1), text))
     return _REF_TAIL_RE.sub("", _TASK_REF_RE.sub("", _REF_GROUP_RE.sub("", text)))
 
 

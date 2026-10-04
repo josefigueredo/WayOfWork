@@ -191,8 +191,10 @@ def _free_text(body: List[str], literals: List[str]) -> str:
 _REF_RE = re.compile(r"\((?:[CD]\d+)(?:\s*[,;]\s*[CD]\d+)*\)|[,;]\s*[CD]\d+(?=\s*\))")
 _TASK_REF_RE = re.compile(r"\(tareas? [\d., y]+\)")
 # Product Brain resolves a bare SHA against a single repo (IRIS pilot: the tablero commit tried on the motor repo
-# came back "No commit found for the ref"); a full commit URL names its repo.
+# came back "No commit found for the ref"), and a pasted GitHub URL opens its file picker and drops the whole text
+# (chat-composer.tsx:198-207). Packets carry neither; commits stay as evidence in wow/.
 _BARE_SHA_RE = re.compile(r"@\s*([0-9a-f]{7,40})\b")
+_GITHUB_URL_RE = re.compile(r"https?://(?:www\.)?github\.com/\S+")
 _LIST_COMMA_RE = re.compile(r"(?<!\d),|,(?!\d)")
 _API_EXTRA_RE = re.compile(r"^#{3,4}\s+([D-Z])\.\s")
 
@@ -208,7 +210,11 @@ def hygiene(kind: str, packet: str) -> List[str]:
         bare = _BARE_SHA_RE.search(line)
         if bare:
             errors.append(f"bare commit @ {bare.group(1)}: Product Brain resolves it against a single repo; "
-                          f"write https://github.com/<owner>/<repo>/commit/<sha>: {line.strip()[:80]}")
+                          f"leave commits out of the packet: {line.strip()[:80]}")
+        url = _GITHUB_URL_RE.search(line)
+        if url:
+            errors.append(f"GitHub URL: pasting it opens Product Brain's file picker and drops the whole text; "
+                          f"leave it out of the packet: {url.group(0)[:80]}")
         if _TASK_REF_RE.search(line):
             errors.append(f"title suffix (tarea …) ends up in the Jira summary: {line.strip()[:80]}")
     if kind == "rfc":
