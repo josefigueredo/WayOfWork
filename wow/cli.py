@@ -354,6 +354,9 @@ def _cmd_review(args) -> int:
     summary = review_mod.load_summary(project, ref, args.set)
     dhash = packets.diff_hash(packet["body"])
     action = review_mod.next_action(summary, dhash)
+    if action == "run" and summary["final"] is not None:
+        print(f"{ref}: the content changed after its {summary['final']} verdict; opening a new review cycle")
+        summary = review_mod.reopen_if_stale(summary, dhash)
     if action == "done":
         print(f"{ref}: approved" + (" by a human after HITL" if summary["final"] == "approved_by_human" else ""))
         return exitcodes.OK

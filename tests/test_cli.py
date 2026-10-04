@@ -194,6 +194,17 @@ class ReviewCommandTest(unittest.TestCase):
         self.assertEqual(saved["plan"]["readiness"], {"verdict": "approved", "rounds": 1})
         self.assertTrue((project / ".wow/reviews/plan/round-1.md").is_file())
 
+    def test_changed_claims_after_approval_get_a_new_round(self):
+        project, _ = _review_project("VERDICT: APPROVED\n")
+        doc = write(project, "facts.md", "- C1: el motor tiene 46 estados\n")
+        args = ["review", "--set", "claims", "--ref", "facts", "--doc", str(doc), "--project", str(project)]
+        self.assertIn("round 1: APPROVED", run_cli(args)[1])
+        self.assertEqual(run_cli(args)[1].strip(), "facts: approved")  # unchanged: the approval still holds
+        write(project, "facts.md", "- C1: el motor tiene 47 estados\n")
+        code, out, _ = run_cli(args)
+        self.assertEqual(code, 0)
+        self.assertIn("round 2: APPROVED", out)
+
     def test_each_round_records_its_usage_in_the_project(self):
         # Recorded where the review belongs, not where the command ran: codex runs --ephemeral, so its own session
         # log is never written and the usage collector would not see the round otherwise.

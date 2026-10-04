@@ -72,9 +72,35 @@ class RoundsTest(unittest.TestCase):
                                                 "reason": "AC1 is conditional and did not fire",
                                                 "at": "2026-10-02T22:00:00Z"})
         self.assertEqual(len(approved["rounds"]), 3)  # the reviewer's rounds stay on record
-        self.assertEqual(review.next_action(approved, "h9"), "done")
+        self.assertEqual(review.next_action(approved, "h2"), "done")  # the human decided on the last round's content
         rejected = review.decide(summary, "rejected", "needs a semantic audit", "ana", "2026-10-02T22:00:00Z")
-        self.assertEqual((rejected["final"], review.next_action(rejected, "h9")), ("rejected_by_human", "rejected"))
+        self.assertEqual((rejected["final"], review.next_action(rejected, "h2")), ("rejected_by_human", "rejected"))
+
+    def test_an_approval_covers_only_the_content_it_saw(self):
+        approved = review.record_round(review.new_summary("facts", "claims"), review.parse_verdict("VERDICT: APPROVED\n"),
+                                       {"C1"}, "h1")
+        self.assertEqual(review.next_action(approved, "h1"), "done")
+        self.assertEqual(review.next_action(approved, "h2"), "run")  # the doc changed after approval
+        reopened = review.reopen_if_stale(approved, "h2")
+        self.assertIsNone(reopened["final"])
+        self.assertEqual(reopened["closed_cycles"][0]["final"], "approved")
+        self.assertIs(review.reopen_if_stale(approved, "h1"), approved)
+        blocked = review.parse_verdict("VERDICT: CHANGES_REQUIRED\nBLOCKER C1 f.md:1 — wrong\n")
+        summary = review.record_round(reopened, blocked, {"C1"}, "h2")
+        summary = review.record_round(summary, blocked, {"C1"}, "h3")
+        self.assertIsNone(summary["final"])  # round 3 overall, but only the 2nd of the new cycle
+        summary = review.record_round(summary, blocked, {"C1"}, "h4")
+        self.assertEqual(summary["final"], "hitl")
+        self.assertEqual([r["n"] for r in summary["rounds"]], [1, 2, 3, 4])
+
+    def test_a_human_decision_reopens_when_the_content_changes(self):
+        summary = review.new_summary("IRIS-41", "story")
+        blocked = review.parse_verdict("VERDICT: CHANGES_REQUIRED\nBLOCKER AC1 a.py:1 — x\n")
+        for n in range(3):
+            summary = review.record_round(summary, blocked, {"AC1"}, f"h{n}")
+        rejected = review.decide(summary, "rejected", "fix the audit", "ana", "2026-10-04T16:00:00Z")
+        self.assertEqual(review.next_action(rejected, "h9"), "run")
+        self.assertEqual(review.reopen_if_stale(rejected, "h9")["closed_cycles"][0]["decision"]["verdict"], "rejected")
 
     def test_next_action_rules(self):
         empty = review.new_summary("IRIS-41", "story")

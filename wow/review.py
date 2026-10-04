@@ -73,7 +73,32 @@ def save_summary(project: Path, summary: dict) -> Path:
     return path
 
 
+_CLOSED = ("approved", "approved_by_human", "rejected_by_human")
+
+
+def _stale(summary: dict, diff_hash: str) -> bool:
+    """A verdict covers only the content it saw: once that content changes, the review reopens."""
+    return summary["final"] in _CLOSED and bool(summary["rounds"]) and summary["rounds"][-1]["diff_hash"] != diff_hash
+
+
+def reopen_if_stale(summary: dict, diff_hash: str) -> dict:
+    """Start a new review cycle when the content changed after a verdict. Rounds and the previous verdict stay on
+    record; the round limit counts from the new cycle."""
+    if not _stale(summary, diff_hash):
+        return summary
+    result = copy.deepcopy(summary)
+    closed = {"final": result["final"], "rounds": len(result["rounds"])}
+    if "decision" in result:
+        closed["decision"] = result.pop("decision")
+    result.setdefault("closed_cycles", []).append(closed)
+    result["cycle_start"] = len(result["rounds"])
+    result["final"] = None
+    return result
+
+
 def next_action(summary: dict, diff_hash: str) -> str:
+    if _stale(summary, diff_hash):
+        return "run"
     if summary["final"] in ("approved", "approved_by_human"):
         return "done"
     if summary["final"] == "hitl":
@@ -118,6 +143,6 @@ def record_round(summary: dict, parsed: dict, anchors: Iterable[str], diff_hash:
                              "diff_hash": diff_hash})
     if not valid:
         result["final"] = "approved"
-    elif number >= MAX_ROUNDS:
+    elif number - result.get("cycle_start", 0) >= MAX_ROUNDS:
         result["final"] = "hitl"
     return result
