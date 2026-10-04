@@ -320,6 +320,18 @@ def _cmd_review_decide(args, project: Path) -> int:
     return exitcodes.OK
 
 
+def _sync_readiness(project: Path, summary: dict) -> None:
+    """plan.readiness mirrors the readiness review: its verdict and the rounds of the current cycle (a plan edited
+    after approval reopens the review; the schema allows at most 3 rounds)."""
+    doc = manifest.load(project)
+    verdict = {"approved": "approved", "approved_by_human": "approved", "hitl": "hitl"}.get(summary["final"],
+                                                                                         "changes_required")
+    readiness = {"verdict": verdict, "rounds": len(summary["rounds"]) - summary.get("cycle_start", 0)}
+    if doc["plan"].get("readiness") != readiness:
+        doc["plan"]["readiness"] = readiness
+        manifest.save(project, doc)
+
+
 def _cmd_review(args) -> int:
     project = _project(args)
     if not review_mod.safe_ref(args.ref):
@@ -359,6 +371,8 @@ def _cmd_review(args) -> int:
         print(f"{ref}: the content changed after its {summary['final']} verdict; opening a new review cycle")
         summary = review_mod.reopen_if_stale(summary, dhash)
     if action == "done":
+        if args.set == "readiness":
+            _sync_readiness(project, summary)  # repairs a manifest written by an older build
         print(f"{ref}: approved" + (" by a human after HITL" if summary["final"] == "approved_by_human" else ""))
         return exitcodes.OK
     if action == "rejected":
@@ -408,10 +422,7 @@ def _cmd_review(args) -> int:
     review_mod.save_summary(project, summary)
 
     if args.set == "readiness":
-        doc = manifest.load(project)
-        verdict = {"approved": "approved", "hitl": "hitl"}.get(summary["final"], "changes_required")
-        doc["plan"]["readiness"] = {"verdict": verdict, "rounds": len(summary["rounds"])}
-        manifest.save(project, doc)
+        _sync_readiness(project, summary)
 
     last = summary["rounds"][-1]
     print(f"round {last['n']}: {last['verdict']} (reviewer: {name})")

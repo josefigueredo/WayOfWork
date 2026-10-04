@@ -194,6 +194,29 @@ class ReviewCommandTest(unittest.TestCase):
         self.assertEqual(saved["plan"]["readiness"], {"verdict": "approved", "rounds": 1})
         self.assertTrue((project / ".wow/reviews/plan/round-1.md").is_file())
 
+    def test_readiness_rounds_count_the_current_cycle_and_keep_the_manifest_valid(self):
+        project, _ = _review_project("VERDICT: APPROVED\n")
+        args = ["review", "--set", "readiness", "--ref", "plan", "--project", str(project)]
+        for n in range(4):  # four approved cycles: the plan changes after each approval
+            write(project, "wow/plan/PLAN.md", f"## Brief\n- Goal: version {n}\n")
+            self.assertEqual(run_cli(args)[0], 0)
+        saved = _manifest.load(project)
+        self.assertEqual(saved["plan"]["readiness"], {"verdict": "approved", "rounds": 1})
+        self.assertEqual(_manifest.validate(saved), [])
+
+    def test_an_approved_readiness_repairs_a_manifest_written_with_cumulative_rounds(self):
+        project, _ = _review_project("VERDICT: APPROVED\n")
+        args = ["review", "--set", "readiness", "--ref", "plan", "--project", str(project)]
+        for n in range(4):
+            write(project, "wow/plan/PLAN.md", f"## Brief\n- Goal: version {n}\n")
+            run_cli(args)
+        doc = _manifest.load(project)
+        doc["plan"]["readiness"]["rounds"] = 4  # what the a7cca66 build wrote in the IRIS pilot
+        _manifest.save(project, doc)
+        code, out, _ = run_cli(args)  # unchanged plan: no new round, but the manifest gets the cycle count back
+        self.assertEqual((code, out.strip()), (0, "plan: approved"))
+        self.assertEqual(_manifest.load(project)["plan"]["readiness"], {"verdict": "approved", "rounds": 1})
+
     def test_changed_claims_after_approval_get_a_new_round(self):
         project, _ = _review_project("VERDICT: APPROVED\n")
         doc = write(project, "facts.md", "- C1: el motor tiene 46 estados\n")
