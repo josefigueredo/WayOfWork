@@ -18,6 +18,8 @@ iniciativa por Product Brain (registro), Spec-Kit (ejecución en Cursor) y Jira,
 - Las skills no se encadenan: cada una hace un paso y vuelve a la guía.
 - `wow close --apply` es la única escritura hacia afuera (transiciona issues en Jira). Mostrá primero el dry-run y pedí
   confirmación. Las historias las cierra Spec-Kit (`sync-status`), nunca `wow`.
+- Para estimar, usá `wow estimate --history <épica terminada>` y decí qué números son medidos y cuáles supuestos.
+  El modelo de Cursor para cada WU lo sugiere `wow state`; no lo elijas a ojo.
 - Códigos de salida: 0 OK · 1 hallazgos · 2 no pude evaluar.
 
 ## Desarrollar

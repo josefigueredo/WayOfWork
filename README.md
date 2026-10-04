@@ -104,6 +104,42 @@ consumo) y `wow pack prd|rfc --full` (los paquetes de registro salen completos).
 
 Códigos de salida: `0` OK · `1` hallazgos · `2` no pude evaluar.
 
+## Estimación y modelo por tarea
+
+`wow estimate --history <proyecto de una épica terminada>` (repetible, o `estimate.history` en `.wow/config.json`)
+convierte el plan en horas y fecha de fin. Cada componente dice si es **medido** o **supuesto**:
+
+| Componente | Medido de la épica de referencia | Supuesto por defecto |
+|---|---|---|
+| Implementación | minutos del ledger de Spec-Kit (`feature.specified` → `feature.implemented`) por hora que estimó `tasks.shape`, o por punto de historia si todavía no hay WU | 7 min por hora estimada · 20 min por punto |
+| Reviews | rondas por historia y por épica (`wow/reviews/`) × minutos entre rondas consecutivas (`harness/reviews/`), que incluyen la corrección | 2 rondas · 18 min por ronda |
+| Product Brain | — (no deja rastro de tiempo) | 20 min por chat: PRD, RFC y uno por épica |
+| Operación | — | 15 min por historia (PR, merge, sync-status) |
+
+El rango es ±50% con una épica de referencia y ±30% con dos o más. La fecha cuenta días hábiles a
+`estimate.hours_per_day` (4 por defecto). Todos los supuestos se cambian en `.wow/config.json` bajo `estimate`.
+
+Product Brain y Spec-Kit no asignan modelo a las tareas, así que lo sugiere WoW: el de razonamiento
+(`models.cursor_reason`) para lo grande o delicado (≥5 puntos, una WU de ≥4 h estimadas, componentes INFRA, DEVOPS o
+AI, labels de arquitectura, seguridad o migración) y el de generación (`models.cursor_generate`) para el resto. Un
+campo `model` en la tarea del manifiesto gana siempre. `wow state` lo pone en cada paso `/spec-kit.implement`.
+
+## Revisiones independientes
+
+- **Dos ejes:** `--set story|epic` revisa contra los criterios de la historia o la épica; `--set standards`, contra
+  las golden rules instaladas en el repo. Se guardan por separado (`<ref>.standards`).
+- **Evidencia de CI:** los paquetes de historia y épica llevan las corridas de GitHub Actions del commit de `HEAD`.
+- **Un veredicto vale para el contenido que vio:** si el contenido cambia después de una aprobación (o de una
+  decisión humana), `wow review` abre un ciclo nuevo y el tope de 3 rondas cuenta desde ahí.
+- Cada ronda guarda tokens, modelo y duración en `harness/reviews/`.
+
+## Limitación conocida: workspaces de varios repos
+
+`wow context check` rechaza fuentes fuera de la raíz del proyecto y `wow context scan` solo ve repos debajo de ella.
+Si la documentación vive en un repo y el código en repos hermanos, la raíz tiene que ser la carpeta que los contiene
+(así se hizo en IRIS). Si esa carpeta no es un repo git, `wow/` y `specs/` quedan sin versionar y `--backfill-git`
+no tiene historia. Spec-Kit tiene que inicializarse en esa misma raíz para que la guía vea la feature.
+
 ## Tests
 
 ```bash
