@@ -17,7 +17,13 @@ KEPT = ("conversation_id", "generation_id", "model", "model_id", "input_tokens",
 
 
 def _wow_root(path: Path):
-    for candidate in (path, *path.parents):
+    """The nearest directory holding a WoW plan; else the nearest one with a wow/ directory. A child repo of a
+    workspace can carry wow/sk/ (the Spec-Kit drafts Cursor reads) while the plan, and wow, live above it."""
+    candidates = (path, *path.parents)
+    for candidate in candidates:
+        if (candidate / "wow" / "plan" / "manifest.json").is_file():
+            return candidate
+    for candidate in candidates:
         if (candidate / "wow").is_dir():
             return candidate
     return None

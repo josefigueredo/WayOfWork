@@ -28,6 +28,17 @@ class RecordTurnTest(unittest.TestCase):
         self.assertNotIn("transcript_path", turn)
         self.assertFalse((other / "harness").exists())
 
+    def test_a_child_repo_with_only_wow_sk_records_in_the_workspace_that_holds_the_plan(self):
+        # IRIS pilot: Cursor opens the site repo, which carries wow/sk/ for the Spec-Kit drafts; the plan lives
+        # in the workspace root above it, and that is where wow reads the turns from.
+        workspace = make_project()
+        write(workspace, "wow/plan/manifest.json", "{}")
+        child = workspace / "docs" / "site"
+        write(child, "wow/sk/001-x/plan-draft.md", "x\n")
+        written = cursorhook.record_turn(dict(STOP, workspace_roots=[str(child)]), "2026-10-05T01:53:15Z")
+        self.assertEqual(written, [workspace / "harness/cursor-turns/2026-10-05.jsonl"])
+        self.assertFalse((child / "harness").exists())
+
     def test_non_stop_events_and_missing_roots_record_nothing(self):
         repo = make_project()
         write(repo, "wow/plan/manifest.json", "{}")
