@@ -26,6 +26,7 @@ packets only register them in the shape Product Brain and Jira expect.
 - Measure, do not speculate: a value you can measure (a count, a time, a commit, a URL, a status) is measured before you state it, and cited. Every repo, branch, commit or URL you hand out must exist and be reachable on the remote's default branch: check it (`wow ref check`). What cannot be measured is labelled as an inference and never presented as a cause.
 - IDs defined earlier in the conversation (E1, D10, C14, AC1, WU-005, US-001) get a few-word gloss the first time each message mentions them, e.g. "E2 (cifras del motor al día)": the user must not have to scroll back to know what they are.
 - Epic enums and dates still come from `product` in the manifest: an invalid value breaks the Jira export.
+- Before the export, `wow manifest lint --pb` flags story components the Jira project lacks (Product Brain then drops component, points and priority). After the export and `wow plan freeze`, run `wow jira fix-fields --epic E<n>` and hand the user the `--apply` line: PB copies the epic's labels and priority to every story.
 - Never rename headings or remove template tables; Product Brain maps fields by structure.
 - `--full` (deprecated) emits PRD/RFC with `{{placeholders}}` for an LLM to fill with the legacy prompts
   (references/brownfield-prd.md, references/brownfield-rfc.md, references/greenfield-prd.md,
