@@ -185,12 +185,24 @@ class EpicPhasesTest(unittest.TestCase):
         result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
         self.assertEqual(result["epics"][0]["phase"], 4)
 
-    def test_phase_3_unaudited_chat(self):
-        p = project_at_phase_3()
+    def test_phase_3_unaudited_chat_blocks_before_the_export(self):
+        p = project_at_phase_3(frozen=False)
         close_chats(p)
         write(p, "wow/pb/chats/rfc.audit.json", '{"verdict": "changes_required"}')
         result = state.compute_state(p, CFG, FakeJira({}))
         self.assertEqual(result["next_steps"][0]["action"], "audit the RFC chat")
+
+    def test_after_the_export_an_unapproved_audit_is_recommended_not_blocking(self):
+        # Product Brain only registers the work: once the epic is in Jira, fixing its documents no longer gates
+        # the implementation. The audit keeps recording the divergences.
+        p = project_at_phase_3()  # E1 already exported as IRIS-40
+        close_chats(p)
+        write(p, "wow/pb/chats/rfc.audit.json", '{"verdict": "changes_required"}')
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
+        self.assertEqual(result["epics"][0]["phase"], 4)
+        audit = [s for s in result["next_steps"] if s["action"] == "audit the RFC chat"]
+        self.assertEqual([s.get("recommended") for s in audit], [True])
+        self.assertNotIn("audit the RFC chat", result["epics"][0]["missing"])
 
     def test_human_approved_audit_passes_the_gate(self):
         p = project_at_phase_3()  # E1 already exported as IRIS-40

@@ -164,8 +164,15 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
                                f"wow/pb/chats/{doc_name}.md is missing or not closed"))
             return finish(3)
         if chat["audit"] not in REVIEW_CLOSED:  # the owner may accept a document they decide not to correct
-            steps.append(_step(eid, 3, f"audit the {label} chat", "harness", models["reviewer"], "wow-pb-audit",
-                               f"audit verdict is {chat['audit']}"))
+            step = _step(eid, 3, f"audit the {label} chat", "harness", models["reviewer"], "wow-pb-audit",
+                         f"audit verdict is {chat['audit']}")
+            # Product Brain only registers the work: once the epic is in Jira the audit keeps recording what
+            # diverges but no longer gates the implementation. A human rejection still does.
+            if key and chat["audit"] != "rejected_by_human":
+                step["recommended"] = True
+                steps.append(step)
+                continue
+            steps.append(step)
             return finish(3)
     if not key:
         steps.append(_step(eid, 3, f"export epic {eid} to Jira and record its key", "product-brain", None,

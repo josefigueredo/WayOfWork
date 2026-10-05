@@ -26,7 +26,9 @@ description: Audit the local copy of a Product Brain chat (PRD, RFC or epic) aga
    correction that restores the packet line.
 7. Corrections go first: the chat for what the agent can redo, and Product Brain's document editor for the
    rest (its markdown stays editable after the export; the audit prints the sections to paste). Only when the
-   owner decides not to correct a document does the audit stay at changes_required and hold every later phase.
+   owner decides not to correct a document does the audit stay at changes_required. It holds the later phases
+   only until the epic is exported: once it has a Jira key, an unapproved audit is a recommended step, not a gate
+   (Product Brain only registers the work), unless a human rejected it with `--decide rejected`.
    The user decides, not you: hand them `wow pbchat audit <doc> --decide approved|rejected --reason "<why>"`,
    with a reason that names what diverges and why it is accepted. It only answers an existing changes_required
    audit, keeps the findings on record and stores `approved_by_human` with author, reason and date; `wow state`
