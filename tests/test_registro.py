@@ -87,7 +87,15 @@ class RegistroRfcTest(unittest.TestCase):
         self.assertIn("| BE |", self.text)
         self.assertIn("- E1.C1: analysts can curate", self.text)
         for letter in "ABC":
-            self.assertIn(f"#### {letter}. No aplica", self.text)
+            self.assertIn(f"#### {letter}. No aplica ({letter})", self.text)
+
+    def test_lettered_rows_get_distinct_identity_names(self):
+        # Product Brain merges list items by name (field-groups.ts mergeGroupArrays): three APIs all named
+        # "No aplica" collapse onto A and leave B and C as template placeholders (IRIS pilot, 2026-10-04).
+        names = [line.split(". ", 1)[1] for line in self.text.splitlines()
+                 if line.startswith("#### ") and "No aplica" in line]
+        self.assertEqual(len(names), 3)
+        self.assertEqual(len(set(names)), len(names))
         self.assertNotIn("#### D.", self.text)
 
 
@@ -125,6 +133,12 @@ class HygieneCheckTest(unittest.TestCase):
         text = pack.render_rfc(pb_ready_doc(), pack.parse_brief(BRIEF), H, registro=True)
         extra = text.replace("### Modelo de Datos", "#### D. Extra\n- Endpoint: `x`\n\n### Modelo de Datos", 1)
         self.assertTrue(any("API D" in e for e in pbcompletion.predict("rfc", extra)["errors"]))
+
+    def test_rfc_apis_with_the_same_name_are_an_error(self):
+        text = pack.render_rfc(pb_ready_doc(), pack.parse_brief(BRIEF), H, registro=True)
+        same = text.replace("#### B. No aplica (B)", "#### B. No aplica (A)", 1)
+        errors = pbcompletion.predict("rfc", same)["errors"]
+        self.assertTrue(any("same name" in e and "No aplica (A)" in e for e in errors), errors)
 
     def test_packets_carry_no_commit_and_no_github_url(self):
         # Pasting text with a GitHub URL opens Product Brain's file picker and drops the text

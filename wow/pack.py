@@ -132,6 +132,9 @@ def _registro(text: str, kind: str) -> str:
         if group["index_type"] == "numeric" and rows and all(_template_only(row) for row in rows):
             text = _rows(text, prefix, [{}])
     text = text.replace("{{open_questions}}", f"| 1 | Ninguna | {OWNER_ROLE} | Cerrada |")
+    # Product Brain merges list items by identity (name/title/id, field-groups.ts mergeGroupArrays): lettered rows
+    # all named "No aplica" collapse onto A and leave B and C as placeholders. Each row keeps its own letter.
+    text = _IDENTITY_RE.sub(lambda m: f"{NA} ({m.group(1).upper()})", text)
     lines = []
     for line in text.split("\n"):
         short = line.lstrip().startswith(("|", "#")) or "`{{" in line
@@ -140,6 +143,7 @@ def _registro(text: str, kind: str) -> str:
 
 
 _DOUBLE_RE = re.compile(r"\{\{\s*[a-zA-Z0-9_.-]+\s*\}\}")
+_IDENTITY_RE = re.compile(r"\{\{\s*[a-z0-9]+(?:_[a-z0-9]+)*_([a-z])_(?:name|title|id)\s*\}\}")
 
 
 def _template_only(line: str) -> bool:

@@ -11,6 +11,16 @@ _PLACEHOLDER = re.compile(r"\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}")
 _INDEXED = re.compile(r"^[a-z_]+?_(?:\d+|[a-z])_")
 
 
+_IDENTITY = re.compile(r"^[a-z0-9_]+?_([a-z])_(?:name|title|id)$")
+
+
+def _value(name: str) -> str:
+    identity = _IDENTITY.match(name)
+    if identity:  # Product Brain merges rows by name: each lettered row needs its own
+        return f"dato {identity.group(1).upper()}"
+    return VALUES.get(name, VALUES.get(_INDEXED.sub("", name), "dato"))
+
+
 def fill(text: str) -> str:
     text = text.replace("{{open_questions}}", "| 1 | dato | Owner de producto | Abierta |")
-    return _PLACEHOLDER.sub(lambda m: VALUES.get(m.group(1), VALUES.get(_INDEXED.sub("", m.group(1)), "dato")), text)
+    return _PLACEHOLDER.sub(lambda m: _value(m.group(1)), text)

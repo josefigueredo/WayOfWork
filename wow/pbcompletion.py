@@ -199,6 +199,9 @@ _LIST_COMMA_RE = re.compile(r"(?<!\d),|,(?!\d)")
 _API_EXTRA_RE = re.compile(r"^#{3,4}\s+([D-Z])\.\s")
 
 
+_API_NAME_RE = re.compile(r"^####\s+[A-Z]\.\s+(.+?)\s*$")
+
+
 def hygiene(kind: str, packet: str) -> List[str]:
     """What Product Brain breaks or leaks into Jira, seen in the PLATE-491 pilot."""
     errors: List[str] = []
@@ -222,6 +225,10 @@ def hygiene(kind: str, packet: str) -> List[str]:
             extra = _API_EXTRA_RE.match(line)
             if extra:
                 errors.append(f"API {extra.group(1)}: Product Brain scores only APIs A, B and C; drop this block")
+        names = [m.group(1).strip() for m in map(_API_NAME_RE.match, text.splitlines()) if m]
+        for name in sorted({n for n in names if names.count(n) > 1}):
+            errors.append(f"APIs with the same name \"{name}\": Product Brain merges list items by name and leaves "
+                          f"the other slots as placeholders; give each API its own name")
     if kind == "epic":
         fixed = set(DOR) | set(DOD)
         for line in text.splitlines():
