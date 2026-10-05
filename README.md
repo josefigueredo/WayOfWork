@@ -54,6 +54,7 @@ wow estimate [--history ../epica-anterior]                 # horas y fecha calib
 wow pack prd | wow pack rfc | wow pack epic --id E1         # paquetes para Product Brain
 wow pbchat audit prd --deep                                 # auditar la copia del chat de PB
 wow pbchat audit rfc                                        # con solo chats/rfc.final.md: la sección para pegar en el editor de PB
+wow jira fix-fields --epic E1 [--apply]                     # tras exportar desde PB: componente, puntos, prioridad y labels de cada historia
 wow plan guard                                              # ¿se puede editar el manifiesto?
 wow plan init 0001-x --title "X" --mode brownfield         # el modo cambia la fase 0 y los prompts
 wow manifest lint --pb                                      # lo que Product Brain exige por historia
@@ -103,6 +104,21 @@ o, como último recurso, de `JIRA_*` en `.spec-kit/.env`. `wow` nunca las imprim
 
 **Deprecado:** `wow run-wu` (`cursor-agent -p`; las WUs se corren en Cursor interactivo y el hook `stop` mide el
 consumo) y `wow pack prd|rfc --full` (los paquetes de registro salen completos). Siguen funcionando y avisan por stderr.
+
+### Lo que el export de Product Brain deja mal en Jira
+
+Medido en PLATE-504 (piloto IRIS, código de PB en `9b19a89`):
+
+- **Labels y prioridad:** PB copia las de la épica a todas las historias (`jira.exporter.ts:551-616`).
+- **Componente:** si el proyecto de Jira no tiene ese componente, Jira rechaza el alta. PB reintenta con campos mínimos y
+  después recupera solo las labels (`jira.client.ts:1236-1276`). Se pierden el componente, los puntos y la prioridad.
+- **Story points:** PB los busca en el primer campo numérico de la instancia (`jira.client.ts:1342-1348`), que puede ser
+  cualquiera ("Valor del Riesgo" en ese Jira).
+
+`wow manifest lint --pb` avisa antes del export qué componentes no existen en el proyecto. `wow jira fix-fields --epic E1`
+repara después: elige el campo de puntos por nombre en la pantalla de edición, nunca inventa un componente, y escribe
+solo con `--apply`. Si la pantalla del tipo de issue no tiene campo de puntos (como en PLATE), lo dice: eso se arregla
+en la configuración de Jira.
 
 ### Dónde correr los comandos de Spec-Kit
 

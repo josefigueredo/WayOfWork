@@ -14,6 +14,7 @@ import json
 import cites
 import estimate
 import closing
+import jirafields
 import config
 import contextpack
 import evidence
@@ -86,6 +87,7 @@ def _cmd_manifest_lint(args) -> int:
     findings = manifest.lint(doc)
     if getattr(args, "pb", False):
         findings += manifest.pb_lint(doc)
+        findings += _jira_component_findings(_project(args), doc)
     for line in findings:
         print(line)
     return exitcodes.FINDINGS if findings else exitcodes.OK
@@ -136,6 +138,58 @@ def _cmd_plan_guard(args) -> int:
 def _jira_for(project: Path):
     creds = config.resolve_jira_credentials(project)
     return JiraClient(creds, timeout=5.0) if creds else None
+
+
+def _jira_component_findings(project: Path, doc: dict) -> list:
+    """Components the Jira project lacks make Product Brain's export drop component, points and priority."""
+    creds = config.resolve_jira_credentials(project)
+    key = jirafields.project_key(doc, creds.project_key if creds else None)
+    if creds is None or key is None:
+        sys.stderr.write("wow: components not checked against Jira (no credentials or no project key)\n")
+        return []
+    try:
+        return jirafields.component_findings(doc, JiraClient(creds, timeout=5.0).project_components(key), key)
+    except SourceUnavailable as exc:
+        sys.stderr.write(f"wow: components not checked against Jira: {exc}\n")
+        return []
+
+
+def _cmd_jira_fix_fields(args) -> int:
+    project = _project(args)
+    creds = config.resolve_jira_credentials(project)
+    # The field list of a large Jira (3000+ fields) does not fit the 5 s the quick reads use.
+    jira = JiraClient(creds) if creds else None
+    if jira is None:
+        sys.stderr.write("wow: Jira credentials not found (IC_JIRA_BASE_URL, IC_JIRA_USER_EMAIL, IC_JIRA_API_TOKEN)\n")
+        return exitcodes.CANNOT_EVALUATE
+    try:
+        result = jirafields.plan(project, args.epic, jira)
+    except (manifest.ManifestError, SourceUnavailable) as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    for blocker in result["blockers"]:
+        print(f"blocked: {blocker}")
+    if result["blockers"]:
+        return exitcodes.FINDINGS
+    for line in result["unmatched"]:
+        print(f"unmatched: {line}")
+    for change in result["changes"]:
+        shown = {k: (v["name"] if isinstance(v, dict) else [c.get("name", c) if isinstance(c, dict) else c for c in v]
+                     if isinstance(v, list) else v) for k, v in change["fields"].items()}
+        print(f"{change['key']} (task {change['task']}): {shown or 'nothing to set'}")
+        for note in change["skipped"]:
+            print(f"  skipped: {note}")
+    writable = [c for c in result["changes"] if c["fields"]]
+    print(f"{result['key']}: {len(writable)} stor{'y' if len(writable) == 1 else 'ies'} to fix")
+    if not args.apply:
+        print("dry run: nothing changed; --apply writes these fields in Jira")
+        return exitcodes.OK
+    errors = jirafields.apply(result, jira)
+    for error in errors:
+        print(f"error: {error}")
+    if not errors:
+        print(f"updated {len(writable)} issues")
+    return exitcodes.FINDINGS if errors else exitcodes.OK
 
 
 def _cmd_state(args) -> int:
@@ -735,6 +789,15 @@ def build_parser() -> argparse.ArgumentParser:
     cl.add_argument("--subtasks", action="store_true",
                     help="only the subtasks of stories Spec-Kit already closed; run it after each sync-status")
     cl.set_defaults(handler=_cmd_close)
+
+    jr = sub.add_parser("jira", help="repair what Product Brain's Jira export leaves wrong")
+    jrsub = jr.add_subparsers(dest="jira_command", parser_class=_Parser)
+    jrsub.required = True
+    jf = with_project(jrsub.add_parser("fix-fields", help="component, story points, priority and labels of each story, "
+                                                          "from the manifest"))
+    jf.add_argument("--epic", required=True, help="epic id from the manifest (E1)")
+    jf.add_argument("--apply", action="store_true", help="write the fields in Jira (default: dry run)")
+    jf.set_defaults(handler=_cmd_jira_fix_fields)
 
     pc = sub.add_parser("pbchat", help="audit local copies of Product Brain chats")
     pcsub = pc.add_subparsers(dest="pbchat_command", parser_class=_Parser)

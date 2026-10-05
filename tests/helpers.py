@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import os
 import sys
 import tempfile
 from contextlib import redirect_stderr, redirect_stdout
@@ -12,6 +13,10 @@ ROOT = Path(__file__).resolve().parent.parent
 WOW_DIR = ROOT / "wow"
 if str(WOW_DIR) not in sys.path:
     sys.path.insert(0, str(WOW_DIR))
+
+# The suite never talks to a real Jira: drop the developer's credentials before any test resolves them.
+for _name in [n for n in os.environ if n.startswith(("IC_JIRA_", "JIRA_"))]:
+    del os.environ[_name]
 
 _TEMP_DIRS = []
 

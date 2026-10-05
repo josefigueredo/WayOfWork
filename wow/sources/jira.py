@@ -130,3 +130,46 @@ class JiraClient:
         except _NotFound:
             raise SourceUnavailable(f"jira: {key} rejected the done transition (required fields?)")
         return target["to"].get("name", "done")
+
+    # --- fields Product Brain's export leaves wrong (wow jira fix-fields) ---
+
+    def project_components(self, project_key: str) -> List[str]:
+        try:
+            return [c["name"] for c in self._send("GET", f"/rest/api/3/project/{project_key}/components")]
+        except _NotFound:
+            raise SourceUnavailable(f"jira: cannot read the components of project {project_key}")
+
+    def priority_names(self) -> List[str]:
+        return [p["name"] for p in self._send("GET", "/rest/api/3/priority")]
+
+    def edit_fields(self, key: str) -> dict:
+        """{field id: name} of what the issue's edit screen accepts."""
+        meta = self._send("GET", f"/rest/api/3/issue/{key}/editmeta").get("fields", {})
+        return {fid: (info or {}).get("name", "") for fid, info in meta.items()}
+
+    def stories_of(self, epic_key: str) -> List[dict]:
+        """The epic's direct children with the fields Product Brain's export can leave wrong."""
+        import jirafields
+        points_ids = [f["id"] for f in self._send("GET", "/rest/api/3/field")
+                      if (f.get("name") or "").strip().lower() in jirafields._POINTS_NAMES]
+        link = f'"Epic Link" = {epic_key}' if self._creds.child_mode == "epic_link" else f"parent = {epic_key}"
+        try:
+            issues = self._search(link + " AND issuetype not in subTaskIssueTypes()",
+                                  fields=("summary", "components", "labels", "priority", *points_ids))
+        except _NotFound:
+            raise SourceUnavailable(f"jira: Jira rejected the search for {epic_key} (unknown key or project?)")
+        stories = []
+        for issue in issues:
+            f = issue.get("fields") or {}
+            points = next((f[fid] for fid in points_ids if f.get(fid) is not None), None)
+            stories.append({"key": issue["key"], "summary": f.get("summary") or "",
+                            "components": [c["name"] for c in f.get("components") or []],
+                            "labels": f.get("labels") or [], "priority": (f.get("priority") or {}).get("name"),
+                            "points": points})
+        return stories
+
+    def update(self, key: str, fields: dict) -> None:
+        try:
+            self._send("PUT", f"/rest/api/3/issue/{key}", {"fields": fields})
+        except _NotFound:
+            raise SourceUnavailable(f"jira: {key} rejected the update of {', '.join(fields)}")
