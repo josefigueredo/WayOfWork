@@ -1,9 +1,9 @@
 """Put back on the Jira stories what Product Brain's export leaves wrong, from the manifest.
 
 Product Brain (acme-agent @ 9b19a89) copies the epic's labels and priority to every story (jira.exporter.ts:551-616).
-When Jira rejects a field, such as a component the project does not have, PB retries with minimal fields and then
-restores only the labels (jira.client.ts:1236-1276), so the component, the story points and the priority are lost.
-It also looks for story points in the first float field of the instance (jira.client.ts:1342-1348), which can be any
+A component the Jira project does not have is caught by PB's export preflight (jira.preflight.ts:116-120) and listed
+in the export modal with "Omitir en los issues" preselected (export-modal.tsx:364-371): exported as is, the stories
+get no component. It also looks for story points in the first float field of the instance (jira.client.ts:1342-1348), which can be any
 number field ("Valor del Riesgo" in the IRIS pilot's Jira).
 
 The lint warns before the export; `wow jira fix-fields` repairs after it (dry run by default, the user applies).
@@ -47,8 +47,8 @@ def component_findings(doc: dict, available: List[str], key: str) -> List[str]:
             if component and _match(component, available) is None:
                 findings.append(
                     f"{task['id']}: component {component} is not in Jira project {key} ({', '.join(available) or '-'}): "
-                    f"Product Brain's export then drops the story's component, story points and priority; ask a Jira "
-                    f"admin to create it, or run wow jira fix-fields after the export")
+                    f"Product Brain's export modal preselects \"Omitir en los issues\" for it, so the story gets no "
+                    f"component; map it there to an existing one, ask a Jira admin to create it, or leave it empty")
     return findings
 
 

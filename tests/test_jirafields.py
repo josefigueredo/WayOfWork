@@ -71,7 +71,7 @@ class ComponentLintTest(unittest.TestCase):
         findings = jirafields.component_findings(_doc(), ["be", "mfe"], "IRIS")
         self.assertEqual(len(findings), 1)
         self.assertIn("1.2: component DEVOPS is not in Jira project IRIS (be, mfe)", findings[0])
-        self.assertIn("drops", findings[0])
+        self.assertIn("Omitir en los issues", findings[0])
 
     def test_project_key_comes_from_the_export_or_the_credentials(self):
         self.assertEqual(jirafields.project_key(_doc("PLATE-504"), None), "PLATE")

@@ -112,8 +112,9 @@ consumo) y `wow pack prd|rfc --full` (los paquetes de registro salen completos).
 Medido en PLATE-504 (piloto IRIS, código de PB en `9b19a89`):
 
 - **Labels y prioridad:** PB copia las de la épica a todas las historias (`jira.exporter.ts:551-616`).
-- **Componente:** si el proyecto de Jira no tiene ese componente, Jira rechaza el alta. PB reintenta con campos mínimos y
-  después recupera solo las labels (`jira.client.ts:1236-1276`). Se pierden el componente, los puntos y la prioridad.
+- **Componente:** antes de exportar, PB compara los componentes del documento con los del proyecto
+  (`jira.preflight.ts:116-120`). Los que no existen aparecen en el modal de exportación con "Omitir en los issues"
+  preseleccionado (`export-modal.tsx:364-371`): si se exporta sin cambiarlo, las historias quedan sin componente.
 - **Story points:** PB los busca en el primer campo numérico de la instancia (`jira.client.ts:1342-1348`), que puede ser
   cualquiera ("Valor del Riesgo" en ese Jira).
 
