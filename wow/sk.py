@@ -14,8 +14,9 @@ _JIRA_RE = re.compile(r"^\s*-\s*jira:\s*[A-Z][A-Z0-9]*-\d+\s*$", re.IGNORECASE)
 
 
 def commands_for(step: str, cfg: dict, epic: Optional[str] = None, feature: Optional[str] = None) -> List[str]:
-    """The slash command to paste in the Cursor chat. Only the chat fires Cursor's token hooks and the command's
-    start/end telemetry: headless cursor-agent and the `spec-kit` terminal CLI report neither."""
+    """The slash command to paste in interactive Cursor: the IDE chat or `cursor-agent` without -p. Both fire the
+    command's start/end and Cursor's `stop` hook (model and tokens). `cursor-agent -p` runs the command and sends its
+    start/end but fires no `stop` (measured on 2026.10.01); the `spec-kit` terminal CLI sends nothing."""
     if step not in STEPS:
         raise ValueError(f"unknown step {step!r}; expected one of {', '.join(STEPS)}")
     if step == "sync":

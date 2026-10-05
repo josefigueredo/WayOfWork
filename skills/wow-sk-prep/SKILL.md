@@ -1,6 +1,6 @@
 ---
 name: wow-sk-prep
-description: Prepare each Spec-Kit step so Cursor only ratifies: pre-chew clarify answers and a plan draft with the host model, print the exact Spec-Kit command for the user to run in the Cursor chat. Use before /spec-kit.sync, clarify, plan, tasks or implement, or when wow-guide recommends `wow sk cmd`.
+description: Prepare each Spec-Kit step so Cursor only ratifies: pre-chew clarify answers and a plan draft with the host model, print the exact Spec-Kit command for the user to run in interactive Cursor (IDE chat or cursor-agent without -p). Use before /spec-kit.sync, clarify, plan, tasks or implement, or when wow-guide recommends `wow sk cmd`.
 ---
 
 # wow-sk-prep
@@ -16,9 +16,11 @@ Goal: spend the scarce Cursor pool only on ratifying and generating, never on th
      manifest; mark unknowns as [SIN DEFINIR].
    - `wow/sk/<feature-name>/plan-draft.md`: the design decisions, alternatives and contracts.
 3. Print the exact command with `wow sk cmd <sync|clarify|plan|tasks|sync-status> --epic <KEY> | --feature specs/<dir>`
-   and hand it to the user to paste in the Cursor chat. Never suggest the `spec-kit` terminal CLI or headless
-   `cursor-agent` instead: only the chat fires the token hooks and the command's start/end telemetry.
-4. For implementation, hand the user `/spec-kit.implement <WU-ID>` for the Cursor chat with the model wow-guide
+   and hand it to the user to paste in interactive Cursor: the IDE chat or `cursor-agent` without `-p`. Both send
+   the command's start/end telemetry and fire the `stop` hook that records model and tokens. Never suggest
+   `cursor-agent -p` (it runs the command but fires no `stop`, so turns and tokens are lost) or the `spec-kit`
+   terminal CLI (it sends no telemetry).
+4. For implementation, hand the user `/spec-kit.implement <WU-ID>` for interactive Cursor with the model wow-guide
    suggests for that unit (Product Brain and Spec-Kit suggest none; `wow estimate` lists them all). Its tokens are recorded
    per turn in `harness/cursor-turns/` once `wow hook install-cursor` ran (once per machine).
 
@@ -28,4 +30,4 @@ Goal: spend the scarce Cursor pool only on ratifying and generating, never on th
 - IDs defined earlier in the conversation (E1, D10, C14, AC1, WU-005, US-001) get a few-word gloss the first time each message mentions them, e.g. "E2 (cifras del motor al día)": the user must not have to scroll back to know what they are.
 - Never replace a `/spec-kit.*` command with your own implementation: telemetry must see it.
 - Escalate a work unit to a stronger Cursor model after its third NEEDS_REVISION, not before.
-- `wow run-wu` (headless cursor-agent) is deprecated: the pilot ran every work unit in the Cursor chat.
+- `wow run-wu` (headless cursor-agent) is deprecated: the pilot ran every work unit in interactive Cursor.

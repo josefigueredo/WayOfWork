@@ -37,7 +37,7 @@ def plan(project: Path, epic_id: str, jira) -> dict:
     sync = f"/spec-kit.sync-status {feature['dir']}" if feature else "/spec-kit.sync-status"
     for story in (i for i in issues if i["level"] == "story" and not i["done"]):
         result["blockers"].append(f"story {story['key']} is open in Jira: Spec-Kit closes stories; check its "
-                                  f"`- jira: {story['key']}` lines in tasks.md and run {sync} in the Cursor chat")
+                                  f"`- jira: {story['key']}` lines in tasks.md and run {sync} in interactive Cursor (IDE chat or cursor-agent without -p)")
     result["already_done"] = sum(1 for i in issues if i["done"])
     result["to_close"] = [i["key"] for i in sorted((i for i in issues if not i["done"] and i["level"] in _ORDER),
                                                    key=lambda i: _ORDER[i["level"]])]

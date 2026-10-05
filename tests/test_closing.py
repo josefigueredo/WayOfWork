@@ -90,7 +90,7 @@ class OpenStoryTest(unittest.TestCase):
                   {"key": "IRIS-42", "level": "subtask", "done": False}]
         jira = FakeJira(issues)
         result = closing.plan(_project(), "E1", jira)
-        self.assertTrue(any("IRIS-41" in b and "/spec-kit.sync-status" in b and "Cursor chat" in b
+        self.assertTrue(any("IRIS-41" in b and "/spec-kit.sync-status" in b and "interactive Cursor" in b
                             for b in result["blockers"]), result)
         self.assertNotIn("IRIS-41", result["to_close"])
         self.assertTrue(closing.apply(result, jira)[0].startswith("blocked: story IRIS-41"))

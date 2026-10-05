@@ -11,7 +11,7 @@ Diseño: `docs/superpowers/specs/2026-10-01-wayofwork-design.md`.
 cd <ruta>/WayOfWork          # sin remoto por ahora: copiá el repo con su .git (zip o rsync)
 ./install.sh --skills     # CLI en ~/.local/bin/wow + las 7 skills wow-* para Claude Code y Codex
 wow --version             # si falla, agregá ~/.local/bin al PATH
-wow hook install-cursor   # una vez por máquina: mide modelo y tokens de cada turno del chat de Cursor
+wow hook install-cursor   # una vez por máquina: mide modelo y tokens de cada turno de Cursor (chat o cursor-agent interactivo)
 ```
 
 `install.sh` solo crea symlinks hacia este repo, así que un `git pull` actualiza CLI y skills sin reinstalar. Las skills
@@ -101,8 +101,21 @@ Credenciales de Jira: variables `IC_JIRA_BASE_URL`, `IC_JIRA_USER_EMAIL`, `IC_JI
 (opcionales: `IC_JIRA_PROJECT_KEY`, `IC_JIRA_EPIC_CHILD_MODE`). Se leen del shell, de `.env.local`
 o, como último recurso, de `JIRA_*` en `.spec-kit/.env`. `wow` nunca las imprime.
 
-**Deprecado:** `wow run-wu` (cursor-agent headless; las WUs se corren en el chat de Cursor y el hook `stop` mide el
+**Deprecado:** `wow run-wu` (`cursor-agent -p`; las WUs se corren en Cursor interactivo y el hook `stop` mide el
 consumo) y `wow pack prd|rfc --full` (los paquetes de registro salen completos). Siguen funcionando y avisan por stderr.
+
+### Dónde correr los comandos de Spec-Kit
+
+Medido con `cursor-agent` 2026.10.01 el 2026-10-04 (hook de sondeo sobre los eventos, más el piloto IRIS):
+
+| Dónde | `start`/`end` del comando (SpecKitCommand) | Hook `stop`: modelo y tokens del turno (SK y `wow hook`) | ¿Sirve para registrar? |
+|---|---|---|---|
+| Chat de la GUI de Cursor | sí | sí | sí |
+| `cursor-agent` interactivo (sin `-p`) | sí | sí (3 turnos con tokens en el piloto IRIS) | sí |
+| `cursor-agent -p` | sí: expande el comando y corre sus líneas `Run:` | no: tampoco llega `beforeSubmitPrompt`; solo `sessionStart`, `postToolUse` y `sessionEnd` | no |
+| CLI `spec-kit` de la terminal | no | no | no |
+
+No medí si `beforeSubmitPrompt` llega en el modo interactivo del CLI: el piloto mide `stop`, que es el que trae los tokens.
 
 Códigos de salida: `0` OK · `1` hallazgos · `2` no pude evaluar.
 

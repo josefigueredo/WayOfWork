@@ -12,7 +12,7 @@ TASKS = ("## Phase 1: Setup\n- [x] T001 scaffold\n"
 
 class CommandsTest(unittest.TestCase):
     def test_sync_is_the_slash_command_for_the_cursor_chat(self):
-        # Headless cursor-agent skips the token hooks: Spec-Kit commands run in the Cursor chat.
+        # cursor-agent -p fires no stop hook (no tokens): Spec-Kit commands run in interactive Cursor.
         [line] = sk.commands_for("sync", config.DEFAULTS, epic="IRIS-40")
         self.assertEqual(line, "/spec-kit.sync --epic-key IRIS-40")
 

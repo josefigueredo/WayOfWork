@@ -274,7 +274,7 @@ def _cmd_sk_status(args) -> int:
 
 
 def _cmd_run_wu(args) -> int:
-    sys.stderr.write("wow: run-wu is deprecated: run /spec-kit.implement in the Cursor chat; "
+    sys.stderr.write("wow: run-wu is deprecated: run /spec-kit.implement in interactive Cursor (IDE chat or cursor-agent without -p); "
                      "`wow hook install-cursor` records its tokens\n")
     project = _project(args)
     try:
