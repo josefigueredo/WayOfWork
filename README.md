@@ -12,7 +12,7 @@ git clone git@github.com:josefigueredo/wow.git WayOfWork   # privado
 cd WayOfWork
 ./install.sh --skills     # CLI en ~/.local/bin/wow + las 7 skills wow-* para Claude Code y Codex
 wow --version             # si falla, agregá ~/.local/bin al PATH
-wow hook install-cursor   # una vez por máquina: mide modelo y tokens de cada turno de Cursor (chat o cursor-agent interactivo)
+wow hook install-cursor   # una vez por máquina: tokens de cada turno de Cursor + baranda para los comandos de shell del agente
 ```
 
 `install.sh` solo crea symlinks hacia este repo, así que un `git pull` actualiza CLI y skills sin reinstalar. Las skills
@@ -93,6 +93,16 @@ Con `--backfill-git` (en `wow snapshot` y `wow dashboard`), la historia suma un 
 modelo y tokens en `harness/cursor-turns/` del repo que tenga `wow/`. Corre al lado del hook de telemetría de
 Spec-Kit sin cambiar lo que envía a New Relic, y no guarda el email ni la ruta del transcript.
 `wow usage` y `wow snapshot` leen esos turnos. Las revisiones de Codex quedan en `harness/reviews/`.
+
+El mismo comando agrega un hook `beforeShellExecution` (`wow hook cursor-shell`), que Cursor corre antes de cada
+comando de shell del agente, también en `cursor-agent`. Rechaza tres cosas, y el agente recibe el motivo:
+
+- un `rm -r/-f`, `cp`, `mv` o `rsync` cuya ruta empieza con una variable sin proteger (`"$SRC"/.`): si la variable
+  está vacía, corre contra la raíz del disco. Es lo que pasó en el piloto IRIS. La salida es `"${SRC:?}"`;
+- esos mismos comandos apuntados a `/` o al home;
+- un `git commit` que agrega más de 2000 archivos o 100 MB, la huella de una copia equivocada.
+
+Si el hook falla por cualquier motivo, el comando corre: la baranda nunca frena el trabajo normal.
 
 Para ver costos estimados, cargá una tabla de precios (USD por millón de tokens) en `.wow/config.json`:
 

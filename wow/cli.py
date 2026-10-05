@@ -15,6 +15,7 @@ import cites
 import estimate
 import closing
 import jirafields
+import shellguard
 import config
 import contextpack
 import evidence
@@ -268,6 +269,20 @@ def _cmd_hook(args) -> int:
     if args.hook_command == "install-cursor":
         changed = cursorhook.install(Path(args.hooks_file).expanduser(), cursorhook.default_command())
         print(f"{args.hooks_file}: {'stop hook added' if changed else 'stop hook already present'}")
+        return exitcodes.OK
+    if args.hook_command == "cursor-shell":
+        # beforeShellExecution: deny only what shellguard names; any failure of the guard lets the command run.
+        answer = {"permission": "allow"}
+        try:
+            payload = json.loads(sys.stdin.read() or "{}")
+            reason = shellguard.check(str(payload.get("command") or ""), payload.get("cwd"))
+            if reason:
+                answer = {"permission": "deny", "user_message": f"WoW blocked this command: {reason}",
+                          "agent_message": f"Blocked by WoW's shell guard: {reason} Rewrite the command; do not "
+                                           f"work around the guard."}
+        except Exception:  # noqa: BLE001 — a guard that crashes must not stop the agent
+            pass
+        print(json.dumps(answer))
         return exitcodes.OK
     # cursor-stop runs inside Cursor's agent loop: it must never fail and always answers with JSON.
     try:
@@ -772,7 +787,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="add history points from the git commits that touched specs/*/tasks.md")
     sp.set_defaults(handler=_cmd_snapshot)
     hk = sub.add_parser("hook", help="Cursor hook entry points")
-    hk.add_argument("hook_command", choices=["cursor-stop", "install-cursor"])
+    hk.add_argument("hook_command", choices=["cursor-stop", "cursor-shell", "install-cursor"])
     hk.add_argument("--hooks-file", default=str(Path.home() / ".cursor" / "hooks.json"),
                     help="Cursor user hooks file for install-cursor (default: ~/.cursor/hooks.json)")
     hk.set_defaults(handler=_cmd_hook)
