@@ -9,6 +9,7 @@ no de capturas ni de inferencias.
 | Commit leído | `9b19a89bdb41345c0caf46b9c0b5a87eb924953a` (main, 2026-09-29) |
 | Fecha de lectura | 2026-10-02 |
 | Copia local | `upstream/` (gitignored: es código interno de otra área y no va al historial de WayOfWork) |
+| Lo que sí está versionado | `wow/templates/pb-prd.md` y `pb-rfc.md`: las plantillas base del PRD y el RFC, el esqueleto con `{{placeholders}}` que cualquier usuario ve en el panel de Product Brain. Se copian de `db/base-templates.ts` en el commit de arriba (`pbtemplate.extract_upstream`). La lógica (completitud, merge, prompts) no se copia: WoW la reimplementa y cita `archivo:línea`. |
 | Refrescar | `./refresh.sh` (o `./refresh.sh <ref>`) y comparar el commit con este README |
 
 ## Cómo se encontró (para repetirlo)
