@@ -260,6 +260,21 @@ class EpicPhasesTest(unittest.TestCase):
         self.assertEqual((epic["phase"], epic["progress"]), (5, "1/2"))
         self.assertEqual(result["next_steps"][0]["command"], "/spec-kit.implement WU-002")
 
+    def test_phase_5_names_unchecked_tasks_when_every_unit_is_done(self):
+        # Every unit is done (WU-001 by a checked line, WU-002 by its approved review) but setup and closing tasks
+        # with no unit stay unchecked: the guide names them instead of stalling with no step.
+        p = project_at_phase_3()
+        close_chats(p)
+        add_feature(p, "- [ ] T001 setup check\n- [x] T010 WU-001 model\n  - jira: IRIS-41\n- [ ] T030 closing note\n")
+        write(p, ".spec-kit/implementation/WU-002-review-1.md", "**Status**: APPROVED\n")
+        write(p, "wow/reviews/IRIS-41.json", json.dumps({"final": "approved"}))
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
+        epic = result["epics"][0]
+        self.assertEqual((epic["phase"], epic["progress"]), (5, "1/3"))
+        step = result["next_steps"][0]
+        self.assertEqual(step["action"], "finish or check the remaining tasks: T001, T030")
+        self.assertIn("specs/001-curation/tasks.md", step["command"])
+
     def test_phase_5_story_review_before_cursor(self):
         p = project_at_phase_3()
         close_chats(p)

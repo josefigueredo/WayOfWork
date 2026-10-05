@@ -222,6 +222,12 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
             steps.append(_step(eid, 5, f"review story {story}", "harness", models["reviewer"],
                                f"wow review --set story --ref {story}",
                                "all its tasks are done and it has no approved review"))
+    if not steps and feature["tasks_done"] < feature["tasks_total"]:
+        # Every unit is done but tasks with no unit (setup, closing checks) are unchecked: name them, never stall.
+        unchecked = feature.get("unchecked_tasks") or []
+        steps.append(_step(eid, 5, f"finish or check the remaining tasks: {', '.join(unchecked)}", "cursor", None,
+                           f"check them in {feature['dir']}/tasks.md once each is done or verified",
+                           f"{feature['tasks_total'] - feature['tasks_done']} task(s) unchecked with every work unit done"))
     if steps or feature["tasks_done"] < feature["tasks_total"]:
         return finish(5)
 

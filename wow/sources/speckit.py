@@ -106,6 +106,8 @@ def features(project: Path) -> List[dict]:
             "tasks_done": parsed["done"],
             "stories": parsed["stories"],
             "pending_work_units": pending,
+            "unchecked_tasks": [m.group(1) if m else text[:40] for checked, text in parsed["lines"] if not checked
+                                for m in [TASK_ID_RE.match(text)]],
             "units": {unit["id"]: unit for unit in units},
         })
     return result
