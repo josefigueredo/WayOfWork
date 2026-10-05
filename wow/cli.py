@@ -594,11 +594,27 @@ def _print_editor_fixes(fixes) -> None:
               f"(the chat cannot fix it: {fix['reason']}):\n\n{fix['replace_with']}\n")
 
 
+def _cmd_pbchat_decide(args, project: Path) -> int:
+    if not args.reason or not args.reason.strip():
+        sys.stderr.write("wow: --decide needs --reason \"<why>\"\n")
+        return exitcodes.CANNOT_EVALUATE
+    now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        result = pbaudit.decide(project, args.doc, args.decide, args.reason, _decision_author(project), now)
+    except ValueError as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    print(f"{args.doc}: {args.decide} by a human over a changes_required audit — {result['decision']['reason']}")
+    return exitcodes.OK if args.decide == "approved" else exitcodes.FINDINGS
+
+
 def _cmd_pbchat_audit(args) -> int:
     project = _project(args)
     if not review_mod.safe_ref(args.doc):
         sys.stderr.write(f"wow: unsafe document name {args.doc!r}\n")
         return exitcodes.CANNOT_EVALUATE
+    if args.decide:
+        return _cmd_pbchat_decide(args, project)
     extra = []
     if args.deep:
         try:
@@ -804,6 +820,10 @@ def build_parser() -> argparse.ArgumentParser:
     pa = with_project(pcsub.add_parser("audit"))
     pa.add_argument("doc", help="prd | rfc | epic-E<n>")
     pa.add_argument("--deep", action="store_true", help="also ask an independent reviewer")
+    pa.add_argument("--decide", default=None, choices=["approved", "rejected"],
+                    help="record a human verdict on a changes_required audit Product Brain cannot act on "
+                         "(the PRD and RFC are no longer editable after export); needs --reason")
+    pa.add_argument("--reason", default=None, help="why the human decided (required with --decide)")
     pa.set_defaults(handler=_cmd_pbchat_audit)
 
     cx = sub.add_parser("context", help="inventory and validate the context pack")

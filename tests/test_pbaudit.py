@@ -221,5 +221,54 @@ class TemplateAwareAuditTest(unittest.TestCase):
         self.assertEqual(pbaudit.audit(project, "prd")["completion_pct"], 96)
 
 
+class DecideTest(unittest.TestCase):
+    """A human verdict on an audit Product Brain cannot act on (the PRD and RFC stop being editable after export)."""
+
+    def audited(self):
+        project = setup()
+        pbaudit.write_audit(project, pbaudit.audit(project, "prd"))
+        return project
+
+    def read(self, project):
+        return json.loads((project / "wow/pb/chats/prd.audit.json").read_text(encoding="utf-8"))
+
+    def test_human_approval_is_recorded_apart_from_the_audit(self):
+        project = self.audited()
+        self.assertEqual(self.read(project)["verdict"], "changes_required")
+        result = pbaudit.decide(project, "prd", "approved", "PB locks the PRD after export", "Jo", "2026-10-05T12:00:00Z")
+        stored = self.read(project)
+        self.assertEqual(result["verdict"], "approved_by_human")
+        self.assertEqual(stored["verdict"], "approved_by_human")
+        self.assertEqual(stored["decision"], {"by": "human", "author": "Jo", "verdict": "approved",
+                                              "reason": "PB locks the PRD after export",
+                                              "at": "2026-10-05T12:00:00Z", "overrides": "changes_required"})
+        self.assertTrue(stored["corrections_to_paste"])  # the findings stay on record
+        self.assertEqual(schema.validate(stored, schema.load_schema("pbchat-audit")), [])
+
+    def test_human_rejection(self):
+        project = self.audited()
+        pbaudit.decide(project, "prd", "rejected", "the chat is wrong", "Jo", "2026-10-05T12:00:00Z")
+        self.assertEqual(self.read(project)["verdict"], "rejected_by_human")
+
+    def test_needs_an_audit_first(self):
+        with self.assertRaises(ValueError):
+            pbaudit.decide(setup(), "prd", "approved", "why", "Jo", "2026-10-05T12:00:00Z")
+
+    def test_never_replaces_an_approved_audit(self):
+        project = self.audited()
+        audit = self.read(project)
+        audit["verdict"] = "approved"
+        write(project, "wow/pb/chats/prd.audit.json", json.dumps(audit))
+        with self.assertRaises(ValueError):
+            pbaudit.decide(project, "prd", "approved", "why", "Jo", "2026-10-05T12:00:00Z")
+
+    def test_needs_a_reason_and_a_known_verdict(self):
+        project = self.audited()
+        with self.assertRaises(ValueError):
+            pbaudit.decide(project, "prd", "approved", "  ", "Jo", "2026-10-05T12:00:00Z")
+        with self.assertRaises(ValueError):
+            pbaudit.decide(project, "prd", "maybe", "why", "Jo", "2026-10-05T12:00:00Z")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -24,10 +24,15 @@ description: Audit the local copy of a Product Brain chat (PRD, RFC or epic) aga
 6. Review only the `+`/`-` lines the audit prints ("Product Brain changed N lines against the packet"):
    a registro packet already scores 100%, so every change is Product Brain's own. Keep it, or paste a
    correction that restores the packet line.
+7. When Product Brain cannot apply the corrections (the PRD and RFC stop being editable once an epic is exported),
+   the audit stays at changes_required and holds every later phase. The user decides, not you: hand them
+   `wow pbchat audit <doc> --decide approved|rejected --reason "<why>"`. It only answers an existing
+   changes_required audit, keeps the findings on record and stores `approved_by_human` with author, reason and
+   date; `wow state` lets an `approved_by_human` audit through, never a `rejected_by_human` one.
 
 ## Rules
 
 - Measure, do not speculate: a value you can measure (a count, a time, a commit, a URL, a status) is measured before you state it, and cited. Every repo, branch, commit or URL you hand out must exist and be reachable on the remote's default branch: check it (`wow ref check`). What cannot be measured is labelled as an inference and never presented as a cause.
 - IDs defined earlier in the conversation (E1, D10, C14, AC1, WU-005, US-001) get a few-word gloss the first time each message mentions them, e.g. "E2 (cifras del motor al día)": the user must not have to scroll back to know what they are.
-- Never edit an `.audit.json` by hand and never mark a chat approved yourself.
+- Never edit an `.audit.json` by hand and never mark a chat approved yourself: `--decide` is the user's command, run by the user.
 - A closed chat (100%) with a failing audit is still not done: Product Brain checklists are not evidence.

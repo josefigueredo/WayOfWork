@@ -5,7 +5,7 @@
   "properties": {
     "schema_version": {"type": "integer", "enum": [1]},
     "doc": {"type": "string"},
-    "verdict": {"type": "string", "enum": ["approved", "changes_required"]},
+    "verdict": {"type": "string", "enum": ["approved", "changes_required", "approved_by_human", "rejected_by_human"]},
     "closed": {"type": "boolean"},
     "completion_pct": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
     "open_questions": {"type": "array", "items": {"type": "string"}},
@@ -15,6 +15,10 @@
     "inventions": {"type": "array", "items": {"type": "object", "required": ["term", "line", "text", "source"]}},
     "corrections_to_paste": {"type": "string"},
     "editor_fixes": {"type": "array", "items": {"type": "object", "required": ["section", "replace_with", "reason"]}},
+    "decision": {"type": "object", "required": ["by", "author", "verdict", "reason", "at", "overrides"],
+                 "properties": {"by": {"enum": ["human"]}, "author": {"type": "string"},
+                                "verdict": {"enum": ["approved", "rejected"]}, "reason": {"type": "string", "minLength": 1},
+                                "at": {"type": "string"}, "overrides": {"enum": ["changes_required"]}}},
     "pb_changes": {"type": ["array", "null"],
                    "items": {"type": "object", "required": ["op", "section", "text"]}}
   }

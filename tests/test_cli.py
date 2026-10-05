@@ -386,6 +386,21 @@ class PbchatAuditCommandTest(unittest.TestCase):
         self.assertEqual(run_cli(["pbchat", "audit", "../x", "--project", str(project)])[0], 2)
 
 
+    def test_decide_answers_an_audit_product_brain_cannot_fix(self):
+        project = make_project()
+        write(project, "wow/pb/chats/prd.md", "llega al 100%\n✅ Todo listo.\n")
+        decide = ["pbchat", "audit", "prd", "--decide", "approved", "--reason", "PB locks the PRD after export",
+                  "--project", str(project)]
+        self.assertEqual(run_cli(decide)[0], 2)  # no audit yet
+        self.assertEqual(run_cli(["pbchat", "audit", "prd", "--project", str(project)])[0], 1)
+        self.assertEqual(run_cli(decide[:5] + ["--project", str(project)])[0], 2)  # no reason
+        code, out, _ = run_cli(decide)
+        self.assertEqual(code, 0)
+        self.assertIn("prd: approved by a human", out)
+        audit = _json.loads((project / "wow/pb/chats/prd.audit.json").read_text(encoding="utf-8"))
+        self.assertEqual(audit["verdict"], "approved_by_human")
+        self.assertEqual(audit["decision"]["reason"], "PB locks the PRD after export")
+
 class PbchatDeepAuditCommandTest(unittest.TestCase):
     def test_deep_audit_adds_reviewer_inventions(self):
         project, _ = _review_project("VERDICT: CHANGES_REQUIRED\nINVENTION 1 — SLA 99.9% — no está en el contexto\n")

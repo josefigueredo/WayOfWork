@@ -260,6 +260,28 @@ def deep_inventions(project: Path, doc: str, cfg: dict, runner=subprocess.run, w
     return parse_inventions(reviewers.run_backend(spec, build_deep_prompt(project, doc), project, runner, which))
 
 
+def decide(project: Path, doc: str, verdict: str, reason: str, author: str, now: str) -> dict:
+    """Record a human verdict on an audit whose corrections Product Brain cannot apply (the PRD and RFC are no longer
+    editable once an epic is exported). Only over an existing changes_required audit, with a reason; the findings stay
+    on record and the verdict says it came from a human, never from the audit."""
+    if verdict not in ("approved", "rejected"):
+        raise ValueError(f"{doc}: the human verdict is approved or rejected, not {verdict!r}")
+    if not reason or not reason.strip():
+        raise ValueError(f"{doc}: a human decision needs a reason")
+    path = project / "wow" / "pb" / "chats" / f"{doc}.audit.json"
+    if not path.is_file():
+        raise ValueError(f"{doc}: run wow pbchat audit {doc} first; a human decision only answers an existing audit")
+    result = json.loads(path.read_text(encoding="utf-8"))
+    if result.get("verdict") != "changes_required":
+        raise ValueError(f"{doc}: a human decision only answers a changes_required audit "
+                         f"(the audit is {result.get('verdict')!r})")
+    result["decision"] = {"by": "human", "author": author, "verdict": verdict, "reason": reason.strip(),
+                          "at": now, "overrides": result["verdict"]}
+    result["verdict"] = f"{verdict}_by_human"
+    write_audit(project, result)
+    return result
+
+
 def write_audit(project: Path, result: dict) -> Path:
     path = project / "wow" / "pb" / "chats" / f"{result['doc']}.audit.json"
     path.parent.mkdir(parents=True, exist_ok=True)

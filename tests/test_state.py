@@ -192,6 +192,20 @@ class EpicPhasesTest(unittest.TestCase):
         result = state.compute_state(p, CFG, FakeJira({}))
         self.assertEqual(result["next_steps"][0]["action"], "audit the RFC chat")
 
+    def test_human_approved_audit_passes_the_gate(self):
+        p = project_at_phase_3()  # E1 already exported as IRIS-40
+        close_chats(p)
+        write(p, "wow/pb/chats/rfc.audit.json", '{"verdict": "approved_by_human"}')
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
+        self.assertEqual(result["epics"][0]["phase"], 4)
+
+    def test_human_rejected_audit_still_blocks(self):
+        p = project_at_phase_3()
+        close_chats(p)
+        write(p, "wow/pb/chats/rfc.audit.json", '{"verdict": "rejected_by_human"}')
+        result = state.compute_state(p, CFG, FakeJira({}))
+        self.assertEqual(result["next_steps"][0]["action"], "audit the RFC chat")
+
     def test_jira_unavailable_makes_epic_unknown(self):
         p = project_at_phase_3()
         close_chats(p)
