@@ -30,6 +30,22 @@ def extract(text: str) -> List[Tuple[str, Optional[str], str]]:
     return out
 
 
+_BARE_RE = re.compile(r"(?<![#\w/@.-])([0-9a-f]{7,40})(?![\w.-])")
+
+
+def unchecked(text: str) -> List[str]:
+    """Hex tokens that look like commits but are neither `name @ sha` nor a GitHub URL, so check() cannot verify
+    them. A hash needs a digit and a letter: words such as "decade" and plain numbers are not reported."""
+    checked = {ref for _, _, ref in extract(text)}
+    found: List[str] = []
+    for token in _BARE_RE.findall(text):
+        if token in checked or token in found:
+            continue
+        if re.search(r"[0-9]", token) and re.search(r"[a-f]", token):
+            found.append(token)
+    return found
+
+
 def gh_has(owner_repo: str, ref: str) -> bool:
     """The ref is the default branch or one of its ancestors on GitHub (compare status identical or ahead)."""
     if shutil.which("gh") is None:

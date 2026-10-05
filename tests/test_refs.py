@@ -34,6 +34,17 @@ class ExtractTest(unittest.TestCase):
                                               ("url", "acme/engine", "abc1234")])
 
 
+class UncheckedTest(unittest.TestCase):
+    def test_bare_hashes_outside_the_checked_forms_are_reported(self):
+        # The IRIS journey cited 13 commits as <code>a915f8b</code>: ref check said "0 references checked".
+        text = ("WoW <code>a915f8b</code> y <code>2e76516</code>, motor @ 53fd100, "
+                "https://github.com/acme/engine/blob/abc1234/x.py, color #101218, decade, cafebabe9")
+        self.assertEqual(refs.unchecked(text), ["a915f8b", "2e76516", "cafebabe9"])
+
+    def test_words_and_numbers_that_look_like_hex_are_not_hashes(self):
+        self.assertEqual(refs.unchecked("decade facade 2026100 deadbeef 1234567 abcdefa"), [])
+
+
 class CheckTest(unittest.TestCase):
     def test_a_commit_only_in_a_local_clone_is_an_error(self):
         root, sha = _workspace()
@@ -70,6 +81,14 @@ class CliTest(unittest.TestCase):
         code, out, _ = run_cli(["ref", "check", str(doc), "--project", str(root)])
         self.assertEqual(code, 1)
         self.assertIn("fd025ca: commit not found", out)
+
+    def test_cli_warns_about_bare_hashes_it_did_not_check(self):
+        root, _ = _workspace()
+        doc = write(root, "doc.md", "WoW <code>a915f8b</code> lo agregó\n")
+        code, out, _ = run_cli(["ref", "check", str(doc), "--project", str(root)])
+        self.assertEqual(code, 0)
+        self.assertIn("not checked: a915f8b", out)
+        self.assertIn("0 references checked, 0 findings, 1 bare hash not checked", out)
 
 
 class PackCheckTest(unittest.TestCase):

@@ -716,7 +716,14 @@ def _cmd_ref_check(args) -> int:
     findings = refs.check(text, _project(args))
     for finding in findings:
         print(finding)
-    print(f"{len(refs.extract(text))} references checked, {len(findings)} findings")
+    # A bare hash cannot be tied to a repo, so it is not verified; say so instead of reporting a clean pass.
+    loose = refs.unchecked(text)
+    if loose:
+        print(f"warning: not checked: {', '.join(loose)} (write them as `name @ sha` or as a GitHub URL to verify them)")
+    summary = f"{len(refs.extract(text))} references checked, {len(findings)} findings"
+    if loose:
+        summary += f", {len(loose)} bare hash{'es' if len(loose) > 1 else ''} not checked"
+    print(summary)
     return exitcodes.FINDINGS if findings else exitcodes.OK
 
 
