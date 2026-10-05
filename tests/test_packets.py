@@ -58,6 +58,41 @@ class StoryPacketTest(unittest.TestCase):
             "AC1": "Given los commits fijados, When corre el agente, Then hay un veredicto por página",
             "AC2": "Given una afirmación sin evidencia, When se arma el informe, Then queda sin fuente"})
 
+    # IRIS pilot (2026-10-04): /spec-kit.sync wrote the key on its own line under the header and numbered the
+    # scenarios without AC ids; tasks.md tied each task to its story with [USn] and `- jira: KEY`.
+    IRIS_SPEC = ("### User Story 1 — Build limpio y módulo Go correcto (Priority: P1)\n"
+                 "**Jira:** [PLATE-506](https://example.atlassian.net/browse/PLATE-506) · subtareas PLATE-513\n\n"
+                 "**Acceptance Scenarios:**\n\n"
+                 "1. **Given** `hugo.yaml` con `locale: es`, **When** se corre Hugo, **Then** exit 0.\n"
+                 "2. **Given** `go.mod`, **When** se lee la directiva `module`, **Then** es la del repo.\n\n"
+                 "### User Story 2 — Workflow CI/CD y deploy a Pages (Priority: P1)\n\n"
+                 "**Acceptance Scenarios:**\n\n"
+                 "1. **Given** push a `main`, **When** corre el workflow, **Then** despliega a Pages.\n")
+    IRIS_TASKS = ("- [x] T006 [P] [US1] Replace languageCode\n  - jira: PLATE-506\n"
+                  "- [x] T010 [US2] Add the workflow\n  - jira: PLATE-505\n")
+
+    def test_iris_format_key_on_a_jira_line_and_scenarios_without_ids(self):
+        project = make_project()
+        write(project, "specs/001-x/spec.md", self.IRIS_SPEC)
+        packet = packets.story_packet(project, "PLATE-506", git_repo_with_change(), "main")
+        self.assertEqual(packet["anchors"], {
+            "AC1": "Given `hugo.yaml` con `locale: es`, When se corre Hugo, Then exit 0.",
+            "AC2": "Given `go.mod`, When se lee la directiva `module`, Then es la del repo."})
+        self.assertTrue(packet["anchors_derived"])
+        self.assertIn("derived", packet["body"].splitlines()[0])
+
+    def test_iris_format_story_found_through_tasks_md(self):
+        project = make_project()
+        write(project, "specs/001-x/spec.md", self.IRIS_SPEC)
+        write(project, "specs/001-x/tasks.md", self.IRIS_TASKS)
+        packet = packets.story_packet(project, "PLATE-505", git_repo_with_change(), "main")
+        self.assertEqual(packet["anchors"], {"AC1": "Given push a `main`, When corre el workflow, Then despliega a Pages."})
+
+    def test_explicit_ids_are_not_marked_derived(self):
+        project = make_project()
+        write(project, "specs/001-x/spec.md", SPEC)
+        self.assertFalse(packets.story_packet(project, "IRIS-41", git_repo_with_change(), "main")["anchors_derived"])
+
     def test_story_without_anchors_raises(self):
         project = make_project()
         write(project, "specs/001-x/spec.md", "### Story 9: [IRIS-49] nothing\n")

@@ -10,7 +10,7 @@ The host model never reviews its own work. This skill only runs the command and 
 ## Commands
 
 - `wow review --set readiness --ref plan` — anchors R1–R5 over PLAN.md + manifest.
-- `wow review --set story --ref <JIRA-KEY> --repo <child-repo>` — anchors: the story's AC ids in specs/*/spec.md.
+- `wow review --set story --ref <JIRA-KEY> --repo <child-repo>` — anchors: the story's AC ids in specs/*/spec.md. The story is found by its key in the header, on a `**Jira:**` line under it, or through its `[USn]` in tasks.md; scenarios without ids are numbered AC1, AC2… in order and the packet says they are derived.
 - `wow review --set epic --ref <E1> --repo <child-repo>` — anchors: the epic's done_when.
   Story and epic packets carry the GitHub Actions runs of the repo's HEAD (`gh run list --commit`), so CI and
   deploy criteria are judged on evidence; push the commit and let CI finish before reviewing those.

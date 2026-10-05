@@ -6,7 +6,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import manifest
 
@@ -63,36 +63,96 @@ def ci_evidence(repo: Path, runner: Callable = subprocess.run) -> str:
     return f"\n\n--- CI runs for HEAD {sha[:12]} ---\n" + ("\n".join(lines) or "(no runs for this commit)") + "\n"
 
 
-def _story_anchors(project: Path, key: str) -> Dict[str, str]:
+_NUMBERED_RE = re.compile(r"^\s*\d+[.)]\s+(.+?)\s*$")
+_TASK_STORY_RE = re.compile(r"\[US(\d+)\]")
+_JIRA_LINE_RE = re.compile(r"^\s*-\s*jira:\s*([A-Z][A-Z0-9]*-\d+)\s*$", re.IGNORECASE)
+
+
+def _story_number(project: Path, key: str) -> Optional[int]:
+    """The [USn] of the tasks that tasks.md ties to this Jira key with `- jira: KEY`."""
+    for tasks in sorted((project / "specs").glob("*/tasks.md")):
+        current = None
+        for line in tasks.read_text(encoding="utf-8").splitlines():
+            story = _TASK_STORY_RE.search(line)
+            if story and line.lstrip().startswith("- ["):
+                current = int(story.group(1))
+            jira = _JIRA_LINE_RE.match(line)
+            if jira and jira.group(1).upper() == key.upper() and current is not None:
+                return current
+    return None
+
+
+def _sections(text: str) -> List[Tuple[str, List[str]]]:
+    """Each header with the lines under it, deeper headers included, up to the next header of its level or above."""
+    lines = text.splitlines()
+    sections = []
+    for i, line in enumerate(lines):
+        header = _HEADER_RE.match(line)
+        if not header:
+            continue
+        level, body = len(header.group(1)), []
+        for following in lines[i + 1:]:
+            deeper = _HEADER_RE.match(following)
+            if deeper and len(deeper.group(1)) <= level:
+                break
+            body.append(following)
+        sections.append((line, body))
+    return sections
+
+
+def _story_section(project: Path, key: str) -> Optional[List[str]]:
+    """The story's lines, found by the key in its header, by a `**Jira:** KEY` line right under it (the IRIS pilot's
+    spec), or by its [USn] in tasks.md matched to a "Story N" header."""
+    sections = [s for spec in sorted((project / "specs").glob("*/spec.md"))
+                for s in _sections(spec.read_text(encoding="utf-8"))]
+    for header, body in sections:
+        if key in header:
+            return body
+    for header, body in sections:
+        head = [line for line in body if line.strip()][:3]
+        if "story" in header.lower() and any(key in line for line in head):
+            return body
+    number = _story_number(project, key)
+    if number is not None:
+        story_re = re.compile(rf"\bStory\s+{number}\b", re.IGNORECASE)
+        for header, body in sections:
+            if story_re.search(header):
+                return body
+    return None
+
+
+def _story_anchors(project: Path, key: str) -> Tuple[Dict[str, str], bool]:
+    """The story's acceptance criteria by AC id. When the spec gives no ids, its numbered scenarios get AC1, AC2...
+    in order and the second value is True, so the packet says the ids are derived."""
+    body = _story_section(project, key)
+    if body is None:
+        return {}, False
     anchors: Dict[str, str] = {}
-    for spec in sorted((project / "specs").glob("*/spec.md")):
-        level = None
-        for line in spec.read_text(encoding="utf-8").splitlines():
-            header = _HEADER_RE.match(line)
-            if header:
-                if level is not None and len(header.group(1)) <= level:
-                    level = None
-                if key in line:
-                    level = len(header.group(1))
-                continue
-            if level is not None:
-                match = _AC_RE.search(line)
-                if match:
-                    anchors.setdefault(match.group(1), match.group(2))
-                    continue
-                trailing = _AC_TRAILING_RE.match(line)
-                if trailing:
-                    anchors.setdefault(trailing.group(2), trailing.group(1).replace("**", ""))
-    return anchors
+    for line in body:
+        match = _AC_RE.search(line)
+        if match:
+            anchors.setdefault(match.group(1), match.group(2))
+            continue
+        trailing = _AC_TRAILING_RE.match(line)
+        if trailing:
+            anchors.setdefault(trailing.group(2), trailing.group(1).replace("**", ""))
+    if anchors:
+        return anchors, False
+    numbered = [m.group(1).replace("**", "") for m in map(_NUMBERED_RE.match, body) if m]
+    return {f"AC{n}": text for n, text in enumerate(numbered, 1)}, bool(numbered)
 
 
 def story_packet(project: Path, key: str, repo: Path, base: str, runner: Callable = subprocess.run,
                  ci: Optional[Callable[[Path], str]] = None) -> dict:
-    anchors = _story_anchors(project, key)
+    anchors, derived = _story_anchors(project, key)
     if not anchors:
-        raise PacketError(f"no acceptance criteria with AC ids found for {key} in specs/*/spec.md")
+        raise PacketError(f"no acceptance criteria found for {key} in specs/*/spec.md")
     body = git_diff(repo, base, runner) + (ci(repo) if ci else "")
-    return {"anchor_set": "story", "ref": key, "anchors": anchors, "body": body, "cwd": repo}
+    if derived:
+        body = (f"Note: the spec gives no AC ids for {key}; AC1..AC{len(anchors)} are derived from the order of its "
+                f"acceptance scenarios.\n\n" + body)
+    return {"anchor_set": "story", "ref": key, "anchors": anchors, "anchors_derived": derived, "body": body,
+            "cwd": repo}
 
 
 def epic_packet(project: Path, epic_id: str, repo: Path, base: str, runner: Callable = subprocess.run,
