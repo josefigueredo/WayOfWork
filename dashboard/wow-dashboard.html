@@ -306,9 +306,17 @@ const WowCore = (() => {
             hitl: rows.filter(escalated).length, rows};
   }
 
+  // A Product Brain audit verdict as [badge kind, label]; a human decision says so instead of passing for the audit's.
+  function auditBadge(verdict) {
+    const known = {approved: ["approved", "approved"], changes_required: ["changes_required", "changes required"],
+                   approved_by_human: ["approved", "approved by a human"],
+                   rejected_by_human: ["changes_required", "rejected by a human"]};
+    return known[verdict] || ["unknown", "unknown"];
+  }
+
   return {PHASES, VENDORS, arr, validate, phaseState, sumOrNull, median, quantile, vendorKey, pool,
           usageByModel, poolTotals, refEpic, usageByEpic, estimateCost, weekStart, weeklyThroughput, burnup,
-          quality};
+          quality, auditBadge};
 })();
 </script>
 <script id="wow-render">
@@ -563,7 +571,7 @@ const WowRender = (() => {
       const s = cur.pb[doc] || {};
       const packet = `<td class="num">${isNum(s.packet_pct) ? `${s.packet_pct}%` : "—"}${s.packet_errors ? ` · ${fmt(s.packet_errors)} error(s)` : ""}</td>`;
       if (!s.present) return `<tr><td>${esc(doc)}</td>${packet}<td colspan="6" class="muted">no local chat copy yet (wow/pb/chats/${esc(doc)}.md)</td></tr>`;
-      const audit = s.audit ? badge(s.audit === "approved" ? "approved" : s.audit === "changes_required" ? "changes_required" : "unknown") : badge("pending", "not audited");
+      const audit = s.audit ? badge(...C.auditBadge(s.audit)) : badge("pending", "not audited");
       return `<tr><td>${esc(doc)}</td>${packet}<td>${s.closed ? "closed" : "open"}</td><td class="num">${isNum(s.completion_pct) ? `${s.completion_pct}%` : "—"}</td><td>${audit}</td>` +
         `<td class="num">${fmt(s.inventions)}</td><td class="num">${fmt(s.missing_anchors)}</td><td class="num">${fmt(s.open_questions)}</td></tr>`;
     }).join("");

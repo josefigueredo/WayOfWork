@@ -114,6 +114,9 @@ assert.strictEqual(C.quality([]).firstPassRate, null);
 const h = C.quality([{ref: "d", rounds: 3, final: "approved_by_human", first_pass: false},
   {ref: "e", rounds: 3, final: "rejected_by_human", first_pass: false}]);
 assert.deepStrictEqual([h.decided, h.hitl, h.firstPassRate], [2, 2, 0]);
+assert.deepStrictEqual(["approved", "changes_required", "approved_by_human", "rejected_by_human", "weird"].map(C.auditBadge),
+  [["approved", "approved"], ["changes_required", "changes required"], ["approved", "approved by a human"],
+   ["changes_required", "rejected by a human"], ["unknown", "unknown"]]);
 console.log("core ok");
 """
         proc = run_node(js)
