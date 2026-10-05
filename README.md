@@ -128,6 +128,10 @@ Medido en PLATE-504 (piloto IRIS, código de PB en `9b19a89`):
 - **Story points:** PB los busca en el primer campo numérico de la instancia (`jira.client.ts:1342-1348`), que puede ser
   cualquiera ("Valor del Riesgo" en ese Jira).
 
+Cada escritura de WoW en Jira (`wow close --apply`, `wow jira fix-fields --apply`) queda en
+`harness/jira-writes.jsonl`, con hora, comando, issue y qué cambió. Si varias herramientas comparten el mismo token,
+el changelog de Jira no las distingue; ese registro permite al menos confirmar o descartar que un cambio fue de WoW.
+
 `wow manifest lint --pb` avisa antes del export qué componentes no existen en el proyecto. `wow jira fix-fields --epic E1`
 repara después: elige el campo de puntos por nombre en la pantalla de edición, nunca inventa un componente, y escribe
 solo con `--apply`. Si la pantalla del tipo de issue no tiene campo de puntos (como en PLATE), lo dice: eso se arregla

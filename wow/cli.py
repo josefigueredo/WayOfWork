@@ -7,7 +7,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import json
 
@@ -15,6 +15,7 @@ import cites
 import estimate
 import closing
 import jirafields
+import jiralog
 import shellguard
 import config
 import contextpack
@@ -136,9 +137,12 @@ def _cmd_plan_guard(args) -> int:
     return exitcodes.OK
 
 
-def _jira_for(project: Path):
+def _jira_for(project: Path, command: Optional[str] = None):
+    """A Jira client; with `command`, every write it makes is logged in harness/jira-writes.jsonl (wow/jiralog.py)."""
     creds = config.resolve_jira_credentials(project)
-    return JiraClient(creds, timeout=5.0) if creds else None
+    if not creds:
+        return None
+    return JiraClient(creds, timeout=5.0, journal=jiralog.journal(project, command) if command else None)
 
 
 def _jira_component_findings(project: Path, doc: dict) -> list:
@@ -159,7 +163,7 @@ def _cmd_jira_fix_fields(args) -> int:
     project = _project(args)
     creds = config.resolve_jira_credentials(project)
     # The field list of a large Jira (3000+ fields) does not fit the 5 s the quick reads use.
-    jira = JiraClient(creds) if creds else None
+    jira = JiraClient(creds, journal=jiralog.journal(project, f"jira fix-fields --epic {args.epic}")) if creds else None
     if jira is None:
         sys.stderr.write("wow: Jira credentials not found (IC_JIRA_BASE_URL, IC_JIRA_USER_EMAIL, IC_JIRA_API_TOKEN)\n")
         return exitcodes.CANNOT_EVALUATE
@@ -574,7 +578,7 @@ def _cmd_pack(args) -> int:
 
 def _cmd_close(args) -> int:
     project = _project(args)
-    jira = _jira_for(project)
+    jira = _jira_for(project, command=f"close --epic {args.epic}" + (" --subtasks" if args.subtasks else ""))
     if jira is None:
         sys.stderr.write("wow: Jira credentials not found (IC_JIRA_BASE_URL, IC_JIRA_USER_EMAIL, IC_JIRA_API_TOKEN)\n")
         return exitcodes.CANNOT_EVALUATE

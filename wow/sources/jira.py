@@ -19,10 +19,13 @@ class _NotFound(Exception):
 
 
 class JiraClient:
-    def __init__(self, creds: JiraCreds, opener: Optional[Callable] = None, timeout: float = 15.0) -> None:
+    def __init__(self, creds: JiraCreds, opener: Optional[Callable] = None, timeout: float = 15.0,
+                 journal: Optional[Callable[[dict], None]] = None) -> None:
         self._creds = creds
         self._open = opener or urllib.request.urlopen
         self._timeout = timeout
+        # Receives every successful write (wow/jiralog.py); reads are never reported.
+        self._journal = journal or (lambda entry: None)
 
     def _post(self, path: str, body: dict) -> dict:
         return self._send("POST", path, body)
@@ -129,6 +132,7 @@ class JiraClient:
             self._send("POST", path, {"transition": {"id": target["id"]}})
         except _NotFound:
             raise SourceUnavailable(f"jira: {key} rejected the done transition (required fields?)")
+        self._journal({"action": "transition", "key": key, "to": target["to"].get("name", "done")})
         return target["to"].get("name", "done")
 
     # --- fields Product Brain's export leaves wrong (wow jira fix-fields) ---
@@ -173,3 +177,4 @@ class JiraClient:
             self._send("PUT", f"/rest/api/3/issue/{key}", {"fields": fields})
         except _NotFound:
             raise SourceUnavailable(f"jira: {key} rejected the update of {', '.join(fields)}")
+        self._journal({"action": "update", "key": key, "fields": fields})
