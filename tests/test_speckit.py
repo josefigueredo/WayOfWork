@@ -57,6 +57,22 @@ class FeaturesTest(unittest.TestCase):
         [feature] = speckit.features(project)
         self.assertEqual(feature["pending_work_units"], ["WU-002"])
 
+    def test_work_unit_done_when_its_latest_spec_kit_review_approved_it(self):
+        # tasks.shape may write units with no task_ids while tasks.md names no unit: the implement cycle's own
+        # review (.spec-kit/implementation/<WU>-review-<n>.md) is then the evidence a unit is done.
+        project = make_project()
+        write(project, "specs/001-x/spec.md", "**Jira Epic:** IRIS-40\n")
+        write(project, "specs/001-x/tasks.md", "- [x] T001 something\n")
+        write(project, "specs/001-x/work-units.json",
+              '{"work_units": [{"id": "WU-001"}, {"id": "WU-002"}, {"id": "WU-003"}, {"id": "WU-004", "task_ids": ["T009"]}]}')
+        write(project, ".spec-kit/implementation/WU-001-review-1.md", "# Review\n**Status**: APPROVED  \n")
+        write(project, ".spec-kit/implementation/WU-002-review-1.md", "**Status**: APPROVED\n")
+        write(project, ".spec-kit/implementation/WU-002-review-2.md", "**Status**: NEEDS_REVISION\n")
+        write(project, ".spec-kit/implementation/WU-004-review-1.md", "**Status**: APPROVED\n")
+        feature = speckit.features(project)[0]
+        # WU-002's latest review asks for changes; WU-003 has none; WU-004's unchecked task_ids win over a review.
+        self.assertEqual(feature["pending_work_units"], ["WU-002", "WU-003", "WU-004"])
+
     def test_work_units_fallback_and_no_epic(self):
         project = make_project()
         write(project, "specs/002-x/spec.md", "# Spec without epic\n")

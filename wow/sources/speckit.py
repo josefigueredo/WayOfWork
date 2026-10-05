@@ -50,13 +50,32 @@ def work_unit_ids(path: Path) -> List[str]:
     return [item["id"] for item in _work_units(path)]
 
 
-def _unit_done(unit: dict, checked_text: List[str], checked_ids: set) -> bool:
+_REVIEW_STATUS_RE = re.compile(r"^\*\*Status\*\*:\s*(\w+)", re.MULTILINE)
+
+
+def _latest_review_approved(project: Path, unit_id: str) -> bool:
+    """The implement cycle's own verdict: .spec-kit/implementation/<WU>-review-<n>.md, the highest n."""
+    reviews = []
+    for path in (project / ".spec-kit" / "implementation").glob(f"{unit_id}-review-*.md"):
+        suffix = path.stem.rsplit("-", 1)[-1]
+        if suffix.isdigit():
+            reviews.append((int(suffix), path))
+    if not reviews:
+        return False
+    status = _REVIEW_STATUS_RE.search(max(reviews)[1].read_text(encoding="utf-8", errors="replace"))
+    return bool(status) and status.group(1) == "APPROVED"
+
+
+def _unit_done(unit: dict, checked_text: List[str], checked_ids: set, project: Optional[Path] = None) -> bool:
     """A unit that lists its task_ids (as /spec-kit.tasks.shape writes them) is done when all of them are checked;
-    otherwise its id has to appear on a checked task line."""
+    otherwise its id has to appear on a checked task line, or its latest Spec-Kit review has to approve it
+    (tasks.shape does not always write task_ids, and tasks.md does not always name the unit)."""
     task_ids = [t for t in unit.get("task_ids") or [] if isinstance(t, str)]
     if task_ids:
         return all(t in checked_ids for t in task_ids)
-    return any(unit["id"] in text for text in checked_text)
+    if any(unit["id"] in text for text in checked_text):
+        return True
+    return project is not None and _latest_review_approved(project, unit["id"])
 
 
 def features(project: Path) -> List[dict]:
@@ -76,7 +95,7 @@ def features(project: Path) -> List[dict]:
         wu_ids = [unit["id"] for unit in units]
         checked_text = [text for checked, text in parsed["lines"] if checked]
         checked_ids = {m.group(1) for m in (TASK_ID_RE.match(text) for text in checked_text) if m}
-        pending = [unit["id"] for unit in units if not _unit_done(unit, checked_text, checked_ids)]
+        pending = [unit["id"] for unit in units if not _unit_done(unit, checked_text, checked_ids, project)]
         result.append({
             "dir": folder.relative_to(project).as_posix(),
             "epic_key": match.group(1) if match else None,
