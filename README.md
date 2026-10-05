@@ -54,7 +54,7 @@ wow estimate [--history ../epica-anterior]                 # horas y fecha calib
 wow pack prd | wow pack rfc | wow pack epic --id E1         # paquetes para Product Brain
 wow pbchat audit prd --deep                                 # auditar la copia del chat de PB
 wow pbchat audit rfc                                        # con solo chats/rfc.final.md: la sección para pegar en el editor de PB
-wow pbchat audit prd --decide approved --reason "<por qué>"  # veredicto humano cuando PB ya no deja editar (PRD/RFC tras exportar)
+wow pbchat audit prd --decide approved --reason "<por qué>"  # veredicto humano: el owner decide no corregir el documento en PB
 wow jira fix-fields --epic E1 [--apply]                     # tras exportar desde PB: componente, puntos, prioridad y labels de cada historia
 wow plan guard                                              # ¿se puede editar el manifiesto?
 wow plan init 0001-x --title "X" --mode brownfield         # el modo cambia la fase 0 y los prompts

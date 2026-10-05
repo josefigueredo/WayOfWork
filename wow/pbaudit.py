@@ -5,6 +5,7 @@ Corrections are Spanish on purpose: they are pasted back into the Product Brain 
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import re
 import shutil
@@ -209,12 +210,45 @@ def audit(project: Path, doc: str, extra_inventions: Optional[List[dict]] = None
     authoritative = [int(m) for m in AUTHORITATIVE_RE.findall(text) if int(m) <= 100]
     percents = authoritative or [int(m) for m in _COMPLETION_RE.findall(text) if int(m) <= 100]
     fixes = editor_fixes(project, doc)
+    inputs = _inputs_fingerprint(project, doc)
+    previous = _previous_audit(project, doc)
+    same = previous is not None and previous.get("inputs", inputs) == inputs
+    if same and not extra_inventions:
+        # An audit without --deep does not erase what the deep reviewer found in this same material.
+        inventions += [i for i in previous.get("inventions", []) if i.get("source") == "reviewer" and i not in inventions]
     verdict = "approved" if not (missing or inventions or unsupported or fixes) else "changes_required"
-    return {"schema_version": 1, "doc": doc, "verdict": verdict, "closed": parsed["closed"],
-            "completion_pct": percents[-1] if percents else None, "open_questions": open_questions(text),
-            "expected_anchors": expected, "missing_anchors": missing, "unsupported_checks": unsupported,
-            "inventions": inventions, "corrections_to_paste": _corrections(missing, inventions, unsupported),
-            "pb_changes": doc_changes(project, doc), "editor_fixes": editor_fixes(project, doc)}
+    result = {"schema_version": 1, "doc": doc, "verdict": verdict, "closed": parsed["closed"],
+              "completion_pct": percents[-1] if percents else None, "open_questions": open_questions(text),
+              "expected_anchors": expected, "missing_anchors": missing, "unsupported_checks": unsupported,
+              "inventions": inventions, "corrections_to_paste": _corrections(missing, inventions, unsupported),
+              "pb_changes": doc_changes(project, doc), "editor_fixes": fixes, "inputs": inputs}
+    decision = (previous or {}).get("decision")
+    if decision and verdict == "changes_required":
+        if same:
+            result["decision"] = decision
+            result["verdict"] = f"{decision['verdict']}_by_human"
+        else:
+            result["decision_dropped"] = {**decision, "why": "the chat, the panel copy or the packet changed "
+                                                             "after the decision; decide again on the new material"}
+    return result
+
+
+def _inputs_fingerprint(project: Path, doc: str) -> str:
+    """What the audit read: the chat copy, the panel copy and the packet. A human decision and the deep reviewer's
+    findings hold only while these stay the same."""
+    digest = hashlib.sha256()
+    for path in (project / "wow" / "pb" / "chats" / f"{doc}.md", project / "wow" / "pb" / "chats" / f"{doc}.final.md",
+                 project / "wow" / "pb" / f"{doc}.md"):
+        digest.update(path.name.encode() + b"\0" + (path.read_bytes() if path.is_file() else b"") + b"\0")
+    return digest.hexdigest()
+
+
+def _previous_audit(project: Path, doc: str) -> Optional[dict]:
+    path = project / "wow" / "pb" / "chats" / f"{doc}.audit.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 _INVENTION_RE = re.compile(r"^\s*INVENTION\s+(\d+)\s+[—–-]+\s*(.+?)\s+[—–-]+\s*(.+?)\s*$")
@@ -261,8 +295,8 @@ def deep_inventions(project: Path, doc: str, cfg: dict, runner=subprocess.run, w
 
 
 def decide(project: Path, doc: str, verdict: str, reason: str, author: str, now: str) -> dict:
-    """Record a human verdict on an audit whose corrections Product Brain cannot apply (the PRD and RFC are no longer
-    editable once an epic is exported). Only over an existing changes_required audit, with a reason; the findings stay
+    """Record a human verdict on an audit whose document the owner decides not to correct in Product Brain (its editor
+    could; the owner accepts the divergence). Only over an existing changes_required audit, with a reason; the findings stay
     on record and the verdict says it came from a human, never from the audit."""
     if verdict not in ("approved", "rejected"):
         raise ValueError(f"{doc}: the human verdict is approved or rejected, not {verdict!r}")

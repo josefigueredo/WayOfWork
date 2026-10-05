@@ -222,7 +222,7 @@ class TemplateAwareAuditTest(unittest.TestCase):
 
 
 class DecideTest(unittest.TestCase):
-    """A human verdict on an audit Product Brain cannot act on (the PRD and RFC stop being editable after export)."""
+    """A human verdict on an audit the owner decides not to correct in Product Brain."""
 
     def audited(self):
         project = setup()
@@ -235,12 +235,12 @@ class DecideTest(unittest.TestCase):
     def test_human_approval_is_recorded_apart_from_the_audit(self):
         project = self.audited()
         self.assertEqual(self.read(project)["verdict"], "changes_required")
-        result = pbaudit.decide(project, "prd", "approved", "PB locks the PRD after export", "Jo", "2026-10-05T12:00:00Z")
+        result = pbaudit.decide(project, "prd", "approved", "the owner keeps PB as is", "Jo", "2026-10-05T12:00:00Z")
         stored = self.read(project)
         self.assertEqual(result["verdict"], "approved_by_human")
         self.assertEqual(stored["verdict"], "approved_by_human")
         self.assertEqual(stored["decision"], {"by": "human", "author": "Jo", "verdict": "approved",
-                                              "reason": "PB locks the PRD after export",
+                                              "reason": "the owner keeps PB as is",
                                               "at": "2026-10-05T12:00:00Z", "overrides": "changes_required"})
         self.assertTrue(stored["corrections_to_paste"])  # the findings stay on record
         self.assertEqual(schema.validate(stored, schema.load_schema("pbchat-audit")), [])
@@ -268,6 +268,70 @@ class DecideTest(unittest.TestCase):
             pbaudit.decide(project, "prd", "approved", "  ", "Jo", "2026-10-05T12:00:00Z")
         with self.assertRaises(ValueError):
             pbaudit.decide(project, "prd", "maybe", "why", "Jo", "2026-10-05T12:00:00Z")
+
+
+REVIEWER = [{"term": "SLA 99.9%", "line": 3, "text": "SLA 99.9%", "source": "reviewer"}]
+
+
+class CarryOverTest(unittest.TestCase):
+    """Running the audit again on the same material keeps what a person or the deep reviewer already said."""
+
+    def read(self, project):
+        return json.loads((project / "wow/pb/chats/prd.audit.json").read_text(encoding="utf-8"))
+
+    def decided(self):
+        project = setup()
+        pbaudit.write_audit(project, pbaudit.audit(project, "prd"))
+        pbaudit.decide(project, "prd", "approved", "the owner keeps PB as is", "Jo", "2026-10-05T12:00:00Z")
+        return project
+
+    def test_a_new_audit_of_the_same_material_keeps_the_human_decision(self):
+        again = pbaudit.audit(self.decided(), "prd")
+        self.assertEqual(again["verdict"], "approved_by_human")
+        self.assertEqual(again["decision"]["reason"], "the owner keeps PB as is")
+        self.assertEqual(schema.validate(again, schema.load_schema("pbchat-audit")), [])
+
+    def test_a_changed_chat_drops_the_decision_and_says_why(self):
+        project = self.decided()
+        write(project, "wow/pb/chats/prd.md", CHAT + "\nProduct Brain: agregué una sección.\n")
+        again = pbaudit.audit(project, "prd")
+        self.assertEqual(again["verdict"], "changes_required")
+        self.assertNotIn("decision", again)
+        self.assertEqual(again["decision_dropped"]["reason"], "the owner keeps PB as is")
+        self.assertIn("changed", again["decision_dropped"]["why"])
+        self.assertEqual(schema.validate(again, schema.load_schema("pbchat-audit")), [])
+
+    def test_an_audit_without_deep_keeps_the_deep_findings_of_the_same_material(self):
+        project = setup()
+        pbaudit.write_audit(project, pbaudit.audit(project, "prd", extra_inventions=REVIEWER))
+        quick = pbaudit.audit(project, "prd")
+        self.assertIn(REVIEWER[0], quick["inventions"])
+        self.assertEqual(quick["verdict"], "changes_required")
+
+    def test_deep_findings_do_not_survive_a_change_of_material(self):
+        project = setup()
+        pbaudit.write_audit(project, pbaudit.audit(project, "prd", extra_inventions=REVIEWER))
+        write(project, "wow/pb/chats/prd.md", CHAT + "\nProduct Brain: listo.\n")
+        self.assertNotIn(REVIEWER[0], pbaudit.audit(project, "prd")["inventions"])
+
+    def test_an_audit_file_written_before_fingerprints_keeps_its_decision_once(self):
+        project = self.decided()
+        legacy = self.read(project)
+        legacy.pop("inputs", None)
+        write(project, "wow/pb/chats/prd.audit.json", json.dumps(legacy))
+        again = pbaudit.audit(project, "prd")
+        self.assertEqual(again["verdict"], "approved_by_human")
+        self.assertTrue(again["inputs"])
+
+
+    def test_the_cli_says_whether_the_decision_was_kept_or_dropped(self):
+        from helpers import run_cli
+        project = self.decided()
+        code, out, _ = run_cli(["pbchat", "audit", "prd", "--project", str(project)])
+        self.assertEqual((code, "human decision kept" in out), (0, True))
+        write(project, "wow/pb/chats/prd.md", CHAT + "\nProduct Brain: listo.\n")
+        code, out, _ = run_cli(["pbchat", "audit", "prd", "--project", str(project)])
+        self.assertEqual((code, "human decision dropped" in out), (1, True))
 
 
 if __name__ == "__main__":

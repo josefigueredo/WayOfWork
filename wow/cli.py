@@ -638,6 +638,12 @@ def _cmd_pbchat_audit(args) -> int:
         return exitcodes.FINDINGS
     pbaudit.write_audit(project, result)
     print(f"verdict: {result['verdict']}")
+    if result.get("decision"):
+        print(f"human decision kept ({result['decision']['author']}, {result['decision']['at']}): the material "
+              f"is the one it was decided on — {result['decision']['reason']}")
+    if result.get("decision_dropped"):
+        print(f"human decision dropped: {result['decision_dropped']['why']} "
+              f"(it said: {result['decision_dropped']['reason']})")
     if result["corrections_to_paste"]:
         print(result["corrections_to_paste"])
     changes = result["pb_changes"]
@@ -649,7 +655,7 @@ def _cmd_pbchat_audit(args) -> int:
         for change in changes:
             print(f"{change['op']} [{change['section']}] {change['text'][:160]}")
     _print_editor_fixes(result["editor_fixes"])
-    return exitcodes.OK if result["verdict"] == "approved" else exitcodes.FINDINGS
+    return exitcodes.OK if result["verdict"] in ("approved", "approved_by_human") else exitcodes.FINDINGS
 
 
 def _cmd_context_scan(args) -> int:
@@ -821,8 +827,8 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("doc", help="prd | rfc | epic-E<n>")
     pa.add_argument("--deep", action="store_true", help="also ask an independent reviewer")
     pa.add_argument("--decide", default=None, choices=["approved", "rejected"],
-                    help="record a human verdict on a changes_required audit Product Brain cannot act on "
-                         "(the PRD and RFC are no longer editable after export); needs --reason")
+                    help="record a human verdict on a changes_required audit whose document the owner decides "
+                         "not to correct in Product Brain; needs --reason")
     pa.add_argument("--reason", default=None, help="why the human decided (required with --decide)")
     pa.set_defaults(handler=_cmd_pbchat_audit)
 

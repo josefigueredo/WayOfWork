@@ -163,7 +163,7 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
                                models["product_brain"], f"paste the preamble and wow/pb/{doc_name}.md",
                                f"wow/pb/chats/{doc_name}.md is missing or not closed"))
             return finish(3)
-        if chat["audit"] not in REVIEW_CLOSED:  # a human may approve what Product Brain cannot fix
+        if chat["audit"] not in REVIEW_CLOSED:  # the owner may accept a document they decide not to correct
             steps.append(_step(eid, 3, f"audit the {label} chat", "harness", models["reviewer"], "wow-pb-audit",
                                f"audit verdict is {chat['audit']}"))
             return finish(3)

@@ -389,7 +389,7 @@ class PbchatAuditCommandTest(unittest.TestCase):
     def test_decide_answers_an_audit_product_brain_cannot_fix(self):
         project = make_project()
         write(project, "wow/pb/chats/prd.md", "llega al 100%\n✅ Todo listo.\n")
-        decide = ["pbchat", "audit", "prd", "--decide", "approved", "--reason", "PB locks the PRD after export",
+        decide = ["pbchat", "audit", "prd", "--decide", "approved", "--reason", "the owner keeps PB as is",
                   "--project", str(project)]
         self.assertEqual(run_cli(decide)[0], 2)  # no audit yet
         self.assertEqual(run_cli(["pbchat", "audit", "prd", "--project", str(project)])[0], 1)
@@ -399,7 +399,7 @@ class PbchatAuditCommandTest(unittest.TestCase):
         self.assertIn("prd: approved by a human", out)
         audit = _json.loads((project / "wow/pb/chats/prd.audit.json").read_text(encoding="utf-8"))
         self.assertEqual(audit["verdict"], "approved_by_human")
-        self.assertEqual(audit["decision"]["reason"], "PB locks the PRD after export")
+        self.assertEqual(audit["decision"]["reason"], "the owner keeps PB as is")
 
 class PbchatDeepAuditCommandTest(unittest.TestCase):
     def test_deep_audit_adds_reviewer_inventions(self):

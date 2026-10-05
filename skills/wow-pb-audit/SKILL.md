@@ -24,11 +24,15 @@ description: Audit the local copy of a Product Brain chat (PRD, RFC or epic) aga
 6. Review only the `+`/`-` lines the audit prints ("Product Brain changed N lines against the packet"):
    a registro packet already scores 100%, so every change is Product Brain's own. Keep it, or paste a
    correction that restores the packet line.
-7. When Product Brain cannot apply the corrections (the PRD and RFC stop being editable once an epic is exported),
-   the audit stays at changes_required and holds every later phase. The user decides, not you: hand them
-   `wow pbchat audit <doc> --decide approved|rejected --reason "<why>"`. It only answers an existing
-   changes_required audit, keeps the findings on record and stores `approved_by_human` with author, reason and
-   date; `wow state` lets an `approved_by_human` audit through, never a `rejected_by_human` one.
+7. Corrections go first: the chat for what the agent can redo, and Product Brain's document editor for the
+   rest (its markdown stays editable after the export; the audit prints the sections to paste). Only when the
+   owner decides not to correct a document does the audit stay at changes_required and hold every later phase.
+   The user decides, not you: hand them `wow pbchat audit <doc> --decide approved|rejected --reason "<why>"`,
+   with a reason that names what diverges and why it is accepted. It only answers an existing changes_required
+   audit, keeps the findings on record and stores `approved_by_human` with author, reason and date; `wow state`
+   lets it through, never a `rejected_by_human` one. A new audit of the same material (chat copy, panel copy and
+   packet, by fingerprint) keeps the decision and the deep reviewer's findings; once any of them changes, the
+   decision is dropped and the audit says so.
 
 ## Rules
 

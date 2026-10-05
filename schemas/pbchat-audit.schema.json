@@ -19,6 +19,8 @@
                  "properties": {"by": {"enum": ["human"]}, "author": {"type": "string"},
                                 "verdict": {"enum": ["approved", "rejected"]}, "reason": {"type": "string", "minLength": 1},
                                 "at": {"type": "string"}, "overrides": {"enum": ["changes_required"]}}},
+    "inputs": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "decision_dropped": {"type": "object", "required": ["verdict", "reason", "why"]},
     "pb_changes": {"type": ["array", "null"],
                    "items": {"type": "object", "required": ["op", "section", "text"]}}
   }
