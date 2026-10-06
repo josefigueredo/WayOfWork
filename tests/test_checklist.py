@@ -34,6 +34,17 @@ class ManualTest(unittest.TestCase):
     def test_ticked_without_evidence_is_reported(self):
         self.assertEqual(checklist.unproven(self.TEXT), ["Probar en el navegador"])
 
+    def test_prose_under_manual_survives_a_rewrite(self):
+        # Review I5: only `- [` lines were kept; a continuation line or a note vanished on the next run.
+        text = ("# x\n\n## Manual\n\nTildá con `[x]` y escribí …\n\n"
+                "- [x] Demo al equipo — evidencia: grabación del viernes\n  link en el canal #plate\n\n"
+                "Nota: falta coordinar con QA.\n")
+        kept = checklist.manual_section(text)
+        self.assertEqual(kept, "- [x] Demo al equipo — evidencia: grabación del viernes\n  link en el canal #plate\n\n"
+                               "Nota: falta coordinar con QA.")
+        self.assertEqual(checklist.manual_section(checklist.render("Flujo PB", [Item("a", "A", "done")], kept)), kept)
+        self.assertEqual([i.state for i in checklist.manual_items(text)], ["done"])
+
     def test_the_manual_section_survives_a_rewrite(self):
         kept = checklist.manual_section(self.TEXT)
         self.assertIn("- [ ] Pedir acceso", kept)

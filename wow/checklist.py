@@ -30,14 +30,18 @@ def percent(items: List[Item]) -> int:
 
 
 def manual_section(text: str) -> str:
-    """The item lines under '## Manual', verbatim."""
+    """Everything the user wrote under '## Manual', verbatim (items, continuation lines, notes), minus the template's
+    own instruction paragraph, which render() writes again."""
     _, _, tail = (text or "").partition("\n## Manual\n")
-    return "\n".join(line for line in tail.splitlines() if line.startswith("- [")).strip()
+    lines = tail.strip().splitlines()
+    if lines and lines[0].startswith("Tildá con"):  # only that line: items may follow it with no blank line
+        lines = lines[1:]
+    return "\n".join(lines).strip()
 
 
 def manual_items(text: str) -> List[Item]:
     items = []
-    for n, line in enumerate(manual_section(text).splitlines()):
+    for n, line in enumerate(l for l in manual_section(text).splitlines() if l.startswith("- [")):
         match = _MANUAL.match(line)
         if match:
             ticked, label, evidence = match.group(1).lower() == "x", match.group(2), (match.group(3) or "").strip()

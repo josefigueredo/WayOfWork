@@ -375,11 +375,12 @@ def _cmd_progress(args) -> int:
 
 def _cmd_sk_ric(args) -> int:
     action = args.sk_command
-    if action == "run":
-        reason = skrun.refuse(args.command)
-        if reason:
-            sys.stderr.write(f"wow: {reason}\n")
-            return exitcodes.FINDINGS
+    # A reply starting with / runs as a slash command, so send is checked as well as run.
+    reason = {"run": lambda: skrun.refuse(args.command), "send": lambda: skrun.refuse_reply(args.text),
+              "quit": lambda: None}[action]()
+    if reason:
+        sys.stderr.write(f"wow: {reason}\n")
+        return exitcodes.FINDINGS
     if not skrun.ric_path().is_file():
         sys.stderr.write(f"wow: {skrun.ric_path()} not found: install run-in-cursor (its install.sh) or set WOW_RIC\n")
         return exitcodes.CANNOT_EVALUATE
