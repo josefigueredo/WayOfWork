@@ -191,9 +191,12 @@ def _cmd_jira_fix_fields(args) -> int:
     writable = [c for c in result["changes"] if c["fields"]]
     print(f"{result['key']}: {len(writable)} stor{'y' if len(writable) == 1 else 'ies'} to fix")
     if not args.apply:
+        jirafields.record_check(project, result)  # what the dry run measured feeds wow progress
         print("dry run: nothing changed; --apply writes these fields in Jira")
         return exitcodes.OK
     errors = jirafields.apply(result, jira)
+    if not errors:
+        jirafields.record_check(project, dict(result, changes=[]))
     for error in errors:
         print(f"error: {error}")
     if not errors:

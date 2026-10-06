@@ -121,6 +121,29 @@ class PlanTest(unittest.TestCase):
         self.assertEqual([key for key, _ in jira.updates], ["IRIS-41", "IRIS-42"])
 
 
+class CheckRecordTest(unittest.TestCase):
+    """A dry run that measures the stories is evidence too: it says what is still wrong, even when nothing is.
+
+    IRIS's --apply predates harness/jira-writes.jsonl, so the checklist could not tell the fields were right;
+    the dry run of 2026-10-06 measured 0 stories to fix.
+    """
+
+    def test_a_clean_dry_run_records_zero_to_fix(self):
+        project = make_project()
+        manifest.save(project, _doc())
+        right = [dict(STORIES[0], components=["be"], labels=["backend"], priority="High", points=3)]
+        jirafields.record_check(project, jirafields.plan(project, "E1", FakeJira(stories=right)), now=lambda: "T1")
+        self.assertEqual(jirafields.checks(project), {"IRIS-40": {"epic": "E1", "fixable": 0, "at": "T1"}})
+
+    def test_pending_stories_are_counted_and_a_later_check_replaces_it(self):
+        project = make_project()
+        manifest.save(project, _doc())
+        jirafields.record_check(project, jirafields.plan(project, "E1", FakeJira()), now=lambda: "T1")
+        self.assertEqual(jirafields.checks(project)["IRIS-40"]["fixable"], 2)
+        jirafields.record_check(project, {"key": "IRIS-40", "epic": "E1", "changes": [], "blockers": []}, now=lambda: "T2")
+        self.assertEqual(jirafields.checks(project)["IRIS-40"], {"epic": "E1", "fixable": 0, "at": "T2"})
+
+
 class CliTest(unittest.TestCase):
     def test_fix_fields_without_credentials_cannot_evaluate(self):
         project = make_project()

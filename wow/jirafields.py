@@ -11,6 +11,8 @@ WoW never invents a component: one the project does not have is reported and lef
 """
 from __future__ import annotations
 
+import datetime as _dt
+import json
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -118,3 +120,32 @@ def apply(result: dict, jira) -> List[str]:
         except Exception as exc:  # noqa: BLE001 — one rejected issue must not hide the others
             errors.append(f"{change['key']}: {exc}")
     return errors
+
+
+CHECKS = Path("harness") / "jira-fields-checks.json"
+
+
+def _utc_now() -> str:
+    return _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def checks(project: Path) -> Dict[str, dict]:
+    """The last measured state of each epic's story fields, by Jira key (wow progress reads it)."""
+    path = project / CHECKS
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def record_check(project: Path, result: dict, now=_utc_now) -> None:
+    """Keep what a plan measured: how many stories still need a field. A run with blockers measured nothing."""
+    if not result.get("key") or result.get("blockers"):
+        return
+    data = checks(project)
+    data[result["key"]] = {"epic": result["epic"], "fixable": sum(1 for c in result["changes"] if c["fields"]),
+                           "at": now()}
+    path = project / CHECKS
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+

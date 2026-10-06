@@ -163,7 +163,7 @@ disparar `stop`.
 
 ### Checklists
 
-`wow progress` deriva cada ítem de evidencia (archivos, reviews, Jira, `harness/jira-writes.jsonl`): `[x]` hecho,
+`wow progress` deriva cada ítem de evidencia (archivos, reviews, Jira, `harness/jira-writes.jsonl` y lo que midió la última simulación de `wow jira fix-fields` en `harness/jira-fields-checks.json`): `[x]` hecho,
 `[ ]` pendiente, `[-]` no aplica, `[?]` sin verificar (Jira caído o sin registro; nunca cuenta como hecho). La sección
 "Manual" de cada archivo se conserva entre corridas, y un ítem tildado cuenta solo si trae `— evidencia: …`. La forma
 del archivo vive en `wow/templates/checklist.md`.

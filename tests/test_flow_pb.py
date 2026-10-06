@@ -61,6 +61,21 @@ class FlowPbTest(unittest.TestCase):
         self.assertEqual(item.state, "unverified")
         self.assertIn("wow jira fix-fields --epic E1", item.evidence)
 
+    def test_a_measured_clean_dry_run_ticks_the_repair(self):
+        p = project_at_phase_3()
+        write(p, "harness/jira-fields-checks.json",
+              json.dumps({"IRIS-40": {"epic": "E1", "fixable": 0, "at": "2026-10-06T17:30:00Z"}}))
+        jira = FakeJira({"IRIS-40": dict(summary("IRIS-40", stories(p), 0), story_keys=["IRIS-41"])})
+        item = next(i for i in flow_pb.items(p, CFG, jira) if i.id == "fix-fields-E1")
+        self.assertEqual((item.state, item.evidence), ("done", "simulación sin pendientes, 2026-10-06T17:30:00Z"))
+
+    def test_a_dry_run_with_stories_to_fix_keeps_it_pending(self):
+        p = project_at_phase_3()
+        write(p, "harness/jira-fields-checks.json", json.dumps({"IRIS-40": {"epic": "E1", "fixable": 2, "at": "T"}}))
+        jira = FakeJira({"IRIS-40": dict(summary("IRIS-40", stories(p), 0), story_keys=["IRIS-41"])})
+        item = next(i for i in flow_pb.items(p, CFG, jira) if i.id == "fix-fields-E1")
+        self.assertEqual((item.state, item.evidence), ("todo", "2 historias por corregir (simulación de T)"))
+
     def test_an_unexported_epic_has_no_jira_items_yet(self):
         got = states(flow_pb.items(project_at_phase_3(frozen=False), CFG, None))
         self.assertEqual(got["export-E1"], "todo")

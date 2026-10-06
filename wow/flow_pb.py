@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import jirafields
 import manifest
 import pbcompletion
 from checklist import Item
@@ -109,6 +110,13 @@ def items(project: Path, cfg: dict, jira) -> List[Item]:
         out.append(Item(f"stories-{eid}", f"Historias de {key} completas en Jira", "done" if complete else "todo",
                         f"{found['stories']} de {expected}"))
         label = f"Campos de {key} corregidos (wow jira fix-fields)"
+        measured = jirafields.checks(project).get(key)
+        if measured is not None:  # what the last fix-fields run measured on the stories beats any log
+            done = measured["fixable"] == 0
+            note = (f"simulación sin pendientes, {measured['at']}" if done
+                    else f"{measured['fixable']} historias por corregir (simulación de {measured['at']})")
+            out.append(Item(f"fix-fields-{eid}", label, "done" if done else "todo", note))
+            continue
         if not (project / "harness" / "jira-writes.jsonl").is_file():
             # No log at all (it exists since 2026-10-05): nothing says whether a repair ran before it, so say how to
             # check instead of calling it pending. The dry run lists what is still wrong.
