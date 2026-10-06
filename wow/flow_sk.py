@@ -17,21 +17,11 @@ from typing import List, Optional
 import estimate
 import sk
 from checklist import Item
+from reviews import CLOSED as REVIEW_CLOSED, final as _review_final
 from sources import SourceUnavailable, speckit
 
-REVIEW_CLOSED = ("approved", "approved_by_human")  # same as state.REVIEW_CLOSED; state imports this module
 _REGISTRY = Path("wow") / "sk" / "epics.json"
 KEY_RE = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
-
-
-def _review_final(project: Path, ref: str) -> Optional[str]:
-    path = project / "wow" / "reviews" / f"{ref}.json"
-    if not path.is_file():
-        return None
-    try:
-        return json.loads(path.read_text(encoding="utf-8")).get("final")
-    except (json.JSONDecodeError, AttributeError):
-        return None
 
 
 def registered(project: Path) -> List[str]:

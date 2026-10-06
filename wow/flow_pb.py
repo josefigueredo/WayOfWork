@@ -14,7 +14,7 @@ import manifest
 import pbcompletion
 from checklist import Item
 from sources import SourceUnavailable, pbchat, repo
-from state import REVIEW_CLOSED
+from reviews import CLOSED as REVIEW_CLOSED
 
 _LABEL = {"prd": "PRD", "rfc": "RFC"}
 

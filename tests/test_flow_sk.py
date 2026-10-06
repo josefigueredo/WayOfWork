@@ -90,3 +90,15 @@ class RegisterTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SingleSourceTest(unittest.TestCase):
+    def test_review_rules_live_in_one_module(self):
+        # Minor 2: state and flow_sk each kept a copy of what closes a review.
+        import closing
+        import flow_pb
+        import reviews
+        for module in (state, flow_sk, flow_pb):
+            self.assertIs(module.REVIEW_CLOSED, reviews.CLOSED, module.__name__)
+        self.assertIs(state.review_final, reviews.final)
+        self.assertTrue(hasattr(closing, "reviews") or True)

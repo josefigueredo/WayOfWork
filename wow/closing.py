@@ -13,7 +13,7 @@ from typing import List
 
 import manifest
 from sources import SourceUnavailable, speckit
-from state import REVIEW_CLOSED, review_final
+from reviews import CLOSED as REVIEW_CLOSED, final as review_final
 
 _ORDER = {"subtask": 0, "epic": 1}
 

@@ -1,31 +1,17 @@
 """Derive plan and epic phases plus ranked next steps from the read-only sources (spec 6)."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import manifest
 import pbcompletion
 import flow_sk
-import sk
+from reviews import CLOSED as REVIEW_CLOSED, final as review_final  # noqa: F401  (re-exported)
 from sources import SourceUnavailable, pbchat, repo, speckit
 
 _WHERE_RANK = {"human": 0, "harness": 1, "product-brain": 1, "terminal": 1, "cursor": 2}
 _CHAT_LABEL = {"prd": "PRD", "rfc": "RFC"}
-# A review is closed by the reviewer's approval or, after HITL, by a recorded human approval.
-REVIEW_CLOSED = ("approved", "approved_by_human")
-
-
-def review_final(project: Path, ref: str) -> Optional[str]:
-    path = project / "wow" / "reviews" / f"{ref}.json"
-    if not path.is_file():
-        return None
-    try:
-        return json.loads(path.read_text(encoding="utf-8")).get("final")
-    except (json.JSONDecodeError, AttributeError):
-        return None
-
 
 def _step(epic, phase, action, where, model, command, why) -> dict:
     return {"epic": epic, "phase": phase, "action": action, "where": where,

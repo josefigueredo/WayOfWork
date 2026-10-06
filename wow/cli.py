@@ -32,6 +32,7 @@ import pbaudit
 import progress as progress_mod
 import refs
 import review as review_mod
+import reviews
 import reviewers
 import runwu
 import sk
@@ -734,7 +735,7 @@ def _cmd_pbchat_audit(args) -> int:
         for change in changes:
             print(f"{change['op']} [{change['section']}] {change['text'][:160]}")
     _print_editor_fixes(result["editor_fixes"])
-    return exitcodes.OK if result["verdict"] in ("approved", "approved_by_human") else exitcodes.FINDINGS
+    return exitcodes.OK if result["verdict"] in reviews.CLOSED else exitcodes.FINDINGS
 
 
 def _cmd_context_scan(args) -> int:
