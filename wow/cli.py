@@ -17,16 +17,19 @@ import closing
 import jirafields
 import jiralog
 import shellguard
+import skrun
 import config
 import contextpack
 import evidence
 import exitcodes
+import flow_sk
 import links
 import manifest
 import pack
 import packets
 import pbcompletion
 import pbaudit
+import progress as progress_mod
 import refs
 import review as review_mod
 import reviewers
@@ -336,6 +339,59 @@ def _cmd_sk_cmd(args) -> int:
         return exitcodes.CANNOT_EVALUATE
     for line in lines:
         print(line)
+    return exitcodes.OK
+
+
+def _cmd_progress(args) -> int:
+    if args.line:
+        # The statusline calls this before every prompt with one second to answer: never fail, never print errors.
+        try:
+            data = json.loads(sys.stdin.read() or "{}")
+            folder = (data.get("workspace") or {}).get("current_dir") or data.get("cwd") or "."
+            text = progress_mod.line(Path(folder).resolve())
+        except Exception:  # noqa: BLE001
+            text = ""
+        if text:
+            print(text)
+        return exitcodes.OK
+    project = _project(args)
+    try:
+        cfg = config.load_config(project)
+    except config.ConfigError as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    result = progress_mod.write(project, cfg, _jira_for(project))
+    flows = [("Flujo PB", progress_mod.DIR / "pb.md", result["pb"])] + \
+            [(f"Flujo SK {key}", progress_mod.DIR / f"sk-{key}.md", v) for key, v in result["sk"].items()]
+    for title, rel, summary in flows:
+        print(f"{title:<22} {summary['percent']:>3}%  ({summary['done']} de {summary['total']})  {rel}")
+        for line in (project / rel).read_text(encoding="utf-8").splitlines():
+            if line.startswith(("- [ ]", "- [?]")):
+                print(f"    {line[2:]}")
+    for label in result["manual_without_evidence"]:
+        print(f"! ticked without evidence, not counted: {label}")
+    return exitcodes.OK
+
+
+def _cmd_sk_ric(args) -> int:
+    action = args.sk_command
+    # A reply starting with / runs as a slash command, so send is checked as well as run.
+    reason = {"run": lambda: skrun.refuse(args.command), "send": lambda: skrun.refuse_reply(args.text),
+              "quit": lambda: None}[action]()
+    if reason:
+        sys.stderr.write(f"wow: {reason}\n")
+        return exitcodes.FINDINGS
+    if not skrun.ric_path().is_file():
+        sys.stderr.write(f"wow: {skrun.ric_path()} not found: install run-in-cursor (its install.sh) or set WOW_RIC\n")
+        return exitcodes.CANNOT_EVALUATE
+    rest = {"run": lambda: [args.command], "send": lambda: [args.session, args.text],
+            "quit": lambda: [args.session]}[action]()
+    return subprocess.run(skrun.argv(action, rest, _project(args))).returncode  # the user sees ric's screen as is
+
+
+def _cmd_sk_start(args) -> int:
+    added = flow_sk.register(_project(args), args.key)
+    print(f"{'tracking' if added else 'already tracked'} {args.key}")
     return exitcodes.OK
 
 
@@ -903,6 +959,22 @@ def build_parser() -> argparse.ArgumentParser:
     skc.add_argument("--epic", default=None)
     skc.add_argument("--feature", default=None)
     skc.set_defaults(handler=_cmd_sk_cmd)
+    skr = with_project(sksub.add_parser("run", help="send a /spec-kit.* command to Cursor (interactive, recorded)"))
+    skr.add_argument("command")
+    skr.set_defaults(handler=_cmd_sk_ric)
+    skn = with_project(sksub.add_parser("send", help="answer in a running Cursor session"))
+    skn.add_argument("session")
+    skn.add_argument("text")
+    skn.set_defaults(handler=_cmd_sk_ric)
+    skq = with_project(sksub.add_parser("quit", help="leave a Cursor session"))
+    skq.add_argument("session")
+    skq.set_defaults(handler=_cmd_sk_ric)
+    sst = with_project(sksub.add_parser("start", help="follow a Jira epic in the Spec-Kit flow, wherever it came from"))
+    sst.add_argument("key")
+    sst.set_defaults(handler=_cmd_sk_start)
+    pr = with_project(sub.add_parser("progress", help="write and print the checklist of each flow, with %% complete"))
+    pr.add_argument("--line", action="store_true", help="one line for the statusline (reads JSON on stdin, no network)")
+    pr.set_defaults(handler=_cmd_progress)
     sks = with_project(sksub.add_parser("status"))
     sks.add_argument("--feature", default=None)
     sks.set_defaults(handler=_cmd_sk_status)

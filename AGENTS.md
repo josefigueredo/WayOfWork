@@ -13,8 +13,11 @@ iniciativa por Product Brain (registro), Spec-Kit (ejecución en Cursor) y Jira,
 
 ## Usar
 
-- Empezá siempre por la skill `wow-guide` (o `wow state`): devuelve la fase, los bloqueos y a lo sumo 3 pasos con dónde
-  hacerlos. No infieras el estado leyendo archivos a mano.
+- Empezá siempre por la skill `wow-guide` (o `wow progress` y `wow state`): devuelve los dos flujos (PB y SK por épica)
+  con su %, los bloqueos y a lo sumo 3 pasos con dónde hacerlos. No infieras el estado leyendo archivos a mano, y no
+  tildes a mano un ítem derivado del checklist.
+- Los `/spec-kit.*` se pueden mandar a Cursor con `wow sk run` (cursor-agent interactivo vía la skill run-in-cursor,
+  registrado como si se tipeara), salvo `/spec-kit.sync-status`, que escribe en Jira y lo corre el usuario en Cursor.
 - Las skills no se encadenan: cada una hace un paso y vuelve a la guía.
 - `wow close --apply` es la única escritura hacia afuera (transiciona issues en Jira). Mostrá primero el dry-run y pedí
   confirmación. Las historias las cierra Spec-Kit (`sync-status`), nunca `wow`.

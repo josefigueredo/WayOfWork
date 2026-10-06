@@ -7,7 +7,7 @@ from typing import List, Optional
 
 import manifest
 import pbcompletion
-import estimate
+import flow_sk
 import sk
 from sources import SourceUnavailable, pbchat, repo, speckit
 
@@ -131,12 +131,28 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
             epics_out.append(out["epic"])
             steps.extend(out["steps"])
 
+    exported = {e["jira"] for e in epics_out if e.get("jira")}
+    mode = doc["plan"].get("mode") if doc is not None else None
+    for key in flow_sk.registered(project):  # epics that reach Spec-Kit without Product Brain (jk, by hand)
+        if key in exported:
+            continue
+        shell = {"id": key, "title": key, "jira": key, "jira_url": None, "phase": 4, "reason": None,
+                 "progress": None, "missing": []}
+        out = _sk_epic(project, cfg, shell, key, jira, sources, mode=mode)
+        epics_out.append(out["epic"])
+        steps.extend(out["steps"])
+
     ranked = sorted(steps, key=lambda s: (_WHERE_RANK[s["where"]], s["phase"]))
     return {"schema_version": 1, "plan": plan, "epics": epics_out, "blockers": blockers,
             "next_steps": ranked[:3], "steps_total": len(steps), "sources": sources}
 
 
 def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) -> dict:
+    """Product Brain's phase 3 while the epic has no Jira key; with a key, the Spec-Kit flow (flow_sk) takes over.
+
+    The two flows meet only at the key: once the epic is in Jira, what Product Brain still lacks (a chat, an audit)
+    shows in its own checklist and no longer holds Spec-Kit back.
+    """
     models = cfg["models"]
     eid = epic["id"]
     key = doc["plan"]["export"]["epics"].get(eid)
@@ -149,112 +165,55 @@ def _epic_state(project, cfg, doc, epic, features, jira, plan_phase, sources) ->
         out["missing"] = [s["action"] for s in steps if not s.get("recommended")]
         return {"epic": out, "steps": steps}
 
+    if key:
+        # Product Brain only registers the work: once the epic is in Jira, what its chats still lack is recommended,
+        # never blocking. A human rejection is the one exception: someone decided the document is wrong.
+        for doc_name in ("prd", "rfc", f"epic-{eid}"):
+            label = _CHAT_LABEL.get(doc_name, f"epic {eid}")
+            chat = pbchat.chat_status(project, doc_name)
+            if not chat["present"]:
+                step = _step(eid, 3, f"copy the {label} chat from Product Brain", "product-brain", None,
+                             f"save it as wow/pb/chats/{doc_name}.md", "the audit needs the local copy")
+            elif chat["audit"] not in REVIEW_CLOSED:
+                step = _step(eid, 3, f"audit the {label} chat", "harness", models["reviewer"], "wow-pb-audit",
+                             f"audit verdict is {chat['audit']}")
+                if chat["audit"] == "rejected_by_human":
+                    steps.append(step)
+                    return finish(3)
+            else:
+                continue
+            step["recommended"] = True
+            steps.append(step)
+        result = _sk_epic(project, cfg, out, key, jira, sources, expected=len(epic["tasks"]), ref=eid,
+                          mode=doc["plan"].get("mode"), features=features)
+        result["steps"] = steps + result["steps"]
+        return result
     if plan_phase < 3:
         return finish(plan_phase)
 
-    # Phase 3: PRD, RFC and epic chats closed and audited, epic exported with all stories.
+    # Phase 3: PRD, RFC and epic chats closed and audited, then the epic exported.
     for doc_name in ("prd", "rfc", f"epic-{eid}"):
         label = _CHAT_LABEL.get(doc_name, f"epic {eid}")
         chat = pbchat.chat_status(project, doc_name)
-        # The closing phrase only tells whether a chat finished before export; once the epic has a Jira key,
-        # Jira is the truth and the copied, audited chat is enough.
-        if not chat["present"] or (not chat["closed"] and not key):
+        if not chat["present"] or not chat["closed"]:
             steps.append(_step(eid, 3, f"finish the {label} chat in Product Brain", "product-brain",
                                models["product_brain"], f"paste the preamble and wow/pb/{doc_name}.md",
                                f"wow/pb/chats/{doc_name}.md is missing or not closed"))
             return finish(3)
         if chat["audit"] not in REVIEW_CLOSED:  # the owner may accept a document they decide not to correct
-            step = _step(eid, 3, f"audit the {label} chat", "harness", models["reviewer"], "wow-pb-audit",
-                         f"audit verdict is {chat['audit']}")
-            # Product Brain only registers the work: once the epic is in Jira the audit keeps recording what
-            # diverges but no longer gates the implementation. A human rejection still does.
-            if key and chat["audit"] != "rejected_by_human":
-                step["recommended"] = True
-                steps.append(step)
-                continue
-            steps.append(step)
+            steps.append(_step(eid, 3, f"audit the {label} chat", "harness", models["reviewer"], "wow-pb-audit",
+                               f"audit verdict is {chat['audit']}"))
             return finish(3)
-    if not key:
-        steps.append(_step(eid, 3, f"export epic {eid} to Jira and record its key", "product-brain", None,
-                           f"wow plan freeze --epics {eid}=<KEY>", "the manifest has no Jira key for this epic"))
-        return finish(3)
-    if jira is None:
-        out["reason"] = "jira not configured"
-        return finish("unknown")
-    try:
-        summary = jira.epic_summary(key)
-    except SourceUnavailable as exc:
-        sources["jira"] = str(exc)
-        out["reason"] = str(exc)
-        return finish("unknown")
-    out["jira_url"] = summary["url"]
-    expected = len(epic["tasks"])
-    if not summary["exists"] or summary["stories"] < expected:
-        steps.append(_step(eid, 3, f"complete the stories of {key} in Jira", "product-brain", None,
-                           "re-export the epic from Product Brain",
-                           f"Jira has {summary['stories']} of {expected} stories"))
-        return finish(3)
+    steps.append(_step(eid, 3, f"export epic {eid} to Jira and record its key", "product-brain", None,
+                       f"wow plan freeze --epics {eid}=<KEY>", "the manifest has no Jira key for this epic"))
+    return finish(3)
 
-    # Phase 4: Spec-Kit feature synced and planned.
-    feature = next((f for f in features if f["epic_key"] == key), None)
-    if feature is None and doc["plan"].get("mode") == "brownfield" \
-            and not (project / ".spec-kit" / "discovery" / "architecture.md").is_file():
-        # Spec-Kit plans brownfield work from its discovery; Product Brain does not need it.
-        steps.append(_step(eid, 4, "run Spec-Kit discovery on the existing code", "cursor",
-                           models["cursor_reason"], "/spec-kit.discovery",
-                           "Spec-Kit plans brownfield epics from .spec-kit/discovery/architecture.md"))
-        return finish(4)
-    if feature is None:
-        steps.append(_step(eid, 4, "sync the epic into Spec-Kit", "cursor", models["cursor_generate"],
-                           sk.commands_for("sync", cfg, epic=key)[0], f"no specs/*/spec.md declares **Jira Epic:** {key}"))
-        return finish(4)
-    if not feature["has_plan"]:
-        steps.append(_step(eid, 4, "ratify the plan", "cursor", models["cursor_reason"],
-                           sk.commands_for("plan", cfg, feature=feature["dir"])[0], "plan.md is missing"))
-        return finish(4)
-    if not feature["has_tasks"] or not feature["has_work_units"]:
-        steps.append(_step(eid, 4, "ratify tasks and work units", "cursor", models["cursor_reason"],
-                           " then ".join(sk.commands_for("tasks", cfg, feature=feature["dir"])),
-                           "tasks.md or work-units.json is missing"))
-        return finish(4)
 
-    # Phase 5: implementation and per-story independent review.
-    out["progress"] = f"{feature['tasks_done']}/{feature['tasks_total']}"
-    for wu in feature["pending_work_units"]:
-        model, why = estimate.suggest_model(feature.get("units", {}).get(wu, {"id": wu}), cfg)
-        steps.append(_step(eid, 5, f"implement {wu}", "cursor", model, f"/spec-kit.implement {wu}",
-                           f"{wu} is not checked in tasks.md; model: {why}"))
-    for story, counts in sorted(feature["stories"].items()):
-        if counts["done"] == counts["total"] and review_final(project, story) not in REVIEW_CLOSED:
-            steps.append(_step(eid, 5, f"review story {story}", "harness", models["reviewer"],
-                               f"wow review --set story --ref {story}",
-                               "all its tasks are done and it has no approved review"))
-    if not steps and feature["tasks_done"] < feature["tasks_total"]:
-        # Every unit is done but tasks with no unit (setup, closing checks) are unchecked: name them, never stall.
-        unchecked = feature.get("unchecked_tasks") or []
-        steps.append(_step(eid, 5, f"finish or check the remaining tasks: {', '.join(unchecked)}", "cursor", None,
-                           f"check them in {feature['dir']}/tasks.md once each is done or verified",
-                           f"{feature['tasks_total'] - feature['tasks_done']} task(s) unchecked with every work unit done"))
-    if steps or feature["tasks_done"] < feature["tasks_total"]:
-        return finish(5)
-
-    # Phase 6: Jira closed and epic closure review.
-    if summary["done"] < summary["stories"]:
-        steps.append(_step(eid, 6, f"close the stories of {key} in Jira", "cursor", None,
-                           sk.commands_for("sync-status", cfg, feature=feature["dir"])[0],
-                           f"{summary['done']} of {summary['stories']} stories are done in Jira"))
-    if review_final(project, eid) not in REVIEW_CLOSED:
-        steps.append(_step(eid, 6, f"review epic {eid}", "harness", models["reviewer"],
-                           f"wow review --set epic --ref {eid}", "the epic has no approved closure review"))
-    elif not steps and summary.get("epic_done") is False:
-        # /sync-status closes only stories; subtasks and the epic stay open unless someone closes them.
-        steps.append(_step(eid, 6, f"close the subtasks and the epic {key} in Jira", "terminal", None,
-                           f"wow close --epic {eid}", "the closure review is approved but the epic is open in Jira"))
-    if review_final(project, eid) in REVIEW_CLOSED and not (project / "wow" / "reviews" / f"{eid}.standards.json").is_file():
-        # Recommended, never blocking: a repo with no golden rules and no documented conventions has nothing to
-        # review against, and that must not keep the epic from closing.
-        step = _step(eid, 6, f"review the epic diff against the repo standards", "harness", models["reviewer"],
-                     f"wow review --set standards --ref {eid}", "second axis: golden rules, not the stories")
-        step["recommended"] = True
-        steps.append(step)
-    return finish(6 if any(not s.get("recommended") for s in steps) else "done")
+def _sk_epic(project, cfg, out, key, jira, sources, expected=None, ref=None, mode=None, features=None) -> dict:
+    result = flow_sk.state(project, cfg, key, jira, expected=expected, ref=ref, mode=mode, features=features)
+    if result["phase"] == "unknown" and result["reason"] != "jira not configured":
+        sources["jira"] = result["reason"]
+    out.update({"phase": result["phase"], "reason": result["reason"], "progress": result["progress"],
+                "jira_url": result["jira_url"],
+                "missing": [s["action"] for s in result["steps"] if not s.get("recommended")]})
+    return {"epic": out, "steps": result["steps"]}
