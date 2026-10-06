@@ -35,9 +35,13 @@ parece falta de permisos. La prueba que separa los dos casos es `GET /rest/api/3
 
 ## Uso
 
-Desde la raíz del repo padre de Spec-Kit:
+Desde la raíz del repo padre de Spec-Kit. WoW lleva dos flujos que solo se tocan en la clave de la épica de Jira:
+**PB** (contexto, plan, paquetes, chats, export, campos) y **SK**, uno por épica (discovery, sync, clarify, plan, tareas,
+work units, reviews, cierre). Una épica que no salió de Product Brain entra al flujo SK con `wow sk start KEY`.
 
 ```bash
+wow progress      # un checklist por flujo en wow/checklists/ con su %, y lo que falta en cada uno
+wow progress --line   # una línea para la statusline (lee JSON por stdin, sin red): "PB 92% · SK PLATE-504 100%"
 wow snapshot      # escribe wow/progress.json y muestra bloqueos y próximos pasos
 wow state         # el estado completo en JSON, sin escribir nada
 wow manifest validate | lint
@@ -47,6 +51,8 @@ wow review --set story --ref IRIS-41 --repo ../backend-api   # review independie
 wow review --set standards --ref E1 --repo ../backend-api   # segundo eje: golden rules + smells (no el spec)
 wow usage                                                   # consumo por marca y modelo
 wow sk status | wow sk cmd plan --feature specs/001-x       # preparar pasos de Spec-Kit
+wow sk start PLATE-553                                      # seguir en el flujo SK una épica hecha fuera de PB
+wow sk run "/spec-kit.plan …" | wow sk send <sesión> "…" | wow sk quit <sesión>   # mandar el comando a Cursor
 wow context scan | wow context check                        # context pack con afirmaciones etiquetadas
 wow context restore                                         # reponer el discovery verificado si Spec-Kit lo pisó
 wow cite check doc.md --root ../repo [--sha SHA] [--alias X=ruta]   # cada `archivo:línea` citado existe y está en rango
@@ -148,7 +154,19 @@ Medido con `cursor-agent` 2026.10.01 el 2026-10-04 (hook de sondeo sobre los eve
 | `cursor-agent -p` | sí: expande el comando y corre sus líneas `Run:` | no: tampoco llega `beforeSubmitPrompt`; solo `sessionStart`, `postToolUse` y `sessionEnd` | no |
 | CLI `spec-kit` de la terminal | no | no | no |
 
-No medí si `beforeSubmitPrompt` llega en el modo interactivo del CLI: el piloto mide `stop`, que es el que trae los tokens.
+El 2026-10-06, con `cursor-agent` 2026.10.01-e373342, se midió también el modo interactivo manejado desde otro
+agente: `cursor-agent --trust --force '<comando>'` dentro de tmux dispara `sessionStart`, `beforeSubmitPrompt`,
+`postToolUse`, `afterAgentResponse`, `stop` (con estado y tokens) y, al salir con `/quit`, `sessionEnd`. Eso es
+`wow sk run`, que usa la skill [run-in-cursor](../run-in-cursor) y rechaza `/spec-kit.sync-status` (escribe en Jira:
+lo corre el usuario en Cursor). `cursor-agent -p --output-format json` devuelve el `usage` del turno, pero sigue sin
+disparar `stop`.
+
+### Checklists
+
+`wow progress` deriva cada ítem de evidencia (archivos, reviews, Jira, `harness/jira-writes.jsonl`): `[x]` hecho,
+`[ ]` pendiente, `[-]` no aplica, `[?]` sin verificar (Jira caído o sin registro; nunca cuenta como hecho). La sección
+"Manual" de cada archivo se conserva entre corridas, y un ítem tildado cuenta solo si trae `— evidencia: …`. La forma
+del archivo vive en `wow/templates/checklist.md`.
 
 Códigos de salida: `0` OK · `1` hallazgos · `2` no pude evaluar.
 
