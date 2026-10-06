@@ -17,6 +17,7 @@ import closing
 import jirafields
 import jiralog
 import shellguard
+import skrun
 import config
 import contextpack
 import evidence
@@ -370,6 +371,21 @@ def _cmd_progress(args) -> int:
     for label in result["manual_without_evidence"]:
         print(f"! ticked without evidence, not counted: {label}")
     return exitcodes.OK
+
+
+def _cmd_sk_ric(args) -> int:
+    action = args.sk_command
+    if action == "run":
+        reason = skrun.refuse(args.command)
+        if reason:
+            sys.stderr.write(f"wow: {reason}\n")
+            return exitcodes.FINDINGS
+    if not skrun.ric_path().is_file():
+        sys.stderr.write(f"wow: {skrun.ric_path()} not found: install run-in-cursor (its install.sh) or set WOW_RIC\n")
+        return exitcodes.CANNOT_EVALUATE
+    rest = {"run": lambda: [args.command], "send": lambda: [args.session, args.text],
+            "quit": lambda: [args.session]}[action]()
+    return subprocess.run(skrun.argv(action, rest, _project(args))).returncode  # the user sees ric's screen as is
 
 
 def _cmd_sk_start(args) -> int:
@@ -942,6 +958,16 @@ def build_parser() -> argparse.ArgumentParser:
     skc.add_argument("--epic", default=None)
     skc.add_argument("--feature", default=None)
     skc.set_defaults(handler=_cmd_sk_cmd)
+    skr = with_project(sksub.add_parser("run", help="send a /spec-kit.* command to Cursor (interactive, recorded)"))
+    skr.add_argument("command")
+    skr.set_defaults(handler=_cmd_sk_ric)
+    skn = with_project(sksub.add_parser("send", help="answer in a running Cursor session"))
+    skn.add_argument("session")
+    skn.add_argument("text")
+    skn.set_defaults(handler=_cmd_sk_ric)
+    skq = with_project(sksub.add_parser("quit", help="leave a Cursor session"))
+    skq.add_argument("session")
+    skq.set_defaults(handler=_cmd_sk_ric)
     sst = with_project(sksub.add_parser("start", help="follow a Jira epic in the Spec-Kit flow, wherever it came from"))
     sst.add_argument("key")
     sst.set_defaults(handler=_cmd_sk_start)
