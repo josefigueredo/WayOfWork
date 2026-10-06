@@ -390,7 +390,11 @@ def _cmd_sk_ric(args) -> int:
 
 
 def _cmd_sk_start(args) -> int:
-    added = flow_sk.register(_project(args), args.key)
+    try:
+        added = flow_sk.register(_project(args), args.key)
+    except ValueError as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
     print(f"{'tracking' if added else 'already tracked'} {args.key}")
     return exitcodes.OK
 

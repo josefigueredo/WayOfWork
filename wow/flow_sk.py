@@ -10,6 +10,7 @@ shows). Local items are derived from the repo even without Jira; Jira items are 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import List, Optional
 
@@ -20,6 +21,7 @@ from sources import SourceUnavailable, speckit
 
 REVIEW_CLOSED = ("approved", "approved_by_human")  # same as state.REVIEW_CLOSED; state imports this module
 _REGISTRY = Path("wow") / "sk" / "epics.json"
+KEY_RE = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
 
 
 def _review_final(project: Path, ref: str) -> Optional[str]:
@@ -43,6 +45,8 @@ def registered(project: Path) -> List[str]:
 
 
 def register(project: Path, key: str) -> bool:
+    if not KEY_RE.match(key):
+        raise ValueError(f"{key!r} is not a Jira key (PROJECT-123)")
     keys = registered(project)
     if key in keys:
         return False
@@ -66,6 +70,8 @@ def _clarified(project: Path, feature: Optional[dict]) -> bool:
 
 
 def _items(project, key, ref, feature, mode, summary, reason) -> List[Item]:
+    if reason == "jira not configured":  # the state keeps the English reason; the checklist file is for people
+        reason = "jira no configurado"
     has = lambda flag: "done" if feature and feature[flag] else "todo"  # noqa: E731
     discovery = (project / ".spec-kit" / "discovery" / "architecture.md").is_file()
     out = [Item("discovery", "Discovery del código existente",

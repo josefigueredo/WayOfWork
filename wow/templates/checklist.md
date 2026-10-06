@@ -10,6 +10,6 @@ Lo tilda `wow progress` a partir de evidencia; editarlo a mano no cambia nada.
 
 ## Manual
 
-Tildá con `[x]` y escribí `— evidencia: …` en la misma línea; sin evidencia no cuenta.
+Tildá con `[x]` y escribí `- evidencia: …` (o con raya) en la misma línea; sin evidencia no cuenta.
 
 {{~manual}}

@@ -13,7 +13,7 @@ import tmpl
 
 MARK = {"done": "[x]", "todo": "[ ]", "na": "[-]", "unverified": "[?]"}
 PREFIX = {"done": "", "todo": "", "na": "no aplica: ", "unverified": "sin verificar: "}
-_MANUAL = re.compile(r"^- \[([ xX])\]\s+(.*?)(?:\s+—\s+evidencia:\s*(.*))?$")
+_MANUAL = re.compile(r"^- \[([ xX])\]\s+(.*?)(?:\s+[-–—]\s+evidencia:\s*(.*))?$")  # any dash: keyboards type -
 
 
 @dataclass

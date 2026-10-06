@@ -78,6 +78,11 @@ class CliTest(unittest.TestCase):
         self.assertRegex(out, r"Flujo PB\s+\d+%")
         self.assertIn("[ ] Chat PRD cerrado y auditado", out)
 
+    def test_sk_start_rejects_a_malformed_key(self):
+        code, _, err = run_cli(["sk", "start", "plate-553", "--project", str(make_project())])
+        self.assertEqual(code, 2)
+        self.assertIn("not a Jira key", err)
+
     def test_sk_start_registers_once(self):
         p = make_project()
         self.assertIn("tracking PLATE-553", run_cli(["sk", "start", "PLATE-553", "--project", str(p)])[1])

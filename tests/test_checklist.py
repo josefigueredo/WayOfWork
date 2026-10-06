@@ -31,6 +31,12 @@ class ManualTest(unittest.TestCase):
             ("Avisar al equipo", "done"), ("Probar en el navegador", "todo"), ("Pedir acceso", "todo")])
         self.assertEqual(items[0].evidence, "mensaje en #plate 2026-10-06")
 
+    def test_any_dash_introduces_the_evidence(self):
+        # Minor 1: keyboards type a plain hyphen; only the em dash counted.
+        text = "# x\n\n## Manual\n- [x] A - evidencia: uno\n- [X] B – evidencia: dos\n- [x] C — evidencia: tres\n"
+        self.assertEqual([(i.label, i.state, i.evidence) for i in checklist.manual_items(text)],
+                         [("A", "done", "uno"), ("B", "done", "dos"), ("C", "done", "tres")])
+
     def test_ticked_without_evidence_is_reported(self):
         self.assertEqual(checklist.unproven(self.TEXT), ["Probar en el navegador"])
 

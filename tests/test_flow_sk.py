@@ -34,6 +34,11 @@ class FlowSkTest(unittest.TestCase):
         self.assertEqual((got["wu-WU-001"], got["wu-WU-002"]), ("done", "done"))
         self.assertEqual(got["jira-done"], "unverified")
 
+    def test_the_checklist_speaks_spanish_without_jira(self):
+        # Minor 3: "jira not configured" sat next to "jira no configurado" in the same file.
+        items = flow_sk.state(make_project(), CFG, "PLATE-553", None)["items"]
+        self.assertEqual(next(i for i in items if i.id == "jira-done").evidence, "jira no configurado")
+
     def test_clarify_is_done_once_spec_has_a_clarification_session(self):
         p = make_project()
         add_feature(p)
@@ -60,6 +65,14 @@ class FlowSkTest(unittest.TestCase):
 
 
 class RegisterTest(unittest.TestCase):
+    def test_only_jira_keys_are_registered(self):
+        # Minor 4: any string made a checklist and an epic forever unknown.
+        p = make_project()
+        for bad in ("foo", "plate-553", "PLATE-", "PLATE 553"):
+            with self.assertRaises(ValueError):
+                flow_sk.register(p, bad)
+        self.assertEqual(flow_sk.registered(p), [])
+
     def test_register_is_idempotent(self):
         p = make_project()
         self.assertTrue(flow_sk.register(p, "PLATE-553"))
