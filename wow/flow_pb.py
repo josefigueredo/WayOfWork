@@ -108,7 +108,14 @@ def items(project: Path, cfg: dict, jira) -> List[Item]:
         complete = found["exists"] and found["stories"] >= expected
         out.append(Item(f"stories-{eid}", f"Historias de {key} completas en Jira", "done" if complete else "todo",
                         f"{found['stories']} de {expected}"))
+        label = f"Campos de {key} corregidos (wow jira fix-fields)"
+        if not (project / "harness" / "jira-writes.jsonl").is_file():
+            # No log at all (it exists since 2026-10-05): nothing says whether a repair ran before it, so say how to
+            # check instead of calling it pending. The dry run lists what is still wrong.
+            out.append(Item(f"fix-fields-{eid}", label, "unverified",
+                            f"sin registro de escrituras; revisalo con wow jira fix-fields --epic {eid} (simulación)"))
+            continue
         fixed = _fixed(project, found.get("story_keys") or [])
-        out.append(Item(f"fix-fields-{eid}", f"Campos de {key} corregidos (wow jira fix-fields)",
-                        "done" if fixed else "todo", "harness/jira-writes.jsonl" if fixed else ""))
+        out.append(Item(f"fix-fields-{eid}", label, "done" if fixed else "todo",
+                        "harness/jira-writes.jsonl" if fixed else ""))
     return out

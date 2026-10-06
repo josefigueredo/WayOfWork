@@ -48,9 +48,18 @@ class FlowPbTest(unittest.TestCase):
 
     def test_missing_stories_and_unfixed_fields_stay_todo(self):
         p = project_at_phase_3()
+        write(p, "harness/jira-writes.jsonl", json.dumps({"command": "close --epic E9", "key": "X-1"}) + "\n")
         jira = FakeJira({"IRIS-40": dict(summary("IRIS-40", stories(p) - 1, 0), story_keys=["IRIS-41"])})
         got = states(flow_pb.items(p, CFG, jira))
         self.assertEqual((got["stories-E1"], got["fix-fields-E1"]), ("todo", "todo"))
+
+    def test_without_any_write_log_the_repair_is_unverified_not_pending(self):
+        # The log exists since 2026-10-05 (fa51a3a); IRIS's fix-fields --apply ran the night before and left none.
+        p = project_at_phase_3()
+        jira = FakeJira({"IRIS-40": dict(summary("IRIS-40", stories(p), 0), story_keys=["IRIS-41"])})
+        item = next(i for i in flow_pb.items(p, CFG, jira) if i.id == "fix-fields-E1")
+        self.assertEqual(item.state, "unverified")
+        self.assertIn("wow jira fix-fields --epic E1", item.evidence)
 
     def test_an_unexported_epic_has_no_jira_items_yet(self):
         got = states(flow_pb.items(project_at_phase_3(frozen=False), CFG, None))
