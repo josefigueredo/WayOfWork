@@ -30,6 +30,16 @@ class WriteTest(unittest.TestCase):
         self.assertEqual(sorted(saved["sk"]), ["IRIS-40", "PLATE-553"])
         self.assertTrue(0 < saved["pb"]["percent"] < 100)
 
+    def test_jira_is_read_once_per_epic(self):
+        # Minor 5: flow_pb and flow_sk each asked for the same summary; with Jira down that doubled the wait.
+        p = project_at_phase_3()
+        jira = FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)})
+        calls = []
+        real = jira.epic_summary
+        jira.epic_summary = lambda key: calls.append(key) or real(key)
+        progress.write(p, CFG, jira)
+        self.assertEqual(calls, ["IRIS-40"])
+
     def test_the_manual_section_survives_and_unproven_ticks_are_listed(self):
         p = project_at_phase_3()
         progress.write(p, CFG, None)
@@ -60,6 +70,21 @@ class LineTest(unittest.TestCase):
             with mock.patch("sys.stdin", io.StringIO(stdin)):
                 code, out, err = run_cli(["progress", "--line"])
             self.assertEqual((code, out.strip(), err), (0, "", ""))
+
+    def test_an_interactive_terminal_is_never_read(self):
+        # Minor 6: run by hand, --line waited on the keyboard; with a tty it uses the current folder.
+        class Tty(io.StringIO):
+            def isatty(self):
+                return True
+
+            def read(self, *a):
+                raise AssertionError("read a tty")
+        p = project_at_phase_3()
+        progress.write(p, CFG, None)
+        with mock.patch("sys.stdin", Tty()), mock.patch("os.getcwd", return_value=str(p)):
+            code, out, _ = run_cli(["progress", "--line"])
+        self.assertEqual(code, 0)
+        self.assertTrue(out.startswith("PB "))
 
     def test_the_cli_prints_the_line_for_the_workspace(self):
         p = project_at_phase_3()

@@ -17,7 +17,6 @@ import closing
 import jirafields
 import jiralog
 import shellguard
-import skrun
 import config
 import contextpack
 import evidence
@@ -36,6 +35,7 @@ import reviews
 import reviewers
 import runwu
 import sk
+import skrun
 import snapshot as snapshot_mod
 import state as state_mod
 import usage as usage_mod
@@ -347,7 +347,8 @@ def _cmd_progress(args) -> int:
     if args.line:
         # The statusline calls this before every prompt with one second to answer: never fail, never print errors.
         try:
-            data = json.loads(sys.stdin.read() or "{}")
+            # By hand in a terminal there is no JSON coming: never wait on the keyboard, use the current folder.
+            data = {} if sys.stdin.isatty() else json.loads(sys.stdin.read() or "{}")
             folder = (data.get("workspace") or {}).get("current_dir") or data.get("cwd") or "."
             text = progress_mod.line(Path(folder).resolve())
         except Exception:  # noqa: BLE001

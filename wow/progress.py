@@ -45,7 +45,30 @@ def _one(path: Path, title: str, derived: List[checklist.Item], name: str, unpro
             "total": len(counted)}
 
 
+class _Once:
+    """One epic_summary per key for the whole run: both flows read the same epic, and with Jira down each read
+    costs the client's timeout. A failure is remembered too, so it is not paid twice."""
+
+    def __init__(self, jira):
+        self._jira, self._seen = jira, {}
+
+    def epic_summary(self, key: str) -> dict:
+        if key not in self._seen:
+            try:
+                self._seen[key] = (self._jira.epic_summary(key), None)
+            except Exception as exc:  # noqa: BLE001 — replayed to every caller, exactly as raised
+                self._seen[key] = (None, exc)
+        found, error = self._seen[key]
+        if error is not None:
+            raise error
+        return found
+
+    def __getattr__(self, name):
+        return getattr(self._jira, name)
+
+
 def write(project: Path, cfg: dict, jira) -> dict:
+    jira = _Once(jira) if jira is not None else None
     base = project / DIR
     base.mkdir(parents=True, exist_ok=True)
     unproven: List[str] = []
