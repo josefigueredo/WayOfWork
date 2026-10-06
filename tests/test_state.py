@@ -171,11 +171,18 @@ class PlanPhasesTest(unittest.TestCase):
 
 class EpicPhasesTest(unittest.TestCase):
     def test_phase_3_waits_for_prd_chat_first(self):
-        result = state.compute_state(project_at_phase_3(), CFG, FakeJira({}))
+        result = state.compute_state(project_at_phase_3(frozen=False), CFG, FakeJira({}))
         epic = result["epics"][0]
         self.assertEqual(epic["phase"], 3)
         self.assertEqual(result["next_steps"][0]["where"], "product-brain")
         self.assertIn("wow/pb/prd.md", result["next_steps"][0]["command"])
+
+    def test_an_exported_epic_goes_on_to_spec_kit_and_its_missing_chats_are_recommended(self):
+        # The two flows meet only at the Jira key: Product Brain's leftovers no longer hold Spec-Kit back.
+        result = state.compute_state(project_at_phase_3(), CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
+        self.assertEqual(result["epics"][0]["phase"], 4)
+        copy = [s for s in result["next_steps"] if s["action"] == "copy the PRD chat from Product Brain"]
+        self.assertEqual([s.get("recommended") for s in copy], [True])
 
     def test_exported_epic_does_not_need_a_closing_phrase_in_its_chats(self):
         p = project_at_phase_3()  # E1 already exported as IRIS-40
@@ -215,7 +222,7 @@ class EpicPhasesTest(unittest.TestCase):
         p = project_at_phase_3()
         close_chats(p)
         write(p, "wow/pb/chats/rfc.audit.json", '{"verdict": "rejected_by_human"}')
-        result = state.compute_state(p, CFG, FakeJira({}))
+        result = state.compute_state(p, CFG, FakeJira({"IRIS-40": summary("IRIS-40", 2, 0)}))
         self.assertEqual(result["next_steps"][0]["action"], "audit the RFC chat")
 
     def test_jira_unavailable_makes_epic_unknown(self):
