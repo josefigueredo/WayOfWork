@@ -18,7 +18,7 @@ Read-only navigator. It never executes the steps it recommends.
   repair. It ends when each epic is in Jira with all its stories.
 - **Flujo SK** (Spec-Kit), one per Jira epic key: discovery, sync, clarify, plan, tasks, work units, story reviews,
   stories Done (sync-status, in Cursor), epic review and close. The key may come from Product Brain's export, from
-  jk, or from `wow sk start KEY` for an epic made anywhere else. What Product Brain still lacks never holds it back;
+  jk, or from an epic made anywhere else that wow-sk-prep registers. What Product Brain still lacks never holds it back;
   only a human-rejected audit does.
 
 ## Steps
@@ -47,8 +47,8 @@ Read-only navigator. It never executes the steps it recommends.
 - Do not infer phases from prose: the JSON is the source of truth.
 - Never invent a step that is not in `next_steps`; if the list is empty and every epic is `done`,
   say the plan is complete.
-- `cursor` steps spend the scarce Cursor pool: say so and suggest batching them. They can be sent from here with
-  `wow sk run` (wow-sk-prep), except `/spec-kit.sync-status`, which the user runs in Cursor.
+- `cursor` steps spend the scarce Cursor pool: say so and suggest batching them. wow-sk-prep can send them to Cursor from
+  here, except `/spec-kit.sync-status`, which the user runs in Cursor.
 - Never tick a derived checklist item by hand: change the evidence (the file, the review, Jira) and rerun.
 - Exit code 2 means wow could not evaluate (for example an invalid `.wow/config.json`);
   report the message, do not guess.

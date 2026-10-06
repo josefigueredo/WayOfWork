@@ -143,8 +143,8 @@ class SkillContractTest(unittest.TestCase):
         self.assertIsNotNone(front)
         self.assertEqual(front.group(1), "wow-guide")
         self.assertLessEqual(len(text.splitlines()), 80)
-        for command in _re.findall(r"`wow ([a-z]+)", text):
-            self.assertIn(command, {"snapshot", "state"})
+        for command in _re.findall(r"`wow ([a-z]+)", text):  # a read-only navigator: it only derives, never acts
+            self.assertIn(command, {"snapshot", "state", "progress"})
 
     def test_install_script_is_executable(self):
         import os
