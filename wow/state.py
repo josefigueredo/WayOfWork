@@ -119,7 +119,7 @@ def compute_state(project: Path, cfg: dict, jira=None) -> dict:
 
     exported = {e["jira"] for e in epics_out if e.get("jira")}
     mode = doc["plan"].get("mode") if doc is not None else None
-    for key in flow_sk.registered(project):  # epics that reach Spec-Kit without Product Brain (jk, by hand)
+    for key in flow_sk.registered(project):  # epics that reach Spec-Kit without Product Brain (jtk, by hand)
         if key in exported:
             continue
         shell = {"id": key, "title": key, "jira": key, "jira_url": None, "phase": 4, "reason": None,

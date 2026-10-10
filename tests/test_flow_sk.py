@@ -1,4 +1,4 @@
-"""The Spec-Kit flow starts from any Jira epic key: exported by Product Brain, created with jk or registered."""
+"""The Spec-Kit flow starts from any Jira epic key: exported by Product Brain, created with jtk or registered."""
 from __future__ import annotations
 
 import json
