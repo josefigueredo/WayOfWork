@@ -1,6 +1,6 @@
 """The Spec-Kit flow for one Jira epic key, independent of how the epic came to exist.
 
-The key may come from Product Brain's export (the manifest), from jk create, or from `wow sk start KEY`. The flow
+The key may come from Product Brain's export (the manifest), from jtk create, or from `wow sk start KEY`. The flow
 needs nothing else from Product Brain: `expected` (the manifest's story count) only tightens the check when there is
 one, and `ref` names the epic's reviews (the manifest's epic id, or the key itself).
 
@@ -126,7 +126,7 @@ def state(project: Path, cfg: dict, key: str, jira, expected: Optional[int] = No
                                f"Jira has {summary['stories']} of {expected} stories"))
         else:
             steps.append(_step(ref, 3, f"add the stories of {key} in Jira", "human", None,
-                               f"create them in Jira (or with jk) under {key}", f"{key} has no stories in Jira"))
+                               f"create them in Jira (or with jtk) under {key}", f"{key} has no stories in Jira"))
         return finish(3)
 
     # Phase 4: Spec-Kit feature synced and planned.

@@ -18,7 +18,7 @@ Read-only navigator. It never executes the steps it recommends.
   repair. It ends when each epic is in Jira with all its stories.
 - **Flujo SK** (Spec-Kit), one per Jira epic key: discovery, sync, clarify, plan, tasks, work units, story reviews,
   stories Done (sync-status, in Cursor), epic review and close. The key may come from Product Brain's export, from
-  jk, or from an epic made anywhere else that wow-sk-prep registers. What Product Brain still lacks never holds it back;
+  jtk, or from an epic made anywhere else that wow-sk-prep registers. What Product Brain still lacks never holds it back;
   only a human-rejected audit does.
 
 ## Steps

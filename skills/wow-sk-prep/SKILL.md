@@ -9,7 +9,7 @@ Goal: spend the scarce Cursor pool only on ratifying and generating, never on th
 
 ## Steps
 
-0. An epic that did not come from Product Brain's export (made with jk or by hand) enters the Spec-Kit flow with
+0. An epic that did not come from Product Brain's export (made with jtk or by hand) enters the Spec-Kit flow with
    `wow sk start <KEY>`; after that wow-guide and `wow progress` follow it like any other.
 1. Run `wow sk status` (add `--feature specs/<dir>` to focus). Exit 1 means import warnings or tasks
    without `jira:` keys: report them; warnings are Product Brain debt, fix them there, not in the spec.
