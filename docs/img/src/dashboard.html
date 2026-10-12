@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>WayOfWork Dashboard</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11, 11, 11, 0.10); --hatch: rgba(11, 11, 11, 0.16);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  --v-anthropic: var(--s1); --v-openai: var(--s2); --v-cursor: var(--s3); --v-other: var(--muted);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.10); --hatch: rgba(255, 255, 255, 0.16);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.10); --hatch: rgba(255, 255, 255, 0.16);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--s1); }
+header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 16px; }
+header h1 { font-size: 18px; margin: 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
+button, .file { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+button:focus-visible, .file:focus-within, [data-tip]:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+.file { position: relative; }
+.file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.drop { margin: 0 16px 16px; padding: 24px; border: 2px dashed var(--axis); border-radius: 10px; text-align: center; color: var(--ink-2); background: var(--surface); }
+.drop.over { border-color: var(--s1); color: var(--ink); }
+#warnings:empty, #portfolio:empty { display: none; }
+.warn { margin: 0 16px 12px; padding: 10px 12px; border-left: 4px solid var(--warning); border-radius: 4px; background: var(--surface); }
+#portfolio { padding: 0 16px 16px; }
+main { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 16px; padding: 0 16px 32px; }
+.panel { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.panel.wide { grid-column: 1 / -1; }
+.panel h2 { font-size: 15px; margin: 0 0 12px; }
+.panel h3 { font-size: 13px; font-weight: 600; margin: 18px 0 8px; color: var(--ink-2); }
+.source, .muted { color: var(--muted); }
+.source { margin: 12px 0 0; font-size: 12px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--ink-2); font-weight: 600; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.why { color: var(--ink-2); min-width: 220px; }
+tr[aria-current="true"] td { background: var(--page); }
+code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-word; }
+ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; }
+dl.kv dt { color: var(--ink-2); }
+dl.kv dd { margin: 0; min-width: 0; }
+table.sources { width: auto; }
+.nodata { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; color: var(--ink-2); background: repeating-linear-gradient(45deg, var(--hatch) 0 2px, transparent 2px 8px); }
+.nodata strong { color: var(--ink); }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; white-space: nowrap; }
+.badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.badge.good .dot { background: var(--good); }
+.badge.warning .dot { background: var(--warning); }
+.badge.serious .dot { background: var(--serious); }
+.badge.critical .dot { background: var(--critical); }
+.place { display: inline-block; padding: 1px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; white-space: nowrap; }
+.place.cursor { box-shadow: inset 4px 0 0 var(--v-cursor); padding-left: 10px; }
+.copy { padding: 1px 6px; font-size: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.tile { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+.tile .label { font-size: 12px; color: var(--ink-2); }
+.tile .value { font-size: 22px; font-weight: 600; }
+.tile .sub { font-size: 12px; color: var(--muted); }
+.tile.pool-cursor { box-shadow: inset 4px 0 0 var(--v-cursor); }
+.phase-table td.ph { min-width: 56px; height: 28px; border: 2px solid var(--surface); border-radius: 6px; }
+.ph.done { background: var(--s1); }
+.ph.current { background: var(--surface); box-shadow: inset 0 0 0 2px var(--s1); }
+td.ph.current::after { content: ""; display: block; width: 8px; height: 8px; margin: auto; border-radius: 50%; background: var(--s1); }
+.ph.todo { background: var(--grid); }
+.ph.unknown { background: repeating-linear-gradient(45deg, var(--hatch) 0 2px, transparent 2px 8px); box-shadow: inset 0 0 0 1px var(--border); }
+.ph.na { background: transparent; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; font-size: 12px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; border-radius: 3px; }
+.legend i.ph.current { box-shadow: inset 0 0 0 2px var(--s1); }
+.swatch.s1 { background: var(--s1); }
+.swatch.dashed { height: 0 !important; border-top: 2px dashed var(--muted); border-radius: 0 !important; vertical-align: 3px !important; }
+.swatch.v-anthropic { background: var(--v-anthropic); }
+.swatch.v-openai { background: var(--v-openai); }
+.swatch.v-cursor { background: var(--v-cursor); }
+.swatch.v-other { background: var(--v-other); }
+.meter { display: inline-block; width: 90px; height: 8px; border-radius: 4px; background: var(--grid); vertical-align: middle; }
+.meter span { display: block; height: 100%; border-radius: 4px; background: var(--s1); }
+.multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+figure { margin: 0; }
+figcaption { font-size: 12px; color: var(--ink-2); margin-bottom: 4px; }
+svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--muted); font-size: 10px; }
+svg text.label { fill: var(--ink-2); }
+svg .grid { stroke: var(--grid); stroke-width: 1; }
+svg .base { stroke: var(--axis); stroke-width: 1; }
+svg .scope { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .line { fill: none; stroke: var(--s1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+svg .end { fill: var(--s1); stroke: var(--surface); stroke-width: 2; }
+svg .bar { fill: var(--s1); }
+svg .vbar.v-anthropic, svg .dotm.v-anthropic { fill: var(--v-anthropic); }
+svg .vbar.v-openai, svg .dotm.v-openai { fill: var(--v-openai); }
+svg .vbar.v-cursor, svg .dotm.v-cursor { fill: var(--v-cursor); }
+svg .vbar.v-other, svg .dotm.v-other { fill: var(--v-other); }
+svg .dotm { stroke: var(--surface); stroke-width: 2; }
+svg .range { stroke-width: 2; stroke-linecap: round; }
+svg .range.v-anthropic { stroke: var(--v-anthropic); }
+svg .range.v-openai { stroke: var(--v-openai); }
+svg .range.v-cursor { stroke: var(--v-cursor); }
+svg .range.v-other { stroke: var(--v-other); }
+svg .hit { fill: transparent; cursor: default; }
+svg .hit:hover, svg .hit:focus { fill: var(--s1); fill-opacity: 0.12; outline: none; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#tip { position: fixed; z-index: 10; max-width: 340px; padding: 6px 8px; border-radius: 6px; background: var(--ink); color: var(--surface); font-size: 12px; pointer-events: none; }
+@media print {
+  :root, :root[data-theme] {
+    color-scheme: light;
+    --page: #ffffff; --surface: #ffffff; --ink: #0b0b0b; --ink-2: #52514e; --grid: #e1e0d9; --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10); --hatch: rgba(11, 11, 11, 0.16); --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  }
+  header .controls, .drop, #tip, .copy, #portfolio { display: none !important; }
+  main { display: block; padding: 0; }
+  .panel { margin-bottom: 12px; break-inside: avoid; }
+}
+@media (forced-colors: active) {
+  .ph.done { background: CanvasText; }
+  .ph.current { box-shadow: inset 0 0 0 2px CanvasText; }
+  .nodata, .ph.unknown { border: 1px dashed CanvasText; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>WayOfWork Dashboard</h1>
+  <div class="controls">
+    <label class="file">Open progress.json <input id="file" type="file" accept=".json,application/json" multiple></label>
+    <button id="theme" type="button">Toggle theme</button>
+    <button id="print" type="button">Print</button>
+  </div>
+</header>
+<div id="drop" class="drop">Drop one or more <code>wow/progress.json</code> files here. Nothing leaves this page.</div>
+<div id="warnings" role="status"></div>
+<div id="portfolio"></div>
+<main id="panels"></main>
+<div id="tip" role="tooltip" hidden></div>
+<script id="wow-core">
+const WowCore = (() => {
+  "use strict";
+  const PHASES = ["Context", "Plan", "Packets", "Product Brain", "Spec-Kit", "Build", "Close"];
+  const VENDORS = ["anthropic", "openai", "cursor"];
+  const POOLS = {anthropic: "own", openai: "own", cursor: "cursor"};
+  const TOKEN_FIELDS = ["tokens_in", "tokens_out", "cache_read", "cache_write", "reasoning_out"];
+
+  const arr = (v) => (Array.isArray(v) ? v : []);
+  const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+
+  function validate(doc) {
+    if (!doc || typeof doc !== "object" || Array.isArray(doc)) return {ok: false, warnings: ["not a JSON object"]};
+    const warnings = [];
+    if (doc.schema_version !== 1) {
+      warnings.push(`schema_version ${JSON.stringify(doc.schema_version)} is not 1; showing what is recognizable`);
+    }
+    for (const key of ["history", "usage"]) if (!(key in doc)) warnings.push(`missing "${key}"`);
+    const ok = !!doc.current && typeof doc.current === "object";
+    if (!ok) warnings.push('missing "current"');
+    return {ok, warnings};
+  }
+
+  function phaseState(phase, col) {
+    if (!isNum(phase)) return "unknown";
+    if (phase > col) return "done";
+    return phase === col ? "current" : "todo";
+  }
+
+  function sumOrNull(values) {
+    let total = null;
+    for (const v of values) if (isNum(v)) total = (total === null ? 0 : total) + v;
+    return total;
+  }
+
+  function median(sorted) {
+    if (!sorted.length) return null;
+    const mid = sorted.length >> 1;
+    return sorted.length % 2 ? sorted[mid] : Math.trunc((sorted[mid - 1] + sorted[mid]) / 2);
+  }
+
+  function quantile(sorted, q) {
+    if (!sorted.length) return null;
+    const rank = Math.min(sorted.length, Math.max(1, Math.ceil(q * sorted.length)));
+    return sorted[rank - 1];
+  }
+
+  const vendorKey = (vendor) => (VENDORS.includes(vendor) ? vendor : "other");
+  const pool = (vendor) => POOLS[vendor] || "other";
+  const records = (usage) => arr(usage).filter((r) => r && typeof r === "object");
+
+  function usageByModel(usage) {
+    const groups = new Map();
+    for (const r of records(usage)) {
+      const key = `${r.vendor}\u0000${r.model}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    }
+    const rows = [];
+    for (const items of groups.values()) {
+      const durations = items.map((r) => r.duration_ms).filter(isNum).sort((a, b) => a - b);
+      const row = {vendor: items[0].vendor ?? null, model: items[0].model ?? null, pool: pool(items[0].vendor),
+                   count: items.length, median_ms: median(durations), p95_ms: quantile(durations, 0.95)};
+      for (const field of TOKEN_FIELDS) row[field] = sumOrNull(items.map((r) => r[field]));
+      rows.push(row);
+    }
+    const rank = (v) => (VENDORS.indexOf(v) < 0 ? VENDORS.length : VENDORS.indexOf(v));
+    return rows.sort((a, b) => rank(a.vendor) - rank(b.vendor) || String(a.model).localeCompare(String(b.model)));
+  }
+
+  function poolTotals(usage) {
+    const out = {};
+    for (const name of ["own", "cursor", "other"]) {
+      const items = records(usage).filter((r) => pool(r.vendor) === name);
+      out[name] = {count: items.length, tokens_in: sumOrNull(items.map((r) => r.tokens_in)),
+                   tokens_out: sumOrNull(items.map((r) => r.tokens_out))};
+    }
+    return out;
+  }
+
+  const refEpic = (ref) => (typeof ref === "string" && ref ? ref.split("/")[0] : null);
+
+  function usageByEpic(usage) {
+    const groups = new Map();
+    for (const r of records(usage)) {
+      const epic = refEpic(r.ref) || "unattributed";
+      if (!groups.has(epic)) groups.set(epic, {epic, own: [], cursor: []});
+      const target = groups.get(epic)[pool(r.vendor) === "cursor" ? "cursor" : "own"];
+      target.push(r.tokens_in, r.tokens_out);
+    }
+    return [...groups.values()].map((g) => ({epic: g.epic, own: sumOrNull(g.own), cursor: sumOrNull(g.cursor)}));
+  }
+
+  function estimateCost(usage, pricing) {
+    const table = (pricing && pricing.per_mtok) || {};
+    if (!Object.keys(table).length) {
+      return {available: false, reason: "no price table: set pricing.per_mtok in .wow/config.json"};
+    }
+    // A pool stays null until a record with both a rate and a token counter is priced: no data is never $0 (D12).
+    const byPool = {own: null, cursor: null, other: null};
+    let priced = 0;
+    let unpriced = 0;
+    for (const r of records(usage)) {
+      const rates = table[r.model] || {};
+      let cost = null;
+      for (const [field, rate] of [["tokens_in", rates.in], ["tokens_out", rates.out],
+                                   ["cache_read", rates.cache_read], ["cache_write", rates.cache_write]]) {
+        if (isNum(r[field]) && isNum(rate)) cost = (cost === null ? 0 : cost) + (r[field] * rate) / 1e6;
+      }
+      if (cost === null) { unpriced += 1; continue; }
+      const name = pool(r.vendor);
+      byPool[name] = (byPool[name] === null ? 0 : byPool[name]) + cost;
+      priced += 1;
+    }
+    return {available: true, as_of: (pricing && pricing.as_of) || null, byPool, priced, unpriced};
+  }
+
+  function weekStart(ts) {
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return null;
+    const back = (d.getUTCDay() + 6) % 7;
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - back)).toISOString().slice(0, 10);
+  }
+
+  function weeklyThroughput(history) {
+    const lastByWeek = new Map();
+    for (const h of arr(history)) {
+      const week = h && weekStart(h.ts);
+      if (week && isNum(h.tasks_done)) lastByWeek.set(week, h.tasks_done);
+    }
+    const weeks = [...lastByWeek.keys()].sort();
+    return weeks.slice(1).map((week, i) => ({week, done: Math.max(0, lastByWeek.get(week) - lastByWeek.get(weeks[i]))}));
+  }
+
+  function burnup(history, epicId) {
+    return arr(history)
+      .filter((h) => h && h.epics && h.epics[epicId] && isNum(h.epics[epicId].done))
+      .map((h) => ({ts: h.ts, done: h.epics[epicId].done, total: h.epics[epicId].total}));
+  }
+
+  function quality(reviews) {
+    const rows = arr(reviews).filter((r) => r && typeof r === "object");
+    // A human decision after HITL still counts as escalated: the reviewer did not close it.
+    const escalated = (r) => r.final === "hitl" || r.final === "approved_by_human" || r.final === "rejected_by_human";
+    const decided = rows.filter((r) => r.final === "approved" || escalated(r));
+    const firstPass = decided.filter((r) => r.first_pass).length;
+    return {total: rows.length, decided: decided.length,
+            firstPassRate: decided.length ? firstPass / decided.length : null,
+            hitl: rows.filter(escalated).length, rows};
+  }
+
+  // A Product Brain audit verdict as [badge kind, label]; a human decision says so instead of passing for the audit's.
+  function auditBadge(verdict) {
+    const known = {approved: ["approved", "approved"], changes_required: ["changes_required", "changes required"],
+                   approved_by_human: ["approved", "approved by a human"],
+                   rejected_by_human: ["changes_required", "rejected by a human"]};
+    return known[verdict] || ["unknown", "unknown"];
+  }
+
+  return {PHASES, VENDORS, arr, validate, phaseState, sumOrNull, median, quantile, vendorKey, pool,
+          usageByModel, poolTotals, refEpic, usageByEpic, estimateCost, weekStart, weeklyThroughput, burnup,
+          quality, auditBadge};
+})();
+</script>
+<script id="wow-render">
+const WowRender = (() => {
+  "use strict";
+  const C = WowCore;
+  const arr = C.arr;
+  const ENT = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"};
+  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (ch) => ENT[ch]);
+  const safeUrl = (u) => (typeof u === "string" && /^https?:\/\//i.test(u) ? u : null);
+  const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+  const fmt = (n) => (isNum(n) ? Math.round(n).toLocaleString("en-US") : "—");
+  const fmtMs = (ms) => (!isNum(ms) ? "—" : ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${ms} ms`);
+  const fmtUsd = (n) => `$${n.toFixed(2)}`;
+  const RERUN = "this snapshot predates this panel; run wow snapshot again";
+  const PLACES = {harness: "Harness (Claude/Codex)", "product-brain": "Product Brain", cursor: "Cursor",
+                  human: "Human", terminal: "Terminal"};
+  const STATUS = {
+    approved: ["good", "✓", "approved"], changes_required: ["serious", "!", "changes required"],
+    hitl: ["critical", "⚑", "HITL"], unknown: ["muted", "?", "unknown"], pending: ["muted", "…", "pending"],
+    passing: ["good", "✓", "checks passing"], failing: ["critical", "✗", "checks failing"],
+    running: ["warning", "…", "checks pending"], none: ["muted", "–", "no checks"],
+    ok: ["good", "✓", "ok"], blocker: ["critical", "■", "blocker"],
+  };
+
+  function badge(kind, label) {
+    const [cls, icon, text] = STATUS[kind] || STATUS.unknown;
+    return `<span class="badge ${cls}"><span class="dot" aria-hidden="true"></span><span aria-hidden="true">${icon}</span> ${esc(label ?? text)}</span>`;
+  }
+  const noData = (reason) => `<div class="nodata" role="note"><strong>No data</strong><span>${esc(reason)}</span></div>`;
+  const tip = (text) => `data-tip="${esc(text)}" tabindex="0"`;
+  const link = (url, text) => (safeUrl(url) ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>` : esc(text));
+
+  function panel(id, title, body, source, wide) {
+    return `<section class="panel${wide ? " wide" : ""}" id="${id}" aria-labelledby="${id}-h">` +
+      `<h2 id="${id}-h">${esc(title)}</h2>${body}` +
+      (source ? `<p class="source">Source: ${esc(source)}</p>` : "") + `</section>`;
+  }
+
+  // ---- 1. Phase map -------------------------------------------------------
+  function phaseMap(cur) {
+    const plan = cur.plan || {};
+    const cell = (state, text) => `<td class="ph ${state}" ${tip(text)}><span class="sr">${esc(state)}</span></td>`;
+    const head = C.PHASES.map((p, i) => `<th scope="col">${i} ${esc(p)}</th>`).join("");
+    const parked = plan.parked ? ` ${badge("none", "parked: all epics draft")}` : "";
+    const rows = [`<tr><th scope="row">Plan ${esc(plan.id || "")}${parked}</th>` + C.PHASES.map((p, i) => (i > 2
+      ? `<td class="ph na"></td>`
+      : cell(C.phaseState(plan.phase, i), `Plan · ${i} ${p}: ${C.phaseState(plan.phase, i)}`))).join("") + `</tr>`];
+    for (const e of arr(cur.epics)) {
+      const unknown = !isNum(e.phase) ? `unknown: ${e.reason || "no reason given"}` : null;
+      rows.push(`<tr><th scope="row">${esc(e.id)} ${esc(e.title || "")}</th>` + C.PHASES.map((p, i) => {
+        if (i < 3) return `<td class="ph na"></td>`;
+        const state = C.phaseState(e.phase, i);
+        const extra = state === "current" && e.progress ? ` (${e.progress} tasks)` : "";
+        return cell(state, unknown || `${e.id} · ${i} ${p}: ${state}${extra}`);
+      }).join("") + `</tr>`);
+    }
+    const legend = `<div class="legend"><span><i class="ph done"></i>done</span><span><i class="ph current"></i>current</span>` +
+      `<span><i class="ph todo"></i>to do</span><span><i class="ph unknown"></i>unknown (source down)</span></div>`;
+    const blockers = arr(cur.blockers).length
+      ? `<h3>Blockers</h3><ul class="plain">${arr(cur.blockers).map((b) => `<li>${badge("blocker")} ${esc(b)}</li>`).join("")}</ul>`
+      : "";
+    const body = `<div class="scroll"><table class="phase-table"><thead><tr><th></th>${head}</tr></thead><tbody>${rows.join("")}</tbody></table></div>${legend}${blockers}` +
+      (arr(cur.epics).length ? "" : noData("no epics yet: the manifest has none or does not exist"));
+    return panel("panel-phase-map", "Phase map", body, "wow state (repo, Product Brain chat copies, Jira)", true);
+  }
+
+  // ---- 2. What's missing and where ---------------------------------------
+  function nextSteps(cur) {
+    const steps = arr(cur.next_steps);
+    if (!steps.length) return panel("panel-next-steps", "What's missing and where", `<p>Nothing pending.</p>`, "wow state", true);
+    const rows = steps.map((s) => `<tr><td><span class="place ${esc(s.where)}">${esc(PLACES[s.where] || s.where)}</span></td>` +
+      `<td>${esc(s.epic ?? "plan")}</td><td class="num">${esc(s.phase)}</td><td>${esc(s.action)}</td>` +
+      `<td>${esc(s.model ?? "—")}</td><td><code>${esc(s.command)}</code> <button class="copy" type="button" data-copy="${esc(s.command)}">Copy</button></td>` +
+      `<td class="why">${esc(s.why)}</td></tr>`).join("");
+    const total = isNum(cur.steps_total) && cur.steps_total > steps.length ? `<p class="source">Showing ${steps.length} of ${cur.steps_total} steps.</p>` : "";
+    const body = `<div class="scroll"><table><thead><tr><th>Where</th><th>Epic</th><th class="num">Phase</th><th>Action</th>` +
+      `<th>Model</th><th>Command</th><th>Why</th></tr></thead><tbody>${rows}</tbody></table></div>${total}`;
+    return panel("panel-next-steps", "What's missing and where", body, "wow state", true);
+  }
+
+  // ---- 3. Where things live -----------------------------------------------
+  function sourceBadge(value) {
+    if (value === "ok") return badge("ok");
+    if (value === "disabled" || value === "not_configured") return badge("none", value.replace("_", " "));
+    return badge("changes_required", value);
+  }
+  function whereThingsLive(cur) {
+    const sources = cur.sources || {};
+    const srcRows = Object.keys(sources).map((k) => `<tr><th scope="row">${esc(k)}</th><td>${sourceBadge(String(sources[k]))}</td></tr>`);
+    if (!("confluence" in sources)) srcRows.push(`<tr><th scope="row">confluence</th><td>${badge("none", "no data: not collected yet")}</td></tr>`);
+    const epics = arr(cur.epics).map((e) => {
+      const l = e.links || {};
+      const jiraUrl = l.jira || e.jira_url;
+      const jira = e.jira ? (safeUrl(jiraUrl) ? link(jiraUrl, e.jira) : `${esc(e.jira)} <span class="muted">(no URL: Jira not reachable)</span>`) : `<span class="muted">not exported to Jira yet</span>`;
+      const prs = arr(l.prs).length
+        ? `<ul class="plain">${arr(l.prs).map((p) => `<li>${link(p.url, `#${p.number} ${p.title}`)} <span class="muted">${esc(p.repo || "")} · ${esc(String(p.state || "").toLowerCase())}</span> ${badge(p.checks === "pending" ? "running" : p.checks || "none")}</li>`).join("")}</ul>`
+        : `<span class="muted">no linked pull requests</span>`;
+      const files = arr(l.files).length ? arr(l.files).map((f) => `<code>${esc(f)}</code>`).join(" ") : `<span class="muted">none yet</span>`;
+      return `<h3>${esc(e.id)} ${esc(e.title || "")}</h3><dl class="kv"><dt>Jira</dt><dd>${jira}</dd><dt>Pull requests</dt><dd>${prs}</dd><dt>Repo</dt><dd>${files}</dd></dl>`;
+    }).join("");
+    const planFiles = arr((cur.plan || {}).links && cur.plan.links.files);
+    const plan = `<h3>Plan</h3><p>${planFiles.length ? planFiles.map((f) => `<code>${esc(f)}</code>`).join(" ") : `<span class="muted">no plan files yet</span>`}</p>`;
+    const body = `<table class="sources"><tbody>${srcRows.join("")}</tbody></table>${plan}${epics || noData("no epics yet")}`;
+    return panel("panel-links", "Where things live", body, "Jira API, gh pr list, repo files (wow snapshot)");
+  }
+
+  // ---- 4. Velocity ---------------------------------------------------------
+  function lineChart(points, label) {
+    const W = 260, H = 120, L = 30, Rr = 34, T = 10, B = 20;
+    const maxY = Math.max(1, ...points.map((p) => Math.max(p.done, isNum(p.total) ? p.total : 0)));
+    const x = (i) => L + (points.length === 1 ? 0 : (i * (W - L - Rr)) / (points.length - 1));
+    const y = (v) => H - B - (v * (H - T - B)) / maxY;
+    const path = (key) => points.filter((p) => isNum(p[key])).map((p, i) => `${i ? "L" : "M"}${x(points.indexOf(p)).toFixed(1)},${y(p[key]).toFixed(1)}`).join("");
+    const last = points[points.length - 1];
+    const hits = points.map((p, i) => `<circle class="hit" cx="${x(i).toFixed(1)}" cy="${y(p.done).toFixed(1)}" r="8" ${tip(`${label} · ${String(p.ts).slice(0, 10)}: ${p.done} of ${fmt(p.total)} tasks · source: history`)}></circle>`).join("");
+    return `<svg width="${W}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)} burn-up: ${last.done} of ${fmt(last.total)} tasks">` +
+      `<line class="grid" x1="${L}" x2="${W - Rr}" y1="${y(maxY)}" y2="${y(maxY)}"></line>` +
+      `<line class="base" x1="${L}" x2="${W - Rr}" y1="${H - B}" y2="${H - B}"></line>` +
+      `<text x="${L - 4}" y="${y(maxY) + 3}" text-anchor="end">${maxY}</text><text x="${L - 4}" y="${H - B + 3}" text-anchor="end">0</text>` +
+      `<text x="${L}" y="${H - 4}">${esc(String(points[0].ts).slice(5, 10))}</text><text x="${W - Rr}" y="${H - 4}" text-anchor="end">${esc(String(last.ts).slice(5, 10))}</text>` +
+      `<path class="scope" d="${path("total")}"></path><path class="line" d="${path("done")}"></path>` +
+      `<circle class="end" cx="${x(points.length - 1).toFixed(1)}" cy="${y(last.done).toFixed(1)}" r="4"></circle>` +
+      `<text class="label" x="${(x(points.length - 1) + 6).toFixed(1)}" y="${(y(last.done) + 3).toFixed(1)}">${last.done}/${fmt(last.total)}</text>${hits}</svg>`;
+  }
+  function roundedTop(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h);
+    return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
+  }
+  function barChart(rows) {
+    const W = 520, H = 140, L = 30, T = 16, B = 20;
+    const max = Math.max(1, ...rows.map((r) => r.done));
+    const step = (W - L) / rows.length;
+    const bw = Math.min(40, step - 2);
+    const bars = rows.map((r, i) => {
+      const h = (r.done * (H - T - B)) / max;
+      const x = L + i * step + (step - bw) / 2;
+      const y = H - B - h;
+      return (h > 0 ? `<path class="bar" d="${roundedTop(x, y, bw, h, 4)}"></path>` : "") +
+        `<rect class="hit" x="${x}" y="${T}" width="${bw}" height="${H - T - B}" ${tip(`week of ${r.week}: ${r.done} tasks checked · source: history (tasks.md)`)}></rect>` +
+        `<text class="label" x="${x + bw / 2}" y="${y - 4}" text-anchor="middle">${r.done}</text>` +
+        `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${esc(r.week.slice(5))}</text>`;
+    }).join("");
+    return `<svg width="${W}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly throughput"><line class="base" x1="${L}" x2="${W}" y1="${H - B}" y2="${H - B}"></line>${bars}</svg>`;
+  }
+  function velocity(doc) {
+    const cur = doc.current;
+    const history = arr(doc.history);
+    const multiples = arr(cur.epics).map((e) => {
+      const pts = C.burnup(history, e.id);
+      return `<figure><figcaption>${esc(e.id)} ${esc(e.title || "")}</figcaption>` +
+        (pts.length >= 2 ? lineChart(pts, e.id) : noData("needs at least two snapshots with task progress for this epic")) + `</figure>`;
+    }).join("");
+    const legend = `<div class="legend"><span><i class="swatch s1"></i>tasks done</span><span><i class="swatch dashed"></i>scope (total tasks)</span></div>`;
+    const through = C.weeklyThroughput(history);
+    const body = `<h3>Burn-up per epic</h3>${multiples ? legend + `<div class="multiples">${multiples}</div>` : noData("no epics yet")}` +
+      `<h3>Weekly throughput (tasks checked in tasks.md)</h3>${through.length ? barChart(through) : noData("needs snapshots from at least two different weeks")}` +
+      `<h3>Lead time per story</h3>${noData("needs Jira transition dates (not collected yet)")}`;
+    return panel("panel-velocity", "Velocity", body, "progress.json history (one point per wow snapshot)");
+  }
+
+  // ---- 5. Quality ----------------------------------------------------------
+  function quality(cur) {
+    if (!Array.isArray(cur.reviews)) return panel("panel-quality", "Quality", noData(RERUN), "wow/reviews/*.json");
+    const q = C.quality(cur.reviews);
+    if (!q.total) return panel("panel-quality", "Quality", noData("no wow review has been recorded yet"), "wow/reviews/*.json");
+    const rate = q.firstPassRate === null ? "—" : `${Math.round(q.firstPassRate * 100)}%`;
+    const tiles = `<div class="tiles"><div class="tile"><div class="label">First-pass approval</div><div class="value">${rate}</div><div class="sub">${q.decided} decided reviews</div></div>` +
+      `<div class="tile"><div class="label">Escalated to HITL</div><div class="value">${q.hitl}</div><div class="sub">after 3 rounds</div></div>` +
+      `<div class="tile"><div class="label">Reviews</div><div class="value">${q.total}</div><div class="sub">story, epic, readiness, claims</div></div></div>`;
+    const rows = q.rows.map((r) => {
+      const final = r.final === "approved" ? "approved" : r.final === "hitl" ? "hitl" : "pending";
+      const human = r.final === "approved_by_human" ? "approved by human" : r.final === "rejected_by_human" ? "rejected by human" : null;
+      const width = Math.max(4, (Math.min(3, r.rounds) / 3) * 100);
+      return `<tr><td>${esc(r.ref)}</td><td>${esc(r.anchor_set ?? "—")}</td><td><span class="meter" ${tip(`${r.ref}: ${r.rounds} round(s), ${fmt(r.blockers)} blocker(s) · source: wow/reviews/${r.ref}.json`)}><span style="width:${width}%"></span></span> ${esc(r.rounds)}</td>` +
+        `<td class="num">${fmt(r.blockers)}</td><td>${human ? badge("hitl", human) : badge(final)}</td></tr>`;
+    }).join("");
+    const body = tiles + `<div class="scroll"><table><thead><tr><th>Ref</th><th>Set</th><th>Rounds (max 3)</th><th class="num">Blockers</th><th>Final</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return panel("panel-quality", "Quality", body, "wow/reviews/*.json (independent reviewer: Codex or Copilot)");
+  }
+
+  // ---- 6. LLM usage --------------------------------------------------------
+  function roundedRight(x, y, w, h, r) {
+    const rr = Math.min(r, h / 2, w);
+    return `M${x},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h - rr}Q${x + w},${y + h} ${x + w - rr},${y + h}H${x}Z`;
+  }
+  function hbars(rows) {
+    const W = 560, rowH = 26, LBL = 170, VAL = 90;
+    const value = (r) => C.sumOrNull([r.tokens_in, r.tokens_out]);
+    const max = Math.max(1, ...rows.map((r) => value(r) || 0));
+    const H = rows.length * rowH + 4;
+    const out = rows.map((r, i) => {
+      const v = value(r);
+      const y = i * rowH + 6;
+      const label = `<text class="label" x="${LBL - 8}" y="${y + 11}" text-anchor="end">${esc(r.model ?? "unknown model")}</text>`;
+      if (v === null) return label + `<text x="${LBL}" y="${y + 11}">no token data</text>`;
+      const w = Math.max(2, (v / max) * (W - LBL - VAL));
+      return label + `<path class="vbar v-${C.vendorKey(r.vendor)}" d="${roundedRight(LBL, y, w, 14, 4)}"></path>` +
+        `<rect class="hit" x="${LBL}" y="${y - 4}" width="${W - LBL}" height="${rowH - 4}" ${tip(`${r.vendor} · ${r.model}: ${fmt(v)} tokens (in ${fmt(r.tokens_in)}, out ${fmt(r.tokens_out)}) over ${r.count} record(s) · source: wow usage`)}></rect>` +
+        `<text class="label" x="${LBL + w + 6}" y="${y + 11}">${fmt(v)}</text>`;
+    }).join("");
+    return `<svg width="${W}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tokens in plus out per model">${out}</svg>`;
+  }
+  function latency(rows) {
+    const timed = rows.filter((r) => isNum(r.median_ms));
+    if (!timed.length) return noData("no response times recorded");
+    const W = 560, rowH = 26, LBL = 170, VAL = 130;
+    const max = Math.max(1, ...timed.map((r) => r.p95_ms));
+    const x = (ms) => LBL + (ms / max) * (W - LBL - VAL);
+    const out = timed.map((r, i) => {
+      const y = i * rowH + 13;
+      return `<text class="label" x="${LBL - 8}" y="${y + 4}" text-anchor="end">${esc(r.model)}</text>` +
+        `<line class="range v-${C.vendorKey(r.vendor)}" x1="${x(r.median_ms)}" x2="${x(r.p95_ms)}" y1="${y}" y2="${y}"></line>` +
+        `<circle class="dotm v-${C.vendorKey(r.vendor)}" cx="${x(r.median_ms)}" cy="${y}" r="4.5" ${tip(`${r.model}: median ${fmtMs(r.median_ms)}, p95 ${fmtMs(r.p95_ms)} over ${r.count} record(s) · source: wow usage`)}></circle>` +
+        `<text class="label" x="${x(r.p95_ms) + 8}" y="${y + 4}">p50 ${fmtMs(r.median_ms)} · p95 ${fmtMs(r.p95_ms)}</text>`;
+    }).join("");
+    return `<svg width="${W}" viewBox="0 0 ${W} ${timed.length * rowH + 4}" role="img" aria-label="Response time per model">${out}</svg>`;
+  }
+  function usagePanel(doc) {
+    const usage = arr(doc.usage);
+    if (!usage.length) return panel("panel-usage", "LLM usage", noData("no usage records: run wow usage, then wow snapshot"), "wow usage", true);
+    const rows = C.usageByModel(usage);
+    const pools = C.poolTotals(usage);
+    const cost = C.estimateCost(usage, doc.current.pricing);
+    const costSub = (name) => (cost.available && isNum(cost.byPool[name]) ? `${fmtUsd(cost.byPool[name])} estimated` : "cost: no data");
+    const tiles = `<div class="tiles">` +
+      `<div class="tile"><div class="label">Own accounts (Claude + Codex)</div><div class="value">${fmt(C.sumOrNull([pools.own.tokens_in, pools.own.tokens_out]))}</div><div class="sub">tokens in + out · ${pools.own.count} records · ${costSub("own")}</div></div>` +
+      `<div class="tile pool-cursor"><div class="label">Cursor pool</div><div class="value">${fmt(C.sumOrNull([pools.cursor.tokens_in, pools.cursor.tokens_out]))}</div><div class="sub">tokens in + out · ${pools.cursor.count} runs · ${costSub("cursor")}</div></div></div>`;
+    const costNote = cost.available
+      ? `<p class="source">Costs are estimated from the price table as of ${esc(cost.as_of || "an unknown date")}; ${cost.unpriced} record(s) have no price or no token data and are excluded.</p>`
+      : noData(cost.reason);
+    const vendorsShown = [...new Set(rows.map((r) => C.vendorKey(r.vendor)))];
+    const names = {anthropic: "Anthropic (Claude)", openai: "OpenAI (Codex)", cursor: "Cursor", other: "Other"};
+    const legend = `<div class="legend">${vendorsShown.map((v) => `<span><i class="swatch v-${v}"></i>${names[v]}</span>`).join("")}</div>`;
+    const table = `<div class="scroll"><table><thead><tr><th>Vendor</th><th>Model</th><th class="num">Records</th><th class="num">In</th><th class="num">Out</th>` +
+      `<th class="num">Cache read</th><th class="num">Cache write</th><th class="num">Reasoning</th><th class="num">Median</th><th class="num">p95</th></tr></thead><tbody>` +
+      rows.map((r) => `<tr><td>${esc(r.vendor)}</td><td>${esc(r.model)}</td><td class="num">${r.count}</td><td class="num">${fmt(r.tokens_in)}</td><td class="num">${fmt(r.tokens_out)}</td>` +
+        `<td class="num">${fmt(r.cache_read)}</td><td class="num">${fmt(r.cache_write)}</td><td class="num">${fmt(r.reasoning_out)}</td><td class="num">${fmtMs(r.median_ms)}</td><td class="num">${fmtMs(r.p95_ms)}</td></tr>`).join("") +
+      `</tbody></table></div><p class="source">Counters are shown as each tool reports them: Claude input excludes cache (see cache columns); Codex input includes cached tokens. "—" means the tool did not report it.</p>`;
+    const epics = C.usageByEpic(usage);
+    const epicTable = `<div class="scroll"><table><thead><tr><th>Epic (from ref)</th><th class="num">Own accounts</th><th class="num">Cursor pool</th></tr></thead><tbody>` +
+      epics.map((e) => `<tr><td>${esc(e.epic)}</td><td class="num">${fmt(e.own)}</td><td class="num">${fmt(e.cursor)}</td></tr>`).join("") + `</tbody></table></div>`;
+    const body = tiles + costNote + `<h3>Tokens in + out per model</h3>${legend}${hbars(rows)}` +
+      `<h3>Response time per model (median to p95)</h3>${latency(rows)}<h3>All counters</h3>${table}<h3>Split by epic</h3>${epicTable}`;
+    return panel("panel-usage", "LLM usage", body, "Claude Code transcripts, Codex sessions, cursor-agent JSON (wow usage)", true);
+  }
+
+  // ---- 7. Product Brain ----------------------------------------------------
+  function productBrain(cur) {
+    if (!cur.pb || typeof cur.pb !== "object") return panel("panel-pb", "Product Brain", noData(RERUN), "wow/pb/chats/");
+    const rows = Object.keys(cur.pb).map((doc) => {
+      const s = cur.pb[doc] || {};
+      const packet = `<td class="num">${isNum(s.packet_pct) ? `${s.packet_pct}%` : "—"}${s.packet_errors ? ` · ${fmt(s.packet_errors)} error(s)` : ""}</td>`;
+      if (!s.present) return `<tr><td>${esc(doc)}</td>${packet}<td colspan="6" class="muted">no local chat copy yet (wow/pb/chats/${esc(doc)}.md)</td></tr>`;
+      const audit = s.audit ? badge(...C.auditBadge(s.audit)) : badge("pending", "not audited");
+      return `<tr><td>${esc(doc)}</td>${packet}<td>${s.closed ? "closed" : "open"}</td><td class="num">${isNum(s.completion_pct) ? `${s.completion_pct}%` : "—"}</td><td>${audit}</td>` +
+        `<td class="num">${fmt(s.inventions)}</td><td class="num">${fmt(s.missing_anchors)}</td><td class="num">${fmt(s.open_questions)}</td></tr>`;
+    }).join("");
+    const body = `<div class="scroll"><table><thead><tr><th>Document</th><th class="num">Packet (predicted)</th><th>Chat</th><th class="num">PB completion</th><th>Audit</th>` +
+      `<th class="num">Inventions</th><th class="num">Missing anchors</th><th class="num">Open questions</th></tr></thead><tbody>${rows}</tbody></table></div>` +
+      `<p class="source">Packet (predicted) comes from wow pack check, which applies Product Brain\'s own completion rules. A closed chat is not done until its audit is approved: Product Brain checklists are not evidence.</p>`;
+    return panel("panel-pb", "Product Brain", body, "wow/pb/chats/*.md and *.audit.json (wow pbchat audit)");
+  }
+
+  function renderAll(doc) {
+    const cur = doc.current;
+    return [phaseMap(cur), nextSteps(cur), whereThingsLive(cur), velocity(doc), quality(cur), usagePanel(doc), productBrain(cur)];
+  }
+
+  const warn = (list) => list.map((w) => `<div class="warn" role="alert">${esc(w)}</div>`).join("");
+
+  function renderDoc(entry) {
+    if (entry.error || !entry.doc) return {warnings: warn([`${entry.name}: ${entry.error || "empty file"}`]), html: ""};
+    const v = C.validate(entry.doc);
+    const warnings = warn(v.warnings.map((w) => `${entry.name}: ${w}`));
+    return {warnings, html: v.ok ? renderAll(entry.doc).join("") : ""};
+  }
+
+  function portfolio(entries, active) {
+    const rows = entries.map((e, i) => {
+      const cur = e.doc && e.doc.current;
+      const tokens = e.doc ? C.sumOrNull(arr(e.doc.usage).flatMap((r) => [r && r.tokens_in, r && r.tokens_out])) : null;
+      const status = e.error ? esc(e.error) : esc(C.validate(e.doc).warnings.join("; ") || "ok");
+      // A parked plan (every epic draft) is not active: say so instead of showing a bare phase number.
+      const parked = Boolean(cur && cur.plan && cur.plan.parked);
+      const phaseCell = parked ? badge("none", "parked") : esc(cur && cur.plan ? cur.plan.phase : "—");
+      const drafts = cur ? arr(cur.epics).filter((x) => x && x.phase === "draft").length : 0;
+      const epicsCell = cur ? `${arr(cur.epics).length}${drafts ? ` (${drafts} draft)` : ""}` : "—";
+      return `<tr${i === active ? ' aria-current="true"' : ""}><td><button type="button" data-select="${i}">${esc(e.name)}</button></td>` +
+        `<td>${esc(cur && cur.plan ? cur.plan.id ?? "—" : "—")}</td><td class="num">${phaseCell}</td>` +
+        `<td class="num">${epicsCell}</td><td class="num">${cur ? arr(cur.next_steps).length : "—"}</td>` +
+        `<td class="num">${fmt(tokens)}</td><td>${status}</td></tr>`;
+    }).join("");
+    return `<section class="panel wide" id="panel-portfolio"><h2>Portfolio (${entries.length} files)</h2><div class="scroll"><table><thead><tr>` +
+      `<th>File</th><th>Plan</th><th class="num">Plan phase</th><th class="num">Epics</th><th class="num">Next steps</th><th class="num">Tokens</th><th>Status</th>` +
+      `</tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  }
+
+  return {esc, safeUrl, renderAll, renderDoc, portfolio};
+})();
+</script>
+<script type="application/json" id="wow-embedded">[{"name": "demo/wow/progress.json", "doc": {"schema_version": 1, "generated_at": "2026-10-12T18:29:39Z", "current": {"schema_version": 1, "plan": {"id": "0001-portal-de-pagos", "phase": 0, "stale_packets": [], "missing": ["run the readiness review"], "parked": false, "links": {"files": ["wow/plan/PLAN.md", "wow/plan/manifest.json", "wow/pb/prd.md", "wow/pb/rfc.md", "wow/context-pack/facts.md"]}}, "epics": [{"id": "E1", "title": "Cobro con tarjeta", "jira": null, "jira_url": null, "phase": 0, "reason": null, "progress": null, "missing": [], "links": {"jira": null, "prs": [], "files": []}}, {"id": "E2", "title": "Conciliación diaria", "jira": null, "jira_url": null, "phase": 0, "reason": null, "progress": null, "missing": [], "links": {"jira": null, "prs": [], "files": []}}, {"id": "DEMO-1", "title": "DEMO-1", "jira": "DEMO-1", "jira_url": null, "phase": "unknown", "reason": "jira not configured", "progress": null, "missing": [], "links": {"jira": null, "prs": [], "files": ["specs/001-cobro-tarjeta/spec.md", "specs/001-cobro-tarjeta/plan.md", "specs/001-cobro-tarjeta/tasks.md"]}}], "blockers": ["owner: 1 decision(s) open in wow/context-pack/pending-owner.md"], "next_steps": [{"epic": null, "phase": 1, "action": "run the readiness review", "where": "harness", "model": "codex", "command": "wow review --set readiness --ref plan", "why": "readiness verdict is None"}], "steps_total": 1, "sources": {"jira": "not_configured", "github": "github: gh not installed"}, "pb": {"prd": {"present": true, "closed": true, "audit": "approved", "completion_pct": 100, "inventions": 0, "missing_anchors": 0, "open_questions": 0, "packet_pct": 100, "packet_errors": 0}, "rfc": {"present": false, "closed": false, "audit": null, "completion_pct": null, "inventions": null, "missing_anchors": null, "open_questions": null, "packet_pct": 100, "packet_errors": 0}, "epic-E1": {"present": false, "closed": false, "audit": null, "completion_pct": null, "inventions": null, "missing_anchors": null, "open_questions": null, "packet_pct": 96, "packet_errors": 0}, "epic-E2": {"present": false, "closed": false, "audit": null, "completion_pct": null, "inventions": null, "missing_anchors": null, "open_questions": null, "packet_pct": 96, "packet_errors": 0}, "epic-DEMO-1": {"present": false, "closed": false, "audit": null, "completion_pct": null, "inventions": null, "missing_anchors": null, "open_questions": null, "packet_pct": null, "packet_errors": null}}, "reviews": [], "pricing": {"as_of": null, "per_mtok": {}}}, "history": [{"ts": "2026-10-12T18:29:25Z", "plan_phase": 0, "phases": {"E1": 0, "E2": 0, "DEMO-1": "unknown"}, "tasks_done": 0, "tasks_total": 0, "epics": {}}, {"ts": "2026-10-12T18:29:39Z", "plan_phase": 0, "phases": {"E1": 0, "E2": 0, "DEMO-1": "unknown"}, "tasks_done": 0, "tasks_total": 0, "epics": {}}], "usage": []}}]</script>
+<script id="wow-app">
+(() => {
+  "use strict";
+  const state = {docs: [], active: 0};
+  const $ = (sel) => document.querySelector(sel);
+  const root = document.documentElement;
+  const tipEl = $("#tip");
+
+  function setTheme(theme) {
+    root.dataset.theme = theme;
+    try { localStorage.setItem("wow-theme", theme); } catch (e) { /* storage unavailable: theme lasts this visit */ }
+  }
+  try {
+    const saved = localStorage.getItem("wow-theme");
+    if (saved === "light" || saved === "dark") root.dataset.theme = saved;
+  } catch (e) { /* storage unavailable */ }
+
+  $("#theme").addEventListener("click", () => {
+    const current = root.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    setTheme(current === "dark" ? "light" : "dark");
+  });
+  $("#print").addEventListener("click", () => window.print());
+
+  function render() {
+    $("#portfolio").innerHTML = state.docs.length > 1 ? WowRender.portfolio(state.docs, state.active) : "";
+    const current = state.docs[state.active];
+    const out = current ? WowRender.renderDoc(current) : {warnings: "", html: ""};
+    $("#warnings").innerHTML = out.warnings;
+    $("#panels").innerHTML = out.html;
+  }
+
+  async function load(files) {
+    const list = [...files].filter(Boolean);
+    if (!list.length) return;
+    for (const file of list) {
+      try {
+        state.docs.push({name: file.name, doc: JSON.parse(await file.text())});
+      } catch (e) {
+        state.docs.push({name: file.name, doc: null, error: "not valid JSON"});
+      }
+    }
+    state.active = state.docs.length - 1;
+    render();
+  }
+
+  const drop = $("#drop");
+  for (const type of ["dragenter", "dragover"]) {
+    document.addEventListener(type, (event) => { event.preventDefault(); drop.classList.add("over"); });
+  }
+  document.addEventListener("dragleave", (event) => { if (!event.relatedTarget) drop.classList.remove("over"); });
+  document.addEventListener("drop", (event) => {
+    event.preventDefault();
+    drop.classList.remove("over");
+    load(event.dataTransfer ? event.dataTransfer.files : []);
+  });
+  $("#file").addEventListener("change", (event) => { load(event.target.files); event.target.value = ""; });
+
+  // `wow dashboard --out` bakes snapshots into this block: the summary opens with them, no drop needed.
+  try {
+    const embedded = JSON.parse(document.getElementById("wow-embedded").textContent || "[]");
+    if (Array.isArray(embedded) && embedded.length) {
+      for (const entry of embedded) state.docs.push({name: String(entry.name ?? "progress.json"), doc: entry.doc ?? null});
+      state.active = 0;
+      render();
+    }
+  } catch (e) {
+    state.docs.push({name: "embedded", doc: null, error: "embedded snapshot is not valid JSON"});
+    render();
+  }
+
+  function copy(text, button) {
+    const done = () => { button.textContent = "Copied"; setTimeout(() => { button.textContent = "Copy"; }, 1200); };
+    const fallback = () => {
+      const area = document.createElement("textarea");
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      try { document.execCommand("copy"); done(); } catch (e) { button.textContent = "Select and copy"; }
+      area.remove();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
+  }
+
+  document.addEventListener("click", (event) => {
+    const copyButton = event.target.closest("[data-copy]");
+    if (copyButton) { copy(copyButton.getAttribute("data-copy"), copyButton); return; }
+    const select = event.target.closest("[data-select]");
+    if (select) { state.active = Number(select.getAttribute("data-select")); render(); }
+  });
+
+  function showTip(target, x, y) {
+    tipEl.textContent = target.getAttribute("data-tip");
+    tipEl.hidden = false;
+    const box = tipEl.getBoundingClientRect();
+    tipEl.style.left = `${Math.max(8, Math.min(x + 12, innerWidth - box.width - 8))}px`;
+    tipEl.style.top = `${Math.max(8, Math.min(y + 12, innerHeight - box.height - 8))}px`;
+  }
+  document.addEventListener("mousemove", (event) => {
+    const target = event.target.closest && event.target.closest("[data-tip]");
+    if (target) showTip(target, event.clientX, event.clientY); else tipEl.hidden = true;
+  });
+  document.addEventListener("focusin", (event) => {
+    const target = event.target.closest && event.target.closest("[data-tip]");
+    if (!target) { tipEl.hidden = true; return; }
+    const r = target.getBoundingClientRect();
+    showTip(target, r.left, r.bottom);
+  });
+  document.addEventListener("focusout", () => { tipEl.hidden = true; });
+})();
+</script>
+</body>
+</html>
