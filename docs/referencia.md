@@ -111,7 +111,7 @@ comando de shell del agente, también en `cursor-agent`. Rechaza tres cosas, y e
 - esos mismos comandos apuntados a `/` o al home;
 - un `git commit` que agrega más de 2000 archivos o 100 MB, la huella de una copia equivocada.
 
-Si el hook falla por cualquier motivo, el comando corre: la baranda nunca frena el trabajo normal.
+Si el hook tiene un error interno (una excepción del propio guard), el comando corre: la baranda está hecha para no frenar el trabajo normal. Un fallo del lado de Cursor, como un timeout del hook, no lo cubre esta lógica.
 
 Para ver costos estimados, cargá una tabla de precios (USD por millón de tokens) en `.wow/config.json`:
 

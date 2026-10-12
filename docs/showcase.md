@@ -357,7 +357,7 @@ una variable sin proteger (`"$SRC"/.`), esos mismos comandos apuntados a `/` o a
 
 | Situación | Resultado |
 |---|---|
-| El hook falla por cualquier motivo | El comando corre: la baranda nunca frena el trabajo normal |
+| El hook tiene un error interno (una excepción del propio guard) | El comando corre: la baranda está hecha para no frenar el trabajo normal |
 | Un comando que la baranda no sabe leer | Pasa |
 | Querés ver costos | Cargá una tabla de precios en `.wow/config.json` (ver la [referencia](referencia.md#consumo-de-cursor)) |
 
