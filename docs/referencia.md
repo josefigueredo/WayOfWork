@@ -31,7 +31,7 @@ con el mismo nombre: en ese caso sale con código 1 y dice cuál es. `--bin-dir 
 | CLI de Codex (o Copilot) logueado | revisor independiente de `wow review` y `wow pbchat audit --deep` | `wow review` sale con 2 (no pude evaluar) |
 | `gh` logueado | links a PRs en el snapshot y el dashboard | el snapshot marca GitHub como no disponible |
 | Skill `run-in-cursor`, `cursor-agent` y tmux | `wow sk run` | `wow sk run` sale con 2 y dice que no encuentra `run-in-cursor` (`ric.py`; se puede apuntar con `WOW_RIC`) |
-| Token de Jira **sin scopes** (`IC_JIRA_*`, ver abajo) | estado de las épicas y `wow close` | Jira figura como no configurado |
+| Token de Jira **sin scopes** (`JIRA_*`, ver abajo) | estado de las épicas y `wow close` | Jira figura como no configurado |
 
 Un token de Jira con scopes responde 401 contra `https://<sitio>.atlassian.net` y Jira contesta como anónimo, así que
 parece falta de permisos. La prueba que separa los dos casos es `GET /rest/api/3/myself`.
@@ -119,9 +119,9 @@ Para ver costos estimados, cargá una tabla de precios (USD por millón de token
 {"pricing": {"as_of": "2026-10-01", "per_mtok": {"claude-opus-5-5": {"in": 15, "out": 75, "cache_read": 1.5, "cache_write": 18.75}}}}
 ```
 
-Credenciales de Jira: variables `IC_JIRA_BASE_URL`, `IC_JIRA_USER_EMAIL`, `IC_JIRA_API_TOKEN`
-(opcionales: `IC_JIRA_PROJECT_KEY`, `IC_JIRA_EPIC_CHILD_MODE`). Se leen del shell, de `.env.local`
-o, como último recurso, de `JIRA_*` en `.spec-kit/.env`. `wow` nunca las imprime.
+Credenciales de Jira: variables `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
+(opcionales: `JIRA_PROJECT_KEY`, `JIRA_EPIC_CHILD_MODE`). Se leen, en este orden, del shell, de `.env.local`
+y, como último recurso, del `.spec-kit/.env`. `wow` nunca las imprime.
 
 **Deprecado:** `wow run-wu` (`cursor-agent -p`; las WUs se corren en Cursor interactivo y el hook `stop` mide el
 consumo) y `wow pack prd|rfc --full` (los paquetes de registro salen completos). Siguen funcionando y avisan por stderr.

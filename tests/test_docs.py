@@ -54,13 +54,19 @@ class DocsTest(unittest.TestCase):
         for skill in SKILLS:
             self.assertIn(f"| `{skill}` |", showcase)
 
-    def test_the_docs_name_the_jira_variables_the_code_reads(self):
-        # config.resolve_jira_credentials reads IC_JIRA_* from the shell and .env.local; the docs must not tell a new
-        # install to set variables wow does not read there
+    def test_the_docs_name_the_generic_jira_variables_and_not_the_personal_ones(self):
+        # config.resolve_jira_credentials reads JIRA_* in every layer and IC_JIRA_* as a personal alias; a new install
+        # is told only the generic names
         for page in (DOCS / "instalacion.md", DOCS / "instalacion-detallada.md"):
             text = page.read_text(encoding="utf-8")
-            for name in ("IC_JIRA_BASE_URL", "IC_JIRA_USER_EMAIL", "IC_JIRA_API_TOKEN"):
+            for name in ("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN"):
                 self.assertIn(name, text, f"{page.name} does not name {name}")
+        for path in [*PAGES, ROOT / "AGENTS.md", *(ROOT / "skills").glob("*/SKILL.md"), *(DOCS / "img" / "src").glob("*.html")]:
+            self.assertNotIn("IC_JIRA", path.read_text(encoding="utf-8"), f"{path.name} advertises the personal IC_JIRA_* names")
+
+    def test_the_guide_skill_declares_the_generic_names(self):
+        header = (ROOT / "skills" / "wow-guide" / "SKILL.md").read_text(encoding="utf-8").split("---")[1]
+        self.assertIn("JIRA_BASE_URL", header)
 
     def test_every_image_has_its_html_source(self):
         for png in (DOCS / "img").glob("*.png"):

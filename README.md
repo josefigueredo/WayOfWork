@@ -70,7 +70,7 @@ Después, `wow --version` comprueba que el CLI está en el PATH (si falla, agreg
 | Skill `run-in-cursor`, `cursor-agent` y tmux | `wow sk run` | `wow sk run` sale con 2 y dice que no encuentra `run-in-cursor` |
 | CLI de Codex (o Copilot) logueado | revisor independiente de `wow review` y `wow pbchat audit --deep` | `wow review` sale con 2 (no pude evaluar) |
 | `gh` logueado | links a PRs en el snapshot y el dashboard | el snapshot marca GitHub como no disponible |
-| Token de Jira **sin scopes** (variables `IC_JIRA_*`) | estado de las épicas y `wow close` | Jira figura como no configurado |
+| Token de Jira **sin scopes** (variables `JIRA_*`) | estado de las épicas y `wow close` | Jira figura como no configurado |
 
 El paso a paso de las credenciales está en la [instalación detallada](docs/instalacion-detallada.md#3-credenciales-de-jira).
 

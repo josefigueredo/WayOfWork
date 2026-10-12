@@ -9,7 +9,7 @@ iniciativa por Product Brain (registro), Spec-Kit (ejecución en Cursor) y Jira,
 2. Verificar con `wow --version`. Si no está en el PATH, agregá `~/.local/bin`.
 3. Correr `wow hook install-cursor` (una vez por máquina).
 4. Revisar los requisitos de la tabla del README. Pedile al usuario lo que falte, sin instalar credenciales por tu cuenta.
-   Las de Jira van en el shell o en `.env.local` como `IC_JIRA_*`, y nunca se imprimen ni se commitean.
+   Las de Jira van en el shell o en `.env.local` como `JIRA_BASE_URL`, `JIRA_EMAIL` y `JIRA_API_TOKEN`, y nunca se imprimen ni se commitean.
 
 ## Usar
 
