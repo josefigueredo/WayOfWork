@@ -64,7 +64,7 @@ Una vez por máquina, pedile:
 
 Esto agrega dos hooks a `~/.cursor/hooks.json`, junto a los que ya tengas: `stop` guarda el modelo y los tokens de cada
 turno del agente de Cursor, y `beforeShellExecution` es la [baranda](showcase.md#9-consumo-de-cursor-y-baranda-de-shell)
-contra comandos destructivos. El comando imprime solo `stop hook added`, pero agrega los dos. Los hooks apuntan a la
+contra comandos destructivos. El comando imprime una línea por hook (`stop hook added` y `beforeShellExecution hook added`). Los hooks apuntan a la
 ruta de tu clon: si lo movés, volvé a correr el comando.
 
 ## 3. Credenciales de Jira

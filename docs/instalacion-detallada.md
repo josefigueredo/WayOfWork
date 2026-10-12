@@ -94,8 +94,8 @@ wow hook install-cursor    # una vez por máquina
 
 Agrega a `~/.cursor/hooks.json`, sin tocar lo que ya tengas, un hook `stop` (guarda modelo y tokens de cada turno en
 `harness/cursor-turns/` del repo que tenga `wow/`) y un hook `beforeShellExecution` (la
-[baranda](showcase.md#9-consumo-de-cursor-y-baranda-de-shell)). El comando imprime `stop hook added` aunque agregue los dos,
-y vuelve a decir `already present` si ya estaban. Los hooks guardan la ruta del clon: si lo movés, volvé a correrlo.
+[baranda](showcase.md#9-consumo-de-cursor-y-baranda-de-shell)). El comando imprime una línea por hook (`stop hook added` y
+`beforeShellExecution hook added`) y dice `already present` en cada uno si ya estaban. Los hooks guardan la ruta del clon: si lo movés, volvé a correrlo.
 `--hooks-file RUTA` apunta a otro archivo, útil para probar.
 
 ## 5. Primer recorrido

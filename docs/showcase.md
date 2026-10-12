@@ -349,7 +349,7 @@ del agente antes de que corra.
 
 ![Terminal con wow hook install-cursor y la baranda rechazando un cp con una variable sin proteger](img/terminal-hook.png)
 
-*Salida real; la respuesta JSON se reformateó con saltos de línea para que entre. La baranda recibe el comando como JSON por stdin y contesta con JSON; Cursor es quien la llama.*
+*Salida real: el comando imprime una línea por hook, y al correrlo de nuevo dice `already present` en cada una. La respuesta JSON se reformateó con saltos de línea para que entre. La baranda recibe el comando como JSON por stdin y contesta con JSON; Cursor es quien la llama.*
 
 La baranda rechaza tres cosas, y el agente recibe el motivo: un `rm -r/-f`, `cp`, `mv` o `rsync` cuya ruta empieza con
 una variable sin proteger (`"$SRC"/.`), esos mismos comandos apuntados a `/` o al home, y un `git commit` que agrega más de
