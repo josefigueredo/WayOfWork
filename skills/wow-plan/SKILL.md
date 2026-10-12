@@ -1,6 +1,7 @@
 ---
 name: wow-plan
 description: Turn an initiative into a Brief and an upstream kanban (epics, tasks with acceptance criteria, estimates, priority, labels) in wow/plan/, ready for readiness review and Product Brain packets. Use when starting an initiative, when the user says "plan this", or when wow-guide recommends wow-plan.
+compatibility: Requires the `wow` CLI on PATH (./install.sh in the WayOfWork repo; Python 3.9+ and git).
 ---
 
 # wow-plan

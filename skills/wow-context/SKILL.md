@@ -1,6 +1,7 @@
 ---
 name: wow-context
 description: Build the context pack (facts, metrics, decisions, contracts, owner decisions) from the real repositories, with every claim tagged and sourced, then verify it with an independent reviewer. Use at the start of an initiative, when the repo changed, or when wow-guide recommends wow-context.
+compatibility: Requires the `wow` CLI on PATH (./install.sh in the WayOfWork repo; Python 3.9+ and git).
 ---
 
 # wow-context

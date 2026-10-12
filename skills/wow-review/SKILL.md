@@ -1,6 +1,7 @@
 ---
 name: wow-review
 description: Run an independent, anchored review with a different model (Codex, else Copilot) for a plan's readiness, a Jira story's diff, an epic's cumulative diff, or a document of claims. Use when a phase needs an independent verdict, when the user says "review this story/epic/plan", or when wow-guide recommends `wow review`.
+compatibility: Requires the `wow` CLI on PATH (Python 3.9+ and git) and a logged-in Codex (or Copilot) CLI as independent reviewer; without one, wow review exits 2.
 ---
 
 # wow-review
