@@ -278,8 +278,8 @@ def _cmd_dashboard(args) -> int:
 def _cmd_hook(args) -> int:
     import cursorhook
     if args.hook_command == "install-cursor":
-        changed = cursorhook.install(Path(args.hooks_file).expanduser(), cursorhook.default_command())
-        print(f"{args.hooks_file}: {'stop hook added' if changed else 'stop hook already present'}")
+        for event, added in cursorhook.install(Path(args.hooks_file).expanduser(), cursorhook.default_command()):
+            print(f"{args.hooks_file}: {event} hook {'added' if added else 'already present'}")
         return exitcodes.OK
     if args.hook_command == "cursor-shell":
         # beforeShellExecution: deny only what shellguard names; any failure of the guard lets the command run.
