@@ -21,10 +21,13 @@ DEFAULTS: dict = {
     "pricing": {"as_of": None, "per_mtok": {}},
 }
 
-_SPEC_KIT_MAP = {
-    "JIRA_BASE_URL": "IC_JIRA_BASE_URL",
-    "JIRA_EMAIL": "IC_JIRA_USER_EMAIL",
-    "JIRA_API_TOKEN": "IC_JIRA_API_TOKEN",
+# Generic names are the documented ones; IC_* are one person's own aliases, still read (and checked first in a layer).
+KEYS = {
+    "base_url": ("IC_JIRA_BASE_URL", "JIRA_BASE_URL"),
+    "email": ("IC_JIRA_USER_EMAIL", "JIRA_EMAIL"),
+    "token": ("IC_JIRA_API_TOKEN", "JIRA_API_TOKEN"),
+    "project_key": ("IC_JIRA_PROJECT_KEY", "JIRA_PROJECT_KEY"),
+    "child_mode": ("IC_JIRA_EPIC_CHILD_MODE", "JIRA_EPIC_CHILD_MODE"),
 }
 
 
@@ -98,20 +101,17 @@ class JiraCreds:
 
 
 def resolve_jira_credentials(project: Path, environ: Optional[Mapping[str, str]] = None) -> Optional[JiraCreds]:
-    env = dict(os.environ if environ is None else environ)
-    spec_kit = {_SPEC_KIT_MAP[k]: v for k, v in _read_dotenv(project / ".spec-kit" / ".env").items()
-                  if k in _SPEC_KIT_MAP}
-    layers = [env, _read_dotenv(project / ".env.local"), spec_kit]
+    layers = [dict(os.environ if environ is None else environ), _read_dotenv(project / ".env.local"),
+              _read_dotenv(project / ".spec-kit" / ".env")]
 
-    def pick(name: str) -> Optional[str]:
+    def pick(key: str) -> Optional[str]:
         for layer in layers:
-            value = layer.get(name)
-            if value:
-                return value
+            for name in KEYS[key]:
+                if layer.get(name):
+                    return layer[name]
         return None
 
-    base_url, email, token = pick("IC_JIRA_BASE_URL"), pick("IC_JIRA_USER_EMAIL"), pick("IC_JIRA_API_TOKEN")
+    base_url, email, token = pick("base_url"), pick("email"), pick("token")
     if not (base_url and email and token):
         return None
-    return JiraCreds(base_url, email, token, pick("IC_JIRA_PROJECT_KEY"),
-                     pick("IC_JIRA_EPIC_CHILD_MODE") or "parent")
+    return JiraCreds(base_url, email, token, pick("project_key"), pick("child_mode") or "parent")
