@@ -48,25 +48,26 @@ def record_turn(payload: dict, now: str) -> List[Path]:
     return written
 
 
-def install(hooks_file: Path, command: str) -> bool:
+def install(hooks_file: Path, command: str) -> "list[tuple[str, bool]]":
     """Add WoW's hooks to Cursor's hooks.json once, keeping everything else: `stop` records each turn's tokens and
-    `beforeShellExecution` runs the shell guard. Returns True if it changed."""
+    `beforeShellExecution` runs the shell guard. Returns each hook's event with True if this call added it."""
     data = {"version": 1, "hooks": {}}
     if hooks_file.is_file():
         data = json.loads(hooks_file.read_text(encoding="utf-8") or "{}")
     data.setdefault("version", 1)
     hooks = data.setdefault("hooks", {})
-    changed = False
+    results = []
     for event, sub, cmd in (("stop", "cursor-stop", command),
                             ("beforeShellExecution", "cursor-shell", command.replace("cursor-stop", "cursor-shell"))):
         entries = hooks.setdefault(event, [])
-        if not any(f"hook {sub}" in (entry.get("command") or "") for entry in entries):
+        added = not any(f"hook {sub}" in (entry.get("command") or "") for entry in entries)
+        if added:
             entries.append({"command": cmd})
-            changed = True
-    if changed:
+        results.append((event, added))
+    if any(added for _, added in results):
         hooks_file.parent.mkdir(parents=True, exist_ok=True)
         hooks_file.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    return changed
+    return results
 
 
 def default_command() -> str:

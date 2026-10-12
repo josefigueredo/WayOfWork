@@ -81,6 +81,25 @@ class HookCommandTest(unittest.TestCase):
         [entry] = saved["hooks"]["stop"]
         self.assertIn("hook cursor-stop", entry["command"])
 
+    def test_install_reports_every_hook_it_installed(self):
+        home = make_project()
+        hooks = home / "hooks.json"
+        first = run_cli(["hook", "install-cursor", "--hooks-file", str(hooks)])[1].splitlines()
+        self.assertEqual(first, [f"{hooks}: stop hook added", f"{hooks}: beforeShellExecution hook added"])
+        saved = json.loads(hooks.read_text(encoding="utf-8"))["hooks"]
+        self.assertEqual(sorted(saved), ["beforeShellExecution", "stop"])
+        again = run_cli(["hook", "install-cursor", "--hooks-file", str(hooks)])[1].splitlines()
+        self.assertEqual(again, [f"{hooks}: stop hook already present",
+                                 f"{hooks}: beforeShellExecution hook already present"])
+
+    def test_install_reports_only_the_missing_hook_as_added(self):
+        home = make_project()
+        hooks = write(home, "hooks.json", json.dumps({"version": 1, "hooks": {
+            "stop": [{"command": "python wow hook cursor-stop"}]}}))
+        out = run_cli(["hook", "install-cursor", "--hooks-file", str(hooks)])[1].splitlines()
+        self.assertEqual(out, [f"{hooks}: stop hook already present",
+                               f"{hooks}: beforeShellExecution hook added"])
+
 
 if __name__ == "__main__":
     unittest.main()
