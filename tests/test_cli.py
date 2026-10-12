@@ -139,7 +139,7 @@ import re as _re  # noqa: E402
 class SkillContractTest(unittest.TestCase):
     def test_guide_skill_frontmatter_and_commands_exist(self):
         text = (ROOT / "skills/wow-guide/SKILL.md").read_text(encoding="utf-8")
-        front = _re.match(r"^---\nname: (.+)\ndescription: (.+)\n---\n", text)
+        front = _re.match(r"^---\nname: (.+)\ndescription: (.+)\n(?:compatibility: .+\n)?---\n", text)
         self.assertIsNotNone(front)
         self.assertEqual(front.group(1), "wow-guide")
         self.assertLessEqual(len(text.splitlines()), 80)
@@ -339,7 +339,7 @@ class SkCommandTest(unittest.TestCase):
 
     def test_sk_prep_skill_frontmatter(self):
         text = (ROOT / "skills/wow-sk-prep/SKILL.md").read_text(encoding="utf-8")
-        front = _re.match(r"^---\nname: (.+)\ndescription: (.+)\n---\n", text)
+        front = _re.match(r"^---\nname: (.+)\ndescription: (.+)\n(?:compatibility: .+\n)?---\n", text)
         self.assertEqual(front.group(1), "wow-sk-prep")
         self.assertLessEqual(len(text.splitlines()), 80)
 
@@ -347,7 +347,7 @@ class SkCommandTest(unittest.TestCase):
 class ReviewSkillContractTest(unittest.TestCase):
     def test_review_skill_frontmatter(self):
         text = (ROOT / "skills/wow-review/SKILL.md").read_text(encoding="utf-8")
-        front = _re.match(r"^---\nname: (.+)\ndescription: (.+)\n---\n", text)
+        front = _re.match(r"^---\nname: (.+)\ndescription: (.+)\n(?:compatibility: .+\n)?---\n", text)
         self.assertEqual(front.group(1), "wow-review")
         self.assertLessEqual(len(text.splitlines()), 80)
 
@@ -465,7 +465,7 @@ class AllSkillsContractTest(unittest.TestCase):
         names = []
         for path in sorted((ROOT / "skills").glob("*/SKILL.md")):
             text = path.read_text(encoding="utf-8")
-            front = _re.match(r"^---\nname: (.+)\ndescription: (.+)\n---\n", text)
+            front = _re.match(r"^---\nname: (.+)\ndescription: (.+)\n(?:compatibility: .+\n)?---\n", text)
             self.assertIsNotNone(front, path)
             self.assertEqual(front.group(1), path.parent.name)
             self.assertLessEqual(len(text.splitlines()), 80, path)

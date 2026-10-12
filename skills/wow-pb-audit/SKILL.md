@@ -1,6 +1,7 @@
 ---
 name: wow-pb-audit
 description: Audit the local copy of a Product Brain chat (PRD, RFC or epic) against its packet and the context pack, and produce corrections to paste back into the chat. Use after each Product Brain chat, or when wow-guide recommends wow-pb-audit.
+compatibility: Requires the `wow` CLI on PATH (Python 3.9+ and git). The --deep mode needs a logged-in Codex (or Copilot) CLI as independent reviewer.
 ---
 
 # wow-pb-audit

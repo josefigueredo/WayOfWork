@@ -1,6 +1,7 @@
 ---
 name: wow-pack
 description: Generate the Product Brain packets (PRD, RFC and one per epic) as registro packets - Product Brain's exact template shape, real content only where the plan orients the epic, an explicit "No aplica" everywhere else - and verify locally that Product Brain scores them 100% and will not break them. Use before any Product Brain chat or when wow-guide recommends `wow pack`.
+compatibility: Requires the `wow` CLI on PATH (./install.sh in the WayOfWork repo; Python 3.9+ and git).
 ---
 
 # wow-pack
