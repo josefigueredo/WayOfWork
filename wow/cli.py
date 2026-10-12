@@ -169,7 +169,7 @@ def _cmd_jira_fix_fields(args) -> int:
     # The field list of a large Jira (3000+ fields) does not fit the 5 s the quick reads use.
     jira = JiraClient(creds, journal=jiralog.journal(project, f"jira fix-fields --epic {args.epic}")) if creds else None
     if jira is None:
-        sys.stderr.write("wow: Jira credentials not found (IC_JIRA_BASE_URL, IC_JIRA_USER_EMAIL, IC_JIRA_API_TOKEN)\n")
+        sys.stderr.write("wow: Jira credentials not found (JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN)\n")
         return exitcodes.CANNOT_EVALUATE
     try:
         result = jirafields.plan(project, args.epic, jira)
@@ -645,7 +645,7 @@ def _cmd_close(args) -> int:
     project = _project(args)
     jira = _jira_for(project, command=f"close --epic {args.epic}" + (" --subtasks" if args.subtasks else ""))
     if jira is None:
-        sys.stderr.write("wow: Jira credentials not found (IC_JIRA_BASE_URL, IC_JIRA_USER_EMAIL, IC_JIRA_API_TOKEN)\n")
+        sys.stderr.write("wow: Jira credentials not found (JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN)\n")
         return exitcodes.CANNOT_EVALUATE
     try:
         result = (closing.plan_subtasks if args.subtasks else closing.plan)(project, args.epic, jira)

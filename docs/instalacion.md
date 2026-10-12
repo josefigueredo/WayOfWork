@@ -84,13 +84,13 @@ y Jira figura como no configurado.
 no por el chat. Son las variables que `wow` lee:
 
 ```bash
-export IC_JIRA_BASE_URL="https://tu-empresa.atlassian.net"   # sin barra final
-export IC_JIRA_USER_EMAIL="vos@tu-empresa.com"
-export IC_JIRA_API_TOKEN="el-token-que-copiaste"
+export JIRA_BASE_URL="https://tu-empresa.atlassian.net"   # sin barra final
+export JIRA_EMAIL="vos@tu-empresa.com"
+export JIRA_API_TOKEN="el-token-que-copiaste"
 ```
 
-Opcionales: `IC_JIRA_PROJECT_KEY` e `IC_JIRA_EPIC_CHILD_MODE`. Como último recurso, `wow` lee `JIRA_BASE_URL`,
-`JIRA_EMAIL` y `JIRA_API_TOKEN` del `.spec-kit/.env` de Spec-Kit. Nunca las imprime ni las commitees.
+Opcionales: `JIRA_PROJECT_KEY` e `JIRA_EPIC_CHILD_MODE`. Como último recurso, `wow` lee las mismas variables del
+`.spec-kit/.env` de Spec-Kit. Nunca las imprime ni las commitees.
 
 **c) Comprobá que las ve.** Abrí una terminal nueva (para que cargue las variables) y pedile:
 
@@ -154,7 +154,7 @@ Como `install.sh` solo crea enlaces hacia tu clon, un `git pull` actualiza el CL
 |---|---|---|
 | `wow: command not found` | `~/.local/bin` no está en el PATH | Agregalo a tu `~/.zshrc` y abrí una terminal nueva |
 | `refusing to replace …: it is not a symlink` y código 1 | Ya hay un directorio real con el nombre de una skill | Movelo a otro lado y volvé a correr `./install.sh --skills`; el instalador no lo borra |
-| Jira figura `sin verificar: jira no configurado` | Las variables `IC_JIRA_*` no llegaron al proceso | Revisá el [paso 3](#3-credenciales-de-jira) y abrí una terminal nueva |
+| Jira figura `sin verificar: jira no configurado` | Las variables `JIRA_*` no llegaron al proceso | Revisá el [paso 3](#3-credenciales-de-jira) y abrí una terminal nueva |
 | Jira responde como anónimo o da 401 | El token se creó con alcance | Creá uno nuevo con **Create API token** a secas |
 | `wow review` sale con 2: `no reviewer available` | No hay Codex ni Copilot en el PATH, o no pasaron la prueba | Instalá y logueá uno de los dos |
 | `wow sk run` sale con 2: `ric.py not found` | Falta la skill `run-in-cursor` | Instalala (su `install.sh`) o apuntá `WOW_RIC` a su `ric.py` |

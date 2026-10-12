@@ -334,7 +334,7 @@ informa como anomalía de Spec-Kit y bloquea la corrida. Cada escritura queda en
 | Situación | Resultado |
 |---|---|
 | La épica no se exportó a Jira | `wow close` lo dice y pide `wow plan freeze --epics E1=<CLAVE>` primero |
-| Faltan las credenciales de Jira | Sale con 2 y nombra las tres variables `IC_JIRA_*` (ver la captura del caso 7) |
+| Faltan las credenciales de Jira | Sale con 2 y nombra las tres variables `JIRA_*` (ver la captura del caso 7) |
 | La pantalla del tipo de issue no tiene campo de puntos | `fix-fields` lo dice: se arregla en la configuración de Jira |
 
 ---

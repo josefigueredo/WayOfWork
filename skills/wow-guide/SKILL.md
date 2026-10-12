@@ -1,7 +1,7 @@
 ---
 name: wow-guide
 description: Tell the operator where the two WayOfWork flows stand (Product Brain and Spec-Kit, joined only by a Jira epic key) and what to do next: each flow's checklist with its percent complete, blockers, and up to three next steps with where to run them, which model and the exact command. Use when the user asks "what's next", "where am I", "qué sigue", or opens a work session.
-compatibility: Requires the `wow` CLI on PATH (./install.sh in the WayOfWork repo; Python 3.9+ and git). Jira status needs IC_JIRA_* credentials, otherwise it reports Jira as not configured.
+compatibility: Requires the `wow` CLI on PATH (./install.sh in the WayOfWork repo; Python 3.9+ and git). Jira status needs JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN, otherwise it reports Jira as not configured.
 ---
 
 # wow-guide

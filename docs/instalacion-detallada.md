@@ -70,13 +70,13 @@ Sin credenciales todo funciona menos lo que lee o escribe Jira: ahí `wow` marca
 sintaxis `export`):
 
 ```bash
-export IC_JIRA_BASE_URL="https://tu-empresa.atlassian.net"   # sin barra final
-export IC_JIRA_USER_EMAIL="vos@tu-empresa.com"
-export IC_JIRA_API_TOKEN="el-token-que-copiaste"
+export JIRA_BASE_URL="https://tu-empresa.atlassian.net"   # sin barra final
+export JIRA_EMAIL="vos@tu-empresa.com"
+export JIRA_API_TOKEN="el-token-que-copiaste"
 ```
 
-`wow` busca cada variable en este orden: el shell, `.env.local` y, como último recurso, las `JIRA_BASE_URL`, `JIRA_EMAIL` y
-`JIRA_API_TOKEN` del `.spec-kit/.env`. Opcionales: `IC_JIRA_PROJECT_KEY` e `IC_JIRA_EPIC_CHILD_MODE`. Nunca se
+`wow` busca cada variable en este orden: el shell, `.env.local` y, como último recurso, el `.spec-kit/.env`.
+Opcionales: `JIRA_PROJECT_KEY` e `JIRA_EPIC_CHILD_MODE`. Nunca se
 imprimen y no se commitean.
 
 **c) Comprobalo.** Con las variables cargadas, `wow progress` deja de decir `sin verificar: jira no configurado` en los
