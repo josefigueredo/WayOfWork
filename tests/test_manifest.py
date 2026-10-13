@@ -132,6 +132,16 @@ class LoadSaveFreezeTest(unittest.TestCase):
             manifest.ensure_writable(frozen, None)
         self.assertIn("/spec-kit.amend", str(ctx.exception))
 
+    def test_frozen_error_names_the_manual_scope_change_path(self):
+        # Product Brain has no Artifact Engine in its code: the PRD, RFC/epic and Jira are updated by hand.
+        frozen = manifest.freeze(valid_doc(), {"E1": "IRIS-40"}, "2026-10-02T10:00:00Z")
+        with self.assertRaises(manifest.FrozenError) as ctx:
+            manifest.ensure_writable(frozen, None)
+        message = str(ctx.exception)
+        self.assertNotIn("Artifact Engine", message)
+        for step in ("PRD", "RFC", "Jira", "/spec-kit.amend", "--reopen"):
+            self.assertIn(step, message)
+
     def test_new_manifest_validates_but_lints_with_findings(self):
         doc = manifest.new_manifest("0002-demo", "Demo", "2026-10-01")
         self.assertEqual(manifest.validate(doc), [])
