@@ -8,8 +8,10 @@ compatibility: Requires the `wow` CLI on PATH (./install.sh in the WayOfWork rep
 
 ## Steps
 
-1. Run `wow plan guard`. Exit 1 means the manifest is frozen: stop and explain the scope-change path
-   (Product Brain Artifact Engine + /spec-kit.amend). Exit 2 means there is no manifest yet:
+1. Run `wow plan guard`. Exit 1 means the manifest is frozen: stop and explain the scope-change path, which is manual
+   and in this order: the PRD in Product Brain, then the RFC and epic there (each step rereads the earlier documents but
+   does not update itself), then the Jira stories by hand (never re-export: it duplicates issues), then
+   `/spec-kit.amend`; if a registered key changed, `wow plan freeze --reopen "<reason>"`. Exit 2 means there is no manifest yet:
    run `wow plan init <NNNN-name> --title "<title>" --mode greenfield|brownfield`
    (brownfield = change to an existing system; it changes phase 0 and where Spec-Kit discovery fits).
 2. Clarify with the user ONE question at a time (use a brainstorming skill if the host has one). For a decision

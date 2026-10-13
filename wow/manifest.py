@@ -202,5 +202,6 @@ def ensure_writable(doc: dict, reopen_reason: Optional[str]) -> None:
     export = doc["plan"]["export"]
     if export["frozen"] and not reopen_reason:
         raise FrozenError(
-            f"manifest is frozen since {export['at']}: change scope through Product Brain (Artifact Engine) "
-            f"and /spec-kit.amend, or pass --reopen \"<reason>\"")
+            f"manifest is frozen since {export['at']}: change scope by hand, in order: the PRD in Product Brain, then the RFC "
+            f"and epic there, then the Jira stories (do not re-export: it duplicates), then /spec-kit.amend; "
+            f"if a registered key changed, pass --reopen \"<reason>\"")
