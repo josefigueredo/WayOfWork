@@ -20,18 +20,46 @@ class ReviewOutputError(Exception):
     """The reviewer output has no VERDICT line, so no round can be recorded."""
 
 
+_LEAD_RE = re.compile(r"^\s*(?:>\s*|#+\s+|[-*+]\s+|\d+[.)]\s+)*")
+_KEYWORD_RE = re.compile(r"^(VERDICT:|BLOCKER\b|WARNING\b|NIT\b)")
+_WRAPPERS = ("**", "__", "`")
+
+
+def _plain(line: str) -> str:
+    """A reviewer line without the Markdown a model wraps the keyword in: a leading quote, heading or list marker, and
+    bold or code around the keyword (closed right after it or at the end of the line). The finding itself is kept
+    verbatim: a path like __init__.py or a glob like **/*.py is real. Measured: cursor-agent answered
+    "**VERDICT: APPROVED**". The keyword must still open the line."""
+    line = _LEAD_RE.sub("", line).strip()
+    wrapper = next((w for w in _WRAPPERS if line.startswith(w) and _KEYWORD_RE.match(line[len(w):])), None)
+    if wrapper is None:
+        return line
+    line = line[len(wrapper):]
+    keyword = _KEYWORD_RE.match(line).group(1)
+    if line[len(keyword):].startswith(wrapper):
+        return keyword + line[len(keyword) + len(wrapper):]
+    if line.endswith(wrapper):
+        return line[: -len(wrapper)].rstrip()
+    return line
+
+
+def _token(value: str) -> str:
+    return value.strip("`")
+
+
 def parse_verdict(text: str) -> dict:
-    verdict = _VERDICT_RE.search(text)
+    lines = [_plain(line) for line in text.splitlines()]
+    verdict = _VERDICT_RE.search("\n".join(lines))
     parsed = {"verdict": verdict.group(1) if verdict else None, "blockers": [], "warnings": [], "nits": []}
-    for line in text.splitlines():
+    for line in lines:
         blocker = _BLOCKER_RE.match(line)
         if blocker:
-            parsed["blockers"].append({"anchor": blocker.group(1), "path_line": blocker.group(2),
+            parsed["blockers"].append({"anchor": _token(blocker.group(1)), "path_line": _token(blocker.group(2)),
                                        "text": blocker.group(3)})
             continue
         warning = _WARNING_RE.match(line)
         if warning:
-            parsed["warnings"].append({"path_line": warning.group(1), "text": warning.group(2)})
+            parsed["warnings"].append({"path_line": _token(warning.group(1)), "text": warning.group(2)})
             continue
         nit = _NIT_RE.match(line)
         if nit:
