@@ -223,6 +223,33 @@ def claims_packet(doc: Path, repo: Path) -> dict:
     return {"anchor_set": "claims", "ref": doc.stem, "anchors": anchors, "body": text, "cwd": repo}
 
 
+def critique_packet(project: Path, ref: str, doc: Optional[Path] = None, repo: Optional[Path] = None,
+                    base: str = "main", runner: Callable = subprocess.run) -> dict:
+    """An advisory pass with no anchors: a document, or else the diff, gets only WARNINGs and NITs."""
+    if doc is not None:
+        if not doc.is_file():
+            raise PacketError(f"{doc} not found")
+        return {"anchor_set": "critique", "ref": ref, "anchors": {}, "body": doc.read_text(encoding="utf-8"),
+                "source": doc.name, "cwd": repo or project}
+    repo = repo or project
+    return {"anchor_set": "critique", "ref": ref, "anchors": {}, "body": git_diff(repo, base, runner),
+            "source": f"git diff {base}", "cwd": repo}
+
+
+_CRITIQUE_PROMPT = """You are an independent critic. Nothing below is approved or rejected by you: you only advise.
+Read the CONTENT and point out what a careful senior engineer would question: risks, gaps, unclear decisions,
+assumptions with no evidence, simpler alternatives. Skip what linters or formatters already enforce.
+
+Output format, exactly, with no other text (no verdict):
+WARNING <path:line> — <what to question and why>
+NIT — <...>
+
+Do not modify any file.
+
+--- CONTENT (critique {ref}: {source}) ---
+{body}
+"""
+
 _PROMPT = """You are an independent reviewer. Review the CONTENT below ONLY against these anchors:
 {anchors}
 
@@ -261,6 +288,8 @@ _TASKS = {
 
 
 def build_prompt(packet: dict) -> str:
+    if packet["anchor_set"] == "critique":
+        return _CRITIQUE_PROMPT.format(ref=packet["ref"], source=packet["source"], body=packet["body"])
     anchors = "\n".join(f"- {key}: {text}" for key, text in packet["anchors"].items())
     return _PROMPT.format(anchors=anchors, task=_TASKS[packet["anchor_set"]], anchor_set=packet["anchor_set"],
                           ref=packet["ref"], body=packet["body"])

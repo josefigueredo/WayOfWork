@@ -190,6 +190,30 @@ class StandardsPacketTest(unittest.TestCase):
             packets.standards_packet(make_project(), "IRIS-41", git_repo_with_change(), "main")
 
 
+class CritiquePacketTest(unittest.TestCase):
+    def test_a_document_without_anchors_asks_only_for_warnings_and_nits(self):
+        project = make_project()
+        doc = write(project, "design.md", "# Design\nWe cache everything forever.\n")
+        packet = packets.critique_packet(project, "design", doc=doc)
+        self.assertEqual((packet["anchor_set"], packet["anchors"]), ("critique", {}))
+        self.assertIn("cache everything forever", packet["body"])
+        prompt = packets.build_prompt(packet)
+        self.assertIn("WARNING", prompt)
+        self.assertIn("NIT", prompt)
+        self.assertNotIn("VERDICT", prompt)
+        self.assertNotIn("BLOCKER <", prompt)
+        self.assertIn("(critique design: design.md)", prompt)  # the critic cites lines of a file it can name
+
+    def test_without_a_document_the_diff_is_critiqued(self):
+        packet = packets.critique_packet(make_project(), "E1", repo=git_repo_with_change(), base="main")
+        self.assertIn("+print('v2')", packet["body"])
+
+    def test_a_missing_document_raises(self):
+        project = make_project()
+        with self.assertRaises(packets.PacketError):
+            packets.critique_packet(project, "x", doc=project / "missing.md")
+
+
 class OtherPacketsTest(unittest.TestCase):
     def test_epic_anchors_from_manifest(self):
         project = make_project()
