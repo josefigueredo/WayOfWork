@@ -126,6 +126,76 @@ class UsageCaptureTest(unittest.TestCase):
         self.assertIsNone(reviewers.codex_model(project / "missing.toml"))
 
 
+# Shapes measured on 2026-10-13: claude 2.1.296 and cursor-agent 2026.10.01 with --output-format json; gemini's is
+# read from the 0.46.0 bundle (JsonFormatter and its per-model token metrics), since it could not run here.
+CLAUDE_JSON = {"type": "result", "is_error": False, "result": "VERDICT: APPROVED",
+               "usage": {"input_tokens": 2, "cache_creation_input_tokens": 26475, "cache_read_input_tokens": 16428,
+                         "output_tokens": 4, "output_tokens_details": {"thinking_tokens": 1}},
+               "modelUsage": {"claude-opus-5-5": {"inputTokens": 2, "outputTokens": 4}}}
+CURSOR_JSON = {"type": "result", "is_error": False, "result": "VERDICT: APPROVED",
+               "usage": {"inputTokens": 11153, "outputTokens": 65, "cacheReadTokens": 3869, "cacheWriteTokens": 0}}
+GEMINI_JSON = {"response": "VERDICT: APPROVED",
+               "stats": {"models": {"gemini-3.1-pro": {"tokens": {"input": 900, "prompt": 1000, "candidates": 40,
+                                                                  "total": 1050, "cached": 100, "thoughts": 10}}}}}
+
+
+def json_spec(project, payload, kind):
+    script = write(project, f"fake_{kind}.py", "import json, sys\nsys.stdin.read()\nprint(json.dumps(%r))\n" % (payload,))
+    return {"argv": [sys.executable, str(script)], "stdin": True, "output": "json", "json": kind}
+
+
+class JsonReviewerTest(unittest.TestCase):
+    def test_claude_text_usage_and_model(self):
+        project = make_project()
+        reply = reviewers.run_reviewer(json_spec(project, CLAUDE_JSON, "claude"), "review", project)
+        self.assertEqual(reply.text, "VERDICT: APPROVED")
+        self.assertEqual(reply.model, "claude-opus-5-5")
+        self.assertEqual(reply.usage, {"input_tokens": 2, "cached_input_tokens": 16428,
+                                       "cache_write_input_tokens": 26475, "output_tokens": 4,
+                                       "reasoning_output_tokens": 1})
+
+    def test_cursor_usage_and_its_configured_model(self):
+        project = make_project()
+        reply = reviewers.run_reviewer(json_spec(project, CURSOR_JSON, "cursor"), "review", project)
+        self.assertEqual(reply.text, "VERDICT: APPROVED")
+        self.assertIsNone(reply.model)  # cursor-agent does not report it
+        self.assertEqual(reply.usage, {"input_tokens": 11153, "cached_input_tokens": 3869,
+                                       "cache_write_input_tokens": 0, "output_tokens": 65})
+        cfg = write(project, "cli-config.json", '{"model": {"modelId": "composer-2.5"}}')
+        self.assertEqual(reviewers.cursor_model(cfg), "composer-2.5")
+        self.assertIsNone(reviewers.cursor_model(project / "missing.json"))
+        spec = {"argv": ["cursor-agent", "-p", "--model", "gpt-6", "{prompt}"]}
+        self.assertEqual(reviewers.reviewer_model("cursor-agent", spec, None, cursor_config=cfg), "gpt-6")
+        self.assertEqual(reviewers.reviewer_model("cursor-agent", {"argv": ["cursor-agent"]}, None,
+                                                  cursor_config=cfg), "composer-2.5")
+        self.assertEqual(reviewers.reviewer_model("claude", {"argv": []}, "claude-opus-5-5"), "claude-opus-5-5")
+
+    def test_gemini_sums_its_models(self):
+        project = make_project()
+        reply = reviewers.run_reviewer(json_spec(project, GEMINI_JSON, "gemini"), "review", project)
+        self.assertEqual((reply.text, reply.model), ("VERDICT: APPROVED", "gemini-3.1-pro"))
+        self.assertEqual(reply.usage, {"input_tokens": 1000, "cached_input_tokens": 100, "output_tokens": 40,
+                                       "reasoning_output_tokens": 10})
+
+    def test_an_error_result_is_a_failed_reviewer(self):
+        project = make_project()
+        with self.assertRaises(reviewers.ReviewerFailed):
+            reviewers.run_reviewer(json_spec(project, dict(CLAUDE_JSON, is_error=True), "claude"), "x", project)
+        with self.assertRaises(reviewers.ReviewerFailed):
+            reviewers.run_reviewer(json_spec(project, {"error": {"message": "quota"}}, "gemini"), "x", project)
+        broken = {"argv": [sys.executable, "-c", "print('not json')"], "stdin": False, "output": "json",
+                  "json": "claude"}
+        with self.assertRaises(reviewers.ReviewerFailed):
+            reviewers.run_reviewer(broken, "x", project)
+
+    def test_new_defaults_ask_for_json(self):
+        for name, kind in (("claude", "claude"), ("cursor-agent", "cursor"), ("gemini", "gemini")):
+            spec = reviewers.command_spec({}, name)
+            self.assertEqual((spec["output"], spec["json"]), ("json", kind))
+            self.assertIn("json", spec["argv"])
+            self.assertNotIn("text", spec["argv"])
+
+
 class CodexOutsideGitTest(unittest.TestCase):
     def test_codex_runs_in_non_git_workspaces(self):
         # Multi-repo umbrellas (a workspace root holding many repos) are not git repositories; without this flag

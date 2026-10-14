@@ -133,7 +133,8 @@ def cursor_turn_records(project: Path) -> List[dict]:
     return records
 
 
-_REVIEWER_VENDOR = {"codex": "openai", "copilot": "github"}
+_REVIEWER_VENDOR = {"codex": "openai", "copilot": "github", "claude": "anthropic", "cursor-agent": "cursor",
+                    "gemini": "google"}
 
 
 def review_records(project: Path) -> List[dict]:
@@ -149,8 +150,8 @@ def review_records(project: Path) -> List[dict]:
         records.append(_record(
             ts=run.get("ts"), vendor=_REVIEWER_VENDOR.get(reviewer, reviewer), tool=reviewer, model=run.get("model"),
             tokens_in=used.get("input_tokens"), tokens_out=used.get("output_tokens"),
-            cache_read=used.get("cached_input_tokens"), reasoning_out=used.get("reasoning_output_tokens"),
-            scope="review", ref=run.get("ref"), source="wow-review"))
+            cache_read=used.get("cached_input_tokens"), cache_write=used.get("cache_write_input_tokens"),
+            reasoning_out=used.get("reasoning_output_tokens"), scope="review", ref=run.get("ref"), source="wow-review"))
     return records
 
 

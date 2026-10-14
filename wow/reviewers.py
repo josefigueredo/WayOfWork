@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Callable, Mapping, Optional, Set, Tuple
+from typing import Callable, Mapping, NamedTuple, Optional, Set, Tuple
 
 DEFAULT_COMMANDS = {
     # --json streams events on stdout (the turn's token usage among them); the answer still arrives through -o.
@@ -17,12 +17,13 @@ DEFAULT_COMMANDS = {
               "stdin": True, "output": "file"},
     "copilot": {"argv": ["copilot", "-s", "-p", "{prompt}"], "stdin": False, "output": "stdout"},
     # Every default runs read-only: claude in plan mode, cursor-agent in ask mode, gemini with plan approval.
-    "gemini": {"argv": ["gemini", "-o", "text", "--approval-mode", "plan", "-p", "{prompt}"],
-               "stdin": False, "output": "stdout"},
-    "cursor-agent": {"argv": ["cursor-agent", "-p", "--trust", "--mode", "ask", "--output-format", "text", "{prompt}"],
-                     "stdin": False, "output": "stdout"},
-    "claude": {"argv": ["claude", "--print", "--permission-mode", "plan", "--output-format", "text"],
-               "stdin": True, "output": "stdout"},
+    # Their JSON output carries the answer and the turn's token usage (and, except cursor-agent, the model).
+    "gemini": {"argv": ["gemini", "-o", "json", "--approval-mode", "plan", "-p", "{prompt}"],
+               "stdin": False, "output": "json", "json": "gemini"},
+    "cursor-agent": {"argv": ["cursor-agent", "-p", "--trust", "--mode", "ask", "--output-format", "json", "{prompt}"],
+                     "stdin": False, "output": "json", "json": "cursor"},
+    "claude": {"argv": ["claude", "--print", "--permission-mode", "plan", "--output-format", "json"],
+               "stdin": True, "output": "json", "json": "claude"},
 }
 # What each host leaves in the environment of the commands it runs (measured: Claude Code 2.1.296, codex 0.159.3,
 # cursor-agent 2026.10.01; gemini's is read from the 0.46.0 bundle). Children inherit them, so a nested session shows
@@ -72,8 +73,87 @@ def codex_model(config_path: Path = Path.home() / ".codex" / "config.toml") -> O
     return match.group(1) if match else None
 
 
-def run_backend_with_usage(spec: dict, prompt: str, cwd: Path, runner: Callable = subprocess.run,
-                           which: Callable = shutil.which, timeout: int = 1800) -> Tuple[str, Optional[dict]]:
+class Reply(NamedTuple):
+    text: str
+    usage: Optional[dict]
+    model: Optional[str]
+
+
+def _int(value) -> int:
+    return int(value or 0)
+
+
+def _claude_reply(data: dict) -> Reply:
+    used = data.get("usage") or {}
+    models = data.get("modelUsage") or {}
+    model = max(models, key=lambda m: _int((models[m] or {}).get("outputTokens"))) if models else None
+    return Reply(data.get("result") or "", {
+        "input_tokens": _int(used.get("input_tokens")), "cached_input_tokens": _int(used.get("cache_read_input_tokens")),
+        "cache_write_input_tokens": _int(used.get("cache_creation_input_tokens")),
+        "output_tokens": _int(used.get("output_tokens")),
+        "reasoning_output_tokens": _int((used.get("output_tokens_details") or {}).get("thinking_tokens"))} if used else None,
+        model)
+
+
+def _cursor_reply(data: dict) -> Reply:
+    used = data.get("usage") or {}
+    return Reply(data.get("result") or "", {
+        "input_tokens": _int(used.get("inputTokens")), "cached_input_tokens": _int(used.get("cacheReadTokens")),
+        "cache_write_input_tokens": _int(used.get("cacheWriteTokens")),
+        "output_tokens": _int(used.get("outputTokens"))} if used else None, None)
+
+
+def _gemini_reply(data: dict) -> Reply:
+    models = (data.get("stats") or {}).get("models") or {}
+    usage = None
+    for metrics in models.values():
+        tokens = (metrics or {}).get("tokens") or {}
+        usage = usage or {"input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 0, "reasoning_output_tokens": 0}
+        usage["input_tokens"] += _int(tokens.get("prompt"))
+        usage["cached_input_tokens"] += _int(tokens.get("cached"))
+        usage["output_tokens"] += _int(tokens.get("candidates"))
+        usage["reasoning_output_tokens"] += _int(tokens.get("thoughts"))
+    return Reply(data.get("response") or "", usage, ", ".join(sorted(models)) or None)
+
+
+_JSON_REPLIES = {"claude": _claude_reply, "cursor": _cursor_reply, "gemini": _gemini_reply}
+
+
+def _json_reply(spec: dict, stdout: str) -> Reply:
+    try:
+        data = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        raise ReviewerFailed(f"{spec['argv'][0]} printed no JSON result") from exc
+    if not isinstance(data, dict) or data.get("is_error") or data.get("error"):
+        raise ReviewerFailed(f"{spec['argv'][0]} reported an error")
+    return _JSON_REPLIES[spec["json"]](data)
+
+
+def cursor_model(config_path: Path = Path.home() / ".cursor" / "cli-config.json") -> Optional[str]:
+    """cursor-agent's JSON result does not name the model: without --model it uses the one in its own config."""
+    try:
+        model = json.loads(Path(config_path).read_text(encoding="utf-8")).get("model") or {}
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return None
+    return model.get("modelId") if isinstance(model, dict) else None
+
+
+def reviewer_model(name: str, spec: dict, reported: Optional[str], cursor_config: Optional[Path] = None) -> Optional[str]:
+    """The model the reply named; else --model in the command; else the reviewer's own config (codex, cursor-agent)."""
+    if reported:
+        return reported
+    argv = spec.get("argv") or []
+    if "--model" in argv[:-1]:
+        return argv[argv.index("--model") + 1]
+    if name == "codex":
+        return codex_model()
+    if name == "cursor-agent":
+        return cursor_model(cursor_config) if cursor_config else cursor_model()
+    return None
+
+
+def run_reviewer(spec: dict, prompt: str, cwd: Path, runner: Callable = subprocess.run,
+                 which: Callable = shutil.which, timeout: int = 1800) -> Reply:
     if which(spec["argv"][0]) is None:
         raise FileNotFoundError(spec["argv"][0])
     fd, out = tempfile.mkstemp(prefix="wow-review-", suffix=".md")
@@ -85,10 +165,18 @@ def run_backend_with_usage(spec: dict, prompt: str, cwd: Path, runner: Callable 
         if proc.returncode != 0:
             raise ReviewerFailed(f"{spec['argv'][0]} exited with {proc.returncode}")
         if spec.get("output") == "file":
-            return Path(out).read_text(encoding="utf-8"), _usage_from_events(proc.stdout or "")
-        return proc.stdout, None
+            return Reply(Path(out).read_text(encoding="utf-8"), _usage_from_events(proc.stdout or ""), None)
+        if spec.get("output") == "json":
+            return _json_reply(spec, proc.stdout or "")
+        return Reply(proc.stdout, None, None)
     finally:
         Path(out).unlink(missing_ok=True)
+
+
+def run_backend_with_usage(spec: dict, prompt: str, cwd: Path, runner: Callable = subprocess.run,
+                           which: Callable = shutil.which, timeout: int = 1800) -> Tuple[str, Optional[dict]]:
+    reply = run_reviewer(spec, prompt, cwd, runner, which, timeout)
+    return reply.text, reply.usage
 
 
 def run_backend(spec: dict, prompt: str, cwd: Path, runner: Callable = subprocess.run,
