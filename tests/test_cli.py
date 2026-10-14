@@ -263,7 +263,7 @@ class ReviewCommandTest(unittest.TestCase):
 
     def test_no_reviewer_exits_2(self):
         project, _ = _review_project("VERDICT: APPROVED\n")
-        write(project, ".wow/config.json", _json.dumps({"reviewers": ["claude"]}))
+        write(project, ".wow/config.json", _json.dumps({"reviewers": ["no-such-reviewer"]}))
         code, _, err = run_cli(["review", "--set", "readiness", "--ref", "plan", "--project", str(project)])
         self.assertEqual(code, 2)
         self.assertIn("no reviewer available", err)
@@ -412,7 +412,7 @@ class PbchatDeepAuditCommandTest(unittest.TestCase):
 
     def test_deep_audit_without_reviewer_exits_2(self):
         project, _ = _review_project("VERDICT: APPROVED\n")
-        write(project, ".wow/config.json", _json.dumps({"reviewers": ["claude"]}))
+        write(project, ".wow/config.json", _json.dumps({"reviewers": ["no-such-reviewer"]}))
         write(project, "wow/pb/chats/prd.md", "llega al 100%\n")
         self.assertEqual(run_cli(["pbchat", "audit", "prd", "--deep", "--project", str(project)])[0], 2)
         self.assertFalse((project / "wow/pb/chats/prd.audit.json").exists())

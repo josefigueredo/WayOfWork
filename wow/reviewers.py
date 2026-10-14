@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Callable, Mapping, Optional, Set, Tuple
 
 DEFAULT_COMMANDS = {
     # --json streams events on stdout (the turn's token usage among them); the answer still arrives through -o.
@@ -16,8 +16,19 @@ DEFAULT_COMMANDS = {
                         "--json", "-o", "{out}", "-"],
               "stdin": True, "output": "file"},
     "copilot": {"argv": ["copilot", "-s", "-p", "{prompt}"], "stdin": False, "output": "stdout"},
+    # Every default runs read-only: claude in plan mode, cursor-agent in ask mode, gemini with plan approval.
+    "gemini": {"argv": ["gemini", "-o", "text", "--approval-mode", "plan", "-p", "{prompt}"],
+               "stdin": False, "output": "stdout"},
+    "cursor-agent": {"argv": ["cursor-agent", "-p", "--trust", "--mode", "ask", "--output-format", "text", "{prompt}"],
+                     "stdin": False, "output": "stdout"},
+    "claude": {"argv": ["claude", "--print", "--permission-mode", "plan", "--output-format", "text"],
+               "stdin": True, "output": "stdout"},
 }
-EXCLUDED = {"claude", "cursor"}
+# What each host leaves in the environment of the commands it runs (measured: Claude Code 2.1.296, codex 0.159.3,
+# cursor-agent 2026.10.01; gemini's is read from the 0.46.0 bundle). Children inherit them, so a nested session shows
+# several markers; WOW_HOST names the author explicitly, comma-separated, for hosts without one.
+HOST_MARKERS = {"CLAUDECODE": "claude", "CODEX_THREAD_ID": "codex", "CURSOR_AGENT": "cursor-agent",
+                "GEMINI_CLI": "gemini"}
 _DRY_RUN_PROMPT = "Reply with exactly OK and nothing else."
 
 
@@ -92,11 +103,20 @@ def dry_run_ok(spec: dict, cwd: Path, runner: Callable = subprocess.run, which: 
         return False
 
 
+def author_hosts(env: Mapping[str, str]) -> Set[str]:
+    """The hosts that may have written the work under review; none of them may review it."""
+    hosts = {host for marker, host in HOST_MARKERS.items() if env.get(marker)}
+    hosts.update(name.strip() for name in env.get("WOW_HOST", "").split(",") if name.strip())
+    return hosts
+
+
 def pick_reviewer(cfg: dict, cwd: Path, runner: Callable = subprocess.run,
-                  which: Callable = shutil.which) -> Tuple[str, dict]:
-    tried = []
+                  which: Callable = shutil.which, env: Optional[Mapping[str, str]] = None) -> Tuple[str, dict]:
+    authors = author_hosts(os.environ if env is None else env)
+    tried, skipped = [], []
     for name in cfg.get("reviewers", []):
-        if name in EXCLUDED:
+        if name in authors:
+            skipped.append(name)
             continue
         spec = command_spec(cfg, name)
         if spec is None:
@@ -104,4 +124,7 @@ def pick_reviewer(cfg: dict, cwd: Path, runner: Callable = subprocess.run,
         tried.append(name)
         if dry_run_ok(spec, cwd, runner, which):
             return name, spec
-    raise NoReviewer(f"no reviewer available (tried: {', '.join(tried) or 'none'})")
+    detail = f"tried: {', '.join(tried) or 'none'}"
+    if skipped:
+        detail += f"; skipped as author: {', '.join(skipped)}"
+    raise NoReviewer(f"no reviewer available ({detail})")

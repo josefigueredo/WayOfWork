@@ -30,7 +30,7 @@ cada comando y flag, la [referencia](referencia.md).
 |---|---|
 | **Dos flujos, una sola clave** | Product Brain (contexto, plan, paquetes, chats, export) y Spec-Kit (uno por épica) solo se tocan en la clave de la épica de Jira |
 | **Medir, no especular** | Todo valor medible se mide antes de afirmarlo y se cita; lo que no, se rotula como inferencia. `wow context check`, `wow cite check` y `wow ref check` lo comprueban sin un modelo de por medio |
-| **Revisor distinto del autor** | El modelo que escribe el plan no lo revisa: `wow review` usa Codex (o Copilot) y tiene un tope de tres rondas antes de pasar a una persona |
+| **Revisor distinto del autor** | El modelo que escribe el plan no lo revisa: `wow review` prueba Codex, Copilot, Gemini, `cursor-agent` y Claude en ese orden, saltea al que escribe, y tiene un tope de tres rondas antes de pasar a una persona |
 | **Las personas deciden** | Aprobar una auditoría (`--decide`), resolver una revisión escalada y correr `sync-status` son de una persona; `wow` los registra pero no los toma por vos |
 | **Evidencia, no tildes** | `wow progress` deriva cada ítem de archivos, revisiones y Jira; un ítem sin verificar es `[?]` y nunca cuenta como hecho |
 | **Una sola escritura hacia Jira** | `wow close --apply` (y `wow jira fix-fields --apply`), siempre en seco por defecto y con un registro en `harness/jira-writes.jsonl` |
@@ -307,7 +307,7 @@ Necesitás un veredicto de un modelo distinto al que escribió el trabajo.
 |---|---|
 | Se reintenta sin cambiar el diff tras un BLOCKER | `wow` se niega, y el agente también |
 | Tres rondas con BLOCKER | La revisión pasa a una persona; decide con `wow review --decide approved\|rejected --reason … --ref <REF>` y queda como `approved_by_human` / `rejected_by_human` |
-| No hay Codex ni Copilot | Sale con 2: `no reviewer available` |
+| No hay ningún revisor distinto del autor | Sale con 2: `no reviewer available` |
 
 ---
 

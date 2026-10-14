@@ -9,7 +9,7 @@ from typing import Dict, Mapping, Optional
 
 DEFAULTS: dict = {
     "schema_version": 1,
-    "reviewers": ["codex", "copilot"],
+    "reviewers": ["codex", "copilot", "gemini", "cursor-agent", "claude"],
     "models": {
         "author": "claude-opus",
         "reviewer": "codex",
