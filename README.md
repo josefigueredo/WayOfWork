@@ -35,6 +35,10 @@ Además de las skills, el CLI hace tres cosas por su cuenta: [cerrar en Jira lo 
 (`wow close`, `wow jira fix-fields`), [medir el consumo de Cursor y frenar comandos de shell destructivos](docs/showcase.md#9-consumo-de-cursor-y-baranda-de-shell)
 (`wow hook`, `wow usage`) y [armar un tablero que abre sin red](docs/showcase.md#10-un-tablero-que-abre-sin-red) (`wow dashboard`).
 
+Para medir a los revisores, `wow eval run evals/review-basics.json [--reviewer codex]` corre un dataset de casos con
+defectos plantados contra un revisor real y dice, por caso, si pasó, si falló o si no se pudo correr; un caso que no
+se pudo correr nunca cuenta como pasado. Se corre a mano (llama a un modelo) y el resultado queda en `harness/evals/`.
+
 ## Un ejemplo: ¿qué sigue?
 
 El agente corre `wow progress`, te muestra cada flujo con su porcentaje y lo que falta, y te dice qué bloqueos son tuyos

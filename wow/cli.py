@@ -13,6 +13,7 @@ import json
 
 import cites
 import estimate
+import evals
 import closing
 import jirafields
 import jiralog
@@ -520,6 +521,38 @@ def _cmd_critique(args, project: Path) -> int:
     return exitcodes.OK
 
 
+def _cmd_eval_run(args) -> int:
+    project = _project(args)
+    try:
+        cfg = config.load_config(project)
+        data = evals.load(Path(args.dataset).resolve())
+        if args.reviewer:
+            cfg = dict(cfg, reviewers=[args.reviewer])
+        name, spec = reviewers.pick_reviewer(cfg, project)
+    except (config.ConfigError, evals.EvalError, reviewers.NoReviewer) as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    results = evals.run(data, lambda prompt: reviewers.run_backend(spec, prompt, project))
+    counts = {status: sum(r["status"] == status for r in results) for status in ("pass", "fail", "could not run")}
+    stamp = _dt.datetime.now(_dt.timezone.utc)
+    out = project / "harness" / "evals" / f"{stamp.strftime('%Y%m%dT%H%M%SZ')}-{data['name']}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps({"schema_version": 1, "ts": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               "dataset": data["name"], "reviewer": name,
+                               "model": reviewers.codex_model() if name == "codex" else None,
+                               "counts": counts, "cases": results}, indent=2, ensure_ascii=False) + "\n",
+                   encoding="utf-8")
+    for result in results:
+        if result["status"] != "pass":
+            label = "FAIL" if result["status"] == "fail" else "COULD NOT RUN"
+            print(f"{label} {result['id']} — {result['detail']}")
+    print(f"{counts['pass']} passed, {counts['fail']} failed, {counts['could not run']} could not run "
+          f"(reviewer: {name}); kept in {out.relative_to(project)}")
+    if counts["fail"]:
+        return exitcodes.FINDINGS
+    return exitcodes.CANNOT_EVALUATE if counts["could not run"] else exitcodes.OK
+
+
 def _cmd_review(args) -> int:
     project = _project(args)
     if not review_mod.safe_ref(args.ref):
@@ -928,6 +961,13 @@ def build_parser() -> argparse.ArgumentParser:
     rv.add_argument("--base", default="main", help="git base for story/epic diffs (default: main)")
     rv.add_argument("--doc", default=None, help="claims document (required for --set claims; for --set critique, else the diff)")
     rv.set_defaults(handler=_cmd_review)
+
+    ev = sub.add_parser("eval", help="run a reviewer eval dataset against a real reviewer (by hand: it calls a model)")
+    evsub = ev.add_subparsers(dest="eval_command", required=True)
+    er = with_project(evsub.add_parser("run"))
+    er.add_argument("dataset", help="JSON dataset: schema_version, name, cases[id, set, anchors, content, expect]")
+    er.add_argument("--reviewer", default=None, help="use only this reviewer (still never the author)")
+    er.set_defaults(handler=_cmd_eval_run)
 
     pk = with_project(sub.add_parser("pack", help="render Product Brain packets from the manifest"))
     pk.add_argument("kind", choices=["prd", "rfc", "epic", "check"])

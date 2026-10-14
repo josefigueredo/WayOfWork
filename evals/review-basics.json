@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "name": "review-basics",
+  "cases": [
+    {
+      "id": "planted-missing-audit",
+      "set": "story",
+      "anchors": {"AC1": "curating a case sets its status to curated", "AC2": "curating a case writes an audit row"},
+      "content": "diff --git a/cases.py b/cases.py\n--- a/cases.py\n+++ b/cases.py\n@@ -1,3 +1,6 @@\n def load(case_id):\n     return db.get(case_id)\n+\n+def curate(case_id):\n+    case = load(case_id)\n+    case.status = \"curated\"\n+    db.save(case)\n",
+      "expect": {"verdict": "CHANGES_REQUIRED", "blockers": ["AC2"]}
+    },
+    {
+      "id": "clean-story",
+      "set": "story",
+      "anchors": {"AC1": "curating a case sets its status to curated", "AC2": "curating a case writes an audit row"},
+      "content": "diff --git a/cases.py b/cases.py\n--- a/cases.py\n+++ b/cases.py\n@@ -1,3 +1,7 @@\n def load(case_id):\n     return db.get(case_id)\n+\n+def curate(case_id, user):\n+    case = load(case_id)\n+    case.status = \"curated\"\n+    db.save(case)\n+    audit.write(case_id, user, \"curated\")\n",
+      "expect": {"verdict": "APPROVED"}
+    },
+    {
+      "id": "critique-cache-forever",
+      "set": "critique",
+      "content": "# Cache design\n\nWe cache every API response forever, in the process memory.\nThere is no invalidation because the data barely changes.\n",
+      "expect": {"min_warnings": 1}
+    }
+  ]
+}
