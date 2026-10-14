@@ -28,6 +28,32 @@ class ParseTest(unittest.TestCase):
     def test_missing_verdict(self):
         self.assertIsNone(review.parse_verdict("looks fine to me")["verdict"])
 
+    def test_markdown_around_the_keywords_is_ignored(self):
+        # Measured on 2026-10-13: cursor-agent answered "**VERDICT: APPROVED**" and the round counted as unparseable.
+        for line in ("**VERDICT: APPROVED**", "**VERDICT:** APPROVED", "## VERDICT: APPROVED", "> VERDICT: APPROVED",
+                     "`VERDICT: APPROVED`", "__VERDICT: APPROVED__"):
+            self.assertEqual(review.parse_verdict(line)["verdict"], "APPROVED", line)
+        parsed = review.parse_verdict("**VERDICT: CHANGES_REQUIRED**\n"
+                                      "- **BLOCKER** `AC1` `src/api.py:42` — returns **500**\n"
+                                      "* **WARNING** src/api.py:10 – long function\n"
+                                      "1. **NIT** — rename `x`\n")
+        self.assertEqual(parsed["verdict"], "CHANGES_REQUIRED")
+        self.assertEqual(parsed["blockers"], [{"anchor": "AC1", "path_line": "src/api.py:42", "text": "returns **500**"}])
+        self.assertEqual(parsed["warnings"], [{"path_line": "src/api.py:10", "text": "long function"}])
+        self.assertEqual(parsed["nits"], ["rename `x`"])
+
+    def test_markup_inside_a_finding_is_kept_verbatim(self):
+        # Only the wrapper around the keyword goes: dunders and globs in paths and text are real.
+        parsed = review.parse_verdict("VERDICT: CHANGES_REQUIRED\n"
+                                      "**BLOCKER** AC1 wow/sources/__init__.py:3 — `__init__` imports **/*.py eagerly\n"
+                                      "WARNING src/__main__.py:1 — runs on import\n")
+        self.assertEqual(parsed["blockers"], [{"anchor": "AC1", "path_line": "wow/sources/__init__.py:3",
+                                               "text": "`__init__` imports **/*.py eagerly"}])
+        self.assertEqual(parsed["warnings"], [{"path_line": "src/__main__.py:1", "text": "runs on import"}])
+
+    def test_a_keyword_in_the_middle_of_prose_is_still_not_a_verdict(self):
+        self.assertIsNone(review.parse_verdict("I would say **VERDICT: APPROVED** here")["verdict"])
+
 
 class RoundsTest(unittest.TestCase):
     def test_unknown_anchor_is_downgraded_and_round_recorded(self):

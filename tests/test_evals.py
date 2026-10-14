@@ -70,6 +70,12 @@ class RunTest(unittest.TestCase):
         self.assertEqual(evals.run(data, boom)[0]["detail"], "codex exited with 1")
 
 
+class MarkdownVerdictTest(unittest.TestCase):
+    def test_a_bold_verdict_is_judged_not_dropped(self):
+        results = evals.run(dataset([CASES[1]]), lambda prompt: "**VERDICT: APPROVED**")
+        self.assertEqual(results[0]["status"], "pass")
+
+
 class EvalCommandTest(unittest.TestCase):
     def test_all_cases_pass_and_the_result_is_kept(self):
         project = project_with_fake()
