@@ -71,14 +71,15 @@ def judge(expect: dict, parsed: dict, critique: bool = False) -> List[str]:
 
 
 def run(data: dict, ask: Callable[[str], str]) -> List[Dict]:
-    """ask(prompt) -> the reviewer's raw text; any exception it raises makes that case 'could not run'."""
+    """ask(prompt) -> the reviewer's raw text, or a reviewers.Reply with its usage and model; any exception it raises makes that case 'could not run'."""
     results = []
     for case in data["cases"]:
         try:
-            text = ask(prompt(case))
+            reply = ask(prompt(case))
         except Exception as exc:  # noqa: BLE001 — the case is reported, never guessed
             results.append({"id": case["id"], "status": "could not run", "detail": str(exc)[:300]})
             continue
+        text, used, model = (reply, None, None) if isinstance(reply, str) else (reply.text, reply.usage, reply.model)
         parsed = review_mod.parse_verdict(text)
         if case["set"] != "critique" and parsed["verdict"] is None:
             results.append({"id": case["id"], "status": "could not run", "detail": "no VERDICT line in the output",
@@ -86,5 +87,5 @@ def run(data: dict, ask: Callable[[str], str]) -> List[Dict]:
             continue
         misses = judge(case["expect"], parsed, critique=case["set"] == "critique")
         results.append({"id": case["id"], "status": "fail" if misses else "pass", "detail": "; ".join(misses),
-                        "output": text})
+                        "output": text, "usage": used, "model": model})
     return results

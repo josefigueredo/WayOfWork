@@ -185,6 +185,23 @@ class ReviewCommandTest(unittest.TestCase):
         self.assertEqual((saved["anchor_set"], saved["final"]), ("standards", "approved"))
         self.assertFalse((project / "wow/reviews/IRIS-41.json").exists())
 
+    def test_a_json_reviewer_records_its_model_and_usage(self):
+        project, _ = _review_project("unused")
+        fake = write(project, "fake_claude.py", (
+            "import json, sys\n"
+            "data = sys.stdin.read()\n"
+            "text = 'OK' if 'Reply with exactly OK' in data else 'VERDICT: APPROVED'\n"
+            "print(json.dumps({'is_error': False, 'result': text, 'usage': {'input_tokens': 3, "
+            "'cache_read_input_tokens': 10, 'cache_creation_input_tokens': 20, 'output_tokens': 4}, "
+            "'modelUsage': {'claude-opus-5-5': {'outputTokens': 4}}}))\n"))
+        spec = {"argv": [_sys.executable, str(fake)], "stdin": True, "output": "json", "json": "claude"}
+        write(project, ".wow/config.json", _json.dumps({"reviewers": ["claude"], "reviewer_commands": {"claude": spec}}))
+        code, out, _ = run_cli(["review", "--set", "readiness", "--ref", "plan", "--project", str(project)])
+        self.assertEqual(code, 0, out)
+        [row] = [_json.loads(p.read_text(encoding="utf-8")) for p in (project / "harness/reviews").glob("*.json")]
+        self.assertEqual((row["reviewer"], row["model"]), ("claude", "claude-opus-5-5"))
+        self.assertEqual(row["usage"]["cache_write_input_tokens"], 20)
+
     def test_critique_only_advises_and_never_opens_rounds(self):
         project, _ = _review_project("VERDICT: CHANGES_REQUIRED\nBLOCKER A1 design.md:2 — caches never expire\n"
                                      "WARNING design.md:1 — no owner named\nNIT — title case\n")

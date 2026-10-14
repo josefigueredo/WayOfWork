@@ -107,6 +107,19 @@ class CursorAndSummaryTest(unittest.TestCase):
         self.assertIn(record, usage.collect(project, {"usage": {"claude_root": str(project / "c"),
                                                                 "codex_root": str(project / "x")}}))
 
+    def test_review_runs_of_other_vendors_keep_their_cache_writes(self):
+        project = make_project()
+        write(project, "harness/reviews/20261013T220000Z-plan-r1.json", json.dumps({
+            "schema_version": 1, "ts": "2026-10-13T22:00:00Z", "ref": "plan", "set": "readiness", "round": 1,
+            "reviewer": "claude", "model": "claude-opus-5-5",
+            "usage": {"input_tokens": 2, "cached_input_tokens": 16428, "cache_write_input_tokens": 26475,
+                      "output_tokens": 4}}))
+        [record] = usage.review_records(project)
+        self.assertEqual((record["vendor"], record["model"], record["cache_write"]),
+                         ("anthropic", "claude-opus-5-5", 26475))
+        self.assertEqual(usage._REVIEWER_VENDOR["cursor-agent"], "cursor")
+        self.assertEqual(usage._REVIEWER_VENDOR["gemini"], "google")
+
     def test_parse_ts_variants(self):
         self.assertEqual(usage.parse_ts("2026-10-01T10:00:00.1234567Z").microsecond, 123456)
         self.assertEqual(usage.parse_ts("2026-10-01T10:00:00Z").second, 0)

@@ -472,14 +472,15 @@ def _sync_readiness(project: Path, summary: dict) -> None:
         manifest.save(project, doc)
 
 
-def _write_review_usage(project: Path, ref: str, anchor_set: str, number: int, name: str, used, duration_ms: int):
+def _write_review_usage(project: Path, ref: str, anchor_set: str, number: int, name: str, spec: dict,
+                        reply: "reviewers.Reply", duration_ms: int):
     # Usage lands in the project the review belongs to, whatever directory the command ran from.
     stamp = _dt.datetime.now(_dt.timezone.utc)
     usage_file = project / "harness" / "reviews" / f"{stamp.strftime('%Y%m%dT%H%M%SZ')}-{ref}-r{number}.json"
     usage_file.parent.mkdir(parents=True, exist_ok=True)
     usage_file.write_text(json.dumps({
         "schema_version": 1, "ts": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "ref": ref, "set": anchor_set, "round": number,
-        "reviewer": name, "model": reviewers.codex_model() if name == "codex" else None, "usage": used,
+        "reviewer": name, "model": reviewers.reviewer_model(name, spec, reply.model), "usage": reply.usage,
         "duration_ms": duration_ms}, indent=2) + "\n",
         encoding="utf-8")
 
@@ -493,7 +494,8 @@ def _cmd_critique(args, project: Path) -> int:
         packet = packets.critique_packet(project, args.ref, doc=doc, repo=repo, base=args.base)
         name, spec = reviewers.pick_reviewer(cfg, packet["cwd"])
         started = _dt.datetime.now(_dt.timezone.utc)
-        text, used = reviewers.run_backend_with_usage(spec, packets.build_prompt(packet), packet["cwd"])
+        reply = reviewers.run_reviewer(spec, packets.build_prompt(packet), packet["cwd"])
+        text = reply.text
         duration_ms = int((_dt.datetime.now(_dt.timezone.utc) - started).total_seconds() * 1000)
     except (config.ConfigError, packets.PacketError, reviewers.NoReviewer) as exc:
         sys.stderr.write(f"wow: {exc}\n")
@@ -506,7 +508,7 @@ def _cmd_critique(args, project: Path) -> int:
     folder.mkdir(parents=True, exist_ok=True)
     number = len(list(folder.glob("pass-*.md"))) + 1
     (folder / f"pass-{number}.md").write_text(text, encoding="utf-8")
-    _write_review_usage(project, ref, "critique", number, name, used, duration_ms)
+    _write_review_usage(project, ref, "critique", number, name, spec, reply, duration_ms)
     parsed = review_mod.parse_verdict(text)
     # With no anchors nothing can block: a BLOCKER the critic sent anyway is read as a warning.
     warnings = [(b["path_line"], b["text"]) for b in parsed["blockers"]] + \
@@ -532,14 +534,15 @@ def _cmd_eval_run(args) -> int:
     except (config.ConfigError, evals.EvalError, reviewers.NoReviewer) as exc:
         sys.stderr.write(f"wow: {exc}\n")
         return exitcodes.CANNOT_EVALUATE
-    results = evals.run(data, lambda prompt: reviewers.run_backend(spec, prompt, project))
+    results = evals.run(data, lambda prompt: reviewers.run_reviewer(spec, prompt, project))
+    reported = next((r["model"] for r in results if r.get("model")), None)
     counts = {status: sum(r["status"] == status for r in results) for status in ("pass", "fail", "could not run")}
     stamp = _dt.datetime.now(_dt.timezone.utc)
     out = project / "harness" / "evals" / f"{stamp.strftime('%Y%m%dT%H%M%SZ')}-{data['name']}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"schema_version": 1, "ts": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
                                "dataset": data["name"], "reviewer": name,
-                               "model": reviewers.codex_model() if name == "codex" else None,
+                               "model": reviewers.reviewer_model(name, spec, reported),
                                "counts": counts, "cases": results}, indent=2, ensure_ascii=False) + "\n",
                    encoding="utf-8")
     for result in results:
@@ -614,7 +617,8 @@ def _cmd_review(args) -> int:
     try:
         name, spec = reviewers.pick_reviewer(cfg, packet["cwd"])
         started = _dt.datetime.now(_dt.timezone.utc)
-        text, used = reviewers.run_backend_with_usage(spec, packets.build_prompt(packet), packet["cwd"])
+        reply = reviewers.run_reviewer(spec, packets.build_prompt(packet), packet["cwd"])
+        text = reply.text
         duration_ms = int((_dt.datetime.now(_dt.timezone.utc) - started).total_seconds() * 1000)
     except reviewers.NoReviewer as exc:
         sys.stderr.write(f"wow: {exc}\n")
@@ -624,7 +628,7 @@ def _cmd_review(args) -> int:
         return exitcodes.CANNOT_EVALUATE
 
     number = len(summary["rounds"]) + 1
-    _write_review_usage(project, ref, args.set, number, name, used, duration_ms)
+    _write_review_usage(project, ref, args.set, number, name, spec, reply, duration_ms)
     raw = project / ".wow" / "reviews" / ref / f"round-{number}.md"
     raw.parent.mkdir(parents=True, exist_ok=True)
     raw.write_text(text, encoding="utf-8")
