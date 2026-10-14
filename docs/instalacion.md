@@ -124,7 +124,7 @@ sesión y herramientas externas:
 - Iniciar sesión en Cursor y tener `cursor-agent`, y tmux, para `wow sk run`.
 - Tener la skill `run-in-cursor` (otro repo del Harness): `wow sk run` la usa para manejar un `cursor-agent` interactivo.
   Sin ella sale con código 2 y dice `run-in-cursor/ric.py not found`.
-- Iniciar sesión en Codex (o Copilot) para las revisiones independientes, y en `gh` para los links a PRs.
+- Iniciar sesión en al menos un revisor distinto del agente con el que trabajás (Codex, Copilot, Gemini, `cursor-agent` o Claude) para las revisiones independientes, y en `gh` para los links a PRs.
 
 Cuando esté, pedile:
 
@@ -156,7 +156,7 @@ Como `install.sh` solo crea enlaces hacia tu clon, un `git pull` actualiza el CL
 | `refusing to replace …: it is not a symlink` y código 1 | Ya hay un directorio real con el nombre de una skill | Movelo a otro lado y volvé a correr `./install.sh --skills`; el instalador no lo borra |
 | Jira figura `sin verificar: jira no configurado` | Las variables `JIRA_*` no llegaron al proceso | Revisá el [paso 3](#3-credenciales-de-jira) y abrí una terminal nueva |
 | Jira responde como anónimo o da 401 | El token se creó con alcance | Creá uno nuevo con **Create API token** a secas |
-| `wow review` sale con 2: `no reviewer available` | No hay Codex ni Copilot en el PATH, o no pasaron la prueba | Instalá y logueá uno de los dos |
+| `wow review` sale con 2: `no reviewer available` | Ningún revisor distinto del autor está en el PATH o pasó la prueba (el mensaje dice cuáles se probaron y cuáles se saltearon por ser el autor) | Instalá y logueá otro, o fijá la lista en `reviewers` de `.wow/config.json` |
 | `wow sk run` sale con 2: `ric.py not found` | Falta la skill `run-in-cursor` | Instalala (su `install.sh`) o apuntá `WOW_RIC` a su `ric.py` |
 | `wow sk run` sale con 1: `writes to Jira` | Pediste `/spec-kit.sync-status` | Correlo vos en Cursor |
 | La baranda de shell no actúa | Falta el hook, o el clon cambió de lugar | Volvé a correr el [paso 2](#2-hooks-de-cursor) |

@@ -13,6 +13,7 @@ import json
 
 import cites
 import estimate
+import evals
 import closing
 import jirafields
 import jiralog
@@ -471,6 +472,87 @@ def _sync_readiness(project: Path, summary: dict) -> None:
         manifest.save(project, doc)
 
 
+def _write_review_usage(project: Path, ref: str, anchor_set: str, number: int, name: str, used, duration_ms: int):
+    # Usage lands in the project the review belongs to, whatever directory the command ran from.
+    stamp = _dt.datetime.now(_dt.timezone.utc)
+    usage_file = project / "harness" / "reviews" / f"{stamp.strftime('%Y%m%dT%H%M%SZ')}-{ref}-r{number}.json"
+    usage_file.parent.mkdir(parents=True, exist_ok=True)
+    usage_file.write_text(json.dumps({
+        "schema_version": 1, "ts": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "ref": ref, "set": anchor_set, "round": number,
+        "reviewer": name, "model": reviewers.codex_model() if name == "codex" else None, "usage": used,
+        "duration_ms": duration_ms}, indent=2) + "\n",
+        encoding="utf-8")
+
+
+def _cmd_critique(args, project: Path) -> int:
+    """Advisory only: no anchors, no verdict, no rounds, no HITL. Each pass is kept, and none gates anything."""
+    try:
+        cfg = config.load_config(project)
+        repo = Path(args.repo).resolve() if args.repo else None
+        doc = Path(args.doc).resolve() if args.doc else None
+        packet = packets.critique_packet(project, args.ref, doc=doc, repo=repo, base=args.base)
+        name, spec = reviewers.pick_reviewer(cfg, packet["cwd"])
+        started = _dt.datetime.now(_dt.timezone.utc)
+        text, used = reviewers.run_backend_with_usage(spec, packets.build_prompt(packet), packet["cwd"])
+        duration_ms = int((_dt.datetime.now(_dt.timezone.utc) - started).total_seconds() * 1000)
+    except (config.ConfigError, packets.PacketError, reviewers.NoReviewer) as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    except (reviewers.ReviewerFailed, FileNotFoundError, OSError) as exc:
+        sys.stderr.write(f"wow: reviewer failed: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    ref = f"{args.ref}.critique"
+    folder = project / ".wow" / "reviews" / ref
+    folder.mkdir(parents=True, exist_ok=True)
+    number = len(list(folder.glob("pass-*.md"))) + 1
+    (folder / f"pass-{number}.md").write_text(text, encoding="utf-8")
+    _write_review_usage(project, ref, "critique", number, name, used, duration_ms)
+    parsed = review_mod.parse_verdict(text)
+    # With no anchors nothing can block: a BLOCKER the critic sent anyway is read as a warning.
+    warnings = [(b["path_line"], b["text"]) for b in parsed["blockers"]] + \
+        [(w["path_line"], w["text"]) for w in parsed["warnings"]]
+    print(f"critique pass {number} of {args.ref} (reviewer: {name}, advisory, gates nothing)")
+    for path_line, what in warnings:
+        print(f"WARNING {path_line} — {what}")
+    for nit in parsed["nits"]:
+        print(f"NIT — {nit}")
+    if not warnings and not parsed["nits"]:
+        print("no remarks")
+    return exitcodes.OK
+
+
+def _cmd_eval_run(args) -> int:
+    project = _project(args)
+    try:
+        cfg = config.load_config(project)
+        data = evals.load(Path(args.dataset).resolve())
+        if args.reviewer:
+            cfg = dict(cfg, reviewers=[args.reviewer])
+        name, spec = reviewers.pick_reviewer(cfg, project)
+    except (config.ConfigError, evals.EvalError, reviewers.NoReviewer) as exc:
+        sys.stderr.write(f"wow: {exc}\n")
+        return exitcodes.CANNOT_EVALUATE
+    results = evals.run(data, lambda prompt: reviewers.run_backend(spec, prompt, project))
+    counts = {status: sum(r["status"] == status for r in results) for status in ("pass", "fail", "could not run")}
+    stamp = _dt.datetime.now(_dt.timezone.utc)
+    out = project / "harness" / "evals" / f"{stamp.strftime('%Y%m%dT%H%M%SZ')}-{data['name']}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps({"schema_version": 1, "ts": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                               "dataset": data["name"], "reviewer": name,
+                               "model": reviewers.codex_model() if name == "codex" else None,
+                               "counts": counts, "cases": results}, indent=2, ensure_ascii=False) + "\n",
+                   encoding="utf-8")
+    for result in results:
+        if result["status"] != "pass":
+            label = "FAIL" if result["status"] == "fail" else "COULD NOT RUN"
+            print(f"{label} {result['id']} — {result['detail']}")
+    print(f"{counts['pass']} passed, {counts['fail']} failed, {counts['could not run']} could not run "
+          f"(reviewer: {name}); kept in {out.relative_to(project)}")
+    if counts["fail"]:
+        return exitcodes.FINDINGS
+    return exitcodes.CANNOT_EVALUATE if counts["could not run"] else exitcodes.OK
+
+
 def _cmd_review(args) -> int:
     project = _project(args)
     if not review_mod.safe_ref(args.ref):
@@ -479,8 +561,10 @@ def _cmd_review(args) -> int:
     if args.decide:
         return _cmd_review_decide(args, project)
     if not args.set:
-        sys.stderr.write("wow: review needs --set readiness|story|epic|standards|claims (or --decide after HITL)\n")
+        sys.stderr.write("wow: review needs --set readiness|story|epic|standards|claims|critique (or --decide after HITL)\n")
         return exitcodes.CANNOT_EVALUATE
+    if args.set == "critique":
+        return _cmd_critique(args, project)
     try:
         cfg = config.load_config(project)
         repo = Path(args.repo).resolve() if args.repo else project
@@ -540,15 +624,7 @@ def _cmd_review(args) -> int:
         return exitcodes.CANNOT_EVALUATE
 
     number = len(summary["rounds"]) + 1
-    # Usage lands in the project the review belongs to, whatever directory the command ran from.
-    stamp = _dt.datetime.now(_dt.timezone.utc)
-    usage_file = project / "harness" / "reviews" / f"{stamp.strftime('%Y%m%dT%H%M%SZ')}-{ref}-r{number}.json"
-    usage_file.parent.mkdir(parents=True, exist_ok=True)
-    usage_file.write_text(json.dumps({
-        "schema_version": 1, "ts": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "ref": ref, "set": args.set, "round": number,
-        "reviewer": name, "model": reviewers.codex_model() if name == "codex" else None, "usage": used,
-        "duration_ms": duration_ms}, indent=2) + "\n",
-        encoding="utf-8")
+    _write_review_usage(project, ref, args.set, number, name, used, duration_ms)
     raw = project / ".wow" / "reviews" / ref / f"round-{number}.md"
     raw.parent.mkdir(parents=True, exist_ok=True)
     raw.write_text(text, encoding="utf-8")
@@ -876,15 +952,22 @@ def build_parser() -> argparse.ArgumentParser:
     db.set_defaults(handler=_cmd_dashboard)
 
     rv = with_project(sub.add_parser("review", help="run an anchored independent review"))
-    rv.add_argument("--set", default=None, choices=["readiness", "story", "epic", "standards", "claims"])
+    rv.add_argument("--set", default=None, choices=["readiness", "story", "epic", "standards", "claims", "critique"])
     rv.add_argument("--decide", default=None, choices=["approved", "rejected"],
                     help="record a human verdict on a review escalated to HITL (needs --reason)")
     rv.add_argument("--reason", default=None, help="why the human decided (required with --decide)")
     rv.add_argument("--ref", required=True, help="plan | Jira story key | epic id | claims doc name")
     rv.add_argument("--repo", default=None, help="repository to diff or to verify claims against")
     rv.add_argument("--base", default="main", help="git base for story/epic diffs (default: main)")
-    rv.add_argument("--doc", default=None, help="claims document (required for --set claims)")
+    rv.add_argument("--doc", default=None, help="claims document (required for --set claims; for --set critique, else the diff)")
     rv.set_defaults(handler=_cmd_review)
+
+    ev = sub.add_parser("eval", help="run a reviewer eval dataset against a real reviewer (by hand: it calls a model)")
+    evsub = ev.add_subparsers(dest="eval_command", required=True)
+    er = with_project(evsub.add_parser("run"))
+    er.add_argument("dataset", help="JSON dataset: schema_version, name, cases[id, set, anchors, content, expect]")
+    er.add_argument("--reviewer", default=None, help="use only this reviewer (still never the author)")
+    er.set_defaults(handler=_cmd_eval_run)
 
     pk = with_project(sub.add_parser("pack", help="render Product Brain packets from the manifest"))
     pk.add_argument("kind", choices=["prd", "rfc", "epic", "check"])

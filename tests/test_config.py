@@ -12,7 +12,7 @@ class LoadConfigTest(unittest.TestCase):
     def test_defaults_when_no_file(self):
         cfg = config.load_config(make_project())
         self.assertEqual(cfg["models"]["cursor_generate"], "composer-2.5")
-        self.assertEqual(cfg["reviewers"], ["codex", "copilot"])
+        self.assertEqual(cfg["reviewers"], ["codex", "copilot", "gemini", "cursor-agent", "claude"])
 
     def test_file_overrides_are_deep_merged(self):
         project = make_project()

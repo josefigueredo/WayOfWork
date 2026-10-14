@@ -1,7 +1,7 @@
 ---
 name: wow-review
-description: Run an independent, anchored review with a different model (Codex, else Copilot) for a plan's readiness, a Jira story's diff, an epic's cumulative diff, or a document of claims. Use when a phase needs an independent verdict, when the user says "review this story/epic/plan", or when wow-guide recommends `wow review`.
-compatibility: Requires the `wow` CLI on PATH (Python 3.9+ and git) and a logged-in Codex (or Copilot) CLI as independent reviewer; without one, wow review exits 2.
+description: Run an independent, anchored review with a model other than the author (Codex, Copilot, Gemini, cursor-agent or Claude) for a plan's readiness, a Jira story's diff, an epic's cumulative diff, or a document of claims, plus an advisory critique with no anchors. Use when a phase needs an independent verdict, when the user says "review this story/epic/plan", or when wow-guide recommends `wow review`.
+compatibility: Requires the `wow` CLI on PATH (Python 3.9+ and git) and a logged-in reviewer CLI other than the authoring agent (Codex, Copilot, Gemini, cursor-agent or Claude); without one, wow review exits 2.
 ---
 
 # wow-review
@@ -20,6 +20,9 @@ The host model never reviews its own work. This skill only runs the command and 
   Kept apart as `<ref>.standards`; decide its HITL with `--ref <ref>.standards`. wow-guide recommends it once
   on the epic; it never blocks closing.
 - `wow review --set claims --ref <name> --doc <path> --repo <repo>` — anchors: C1, C2… claim ids.
+- `wow review --set critique --ref <name> [--doc <path> | --repo <repo>]` — advisory pass with no anchors over a
+  document (else the diff): only WARNING and NIT, exit 0 when it ran. No verdict, no rounds, no HITL; it gates
+  nothing, so never present it as an approval. Each pass is kept in `.wow/reviews/<name>.critique/`.
 
 Use `--base <ref>` when the diff base is not `main`.
 
@@ -30,6 +33,8 @@ Use `--base <ref>` when the diff base is not `main`.
   verbatim. Fix only valid BLOCKERs; WARNING and NIT never reopen a review.
   In Spec-Kit projects, fixes go through `/spec-kit.refactor` so they stay on record.
 - Exit 2: could not evaluate (no reviewer, no anchors, empty diff, unparseable output). Report the message.
+  The author never reviews itself: wow skips every host it detects (Claude Code, Codex, cursor-agent, Gemini). A host
+  it cannot detect, such as Copilot, is named with `WOW_HOST=copilot`.
 
 ## Rules
 

@@ -185,6 +185,31 @@ class ReviewCommandTest(unittest.TestCase):
         self.assertEqual((saved["anchor_set"], saved["final"]), ("standards", "approved"))
         self.assertFalse((project / "wow/reviews/IRIS-41.json").exists())
 
+    def test_critique_only_advises_and_never_opens_rounds(self):
+        project, _ = _review_project("VERDICT: CHANGES_REQUIRED\nBLOCKER A1 design.md:2 — caches never expire\n"
+                                     "WARNING design.md:1 — no owner named\nNIT — title case\n")
+        doc = write(project, "design.md", "# Design\nWe cache everything forever.\n")
+        for _ in range(4):  # more than MAX_ROUNDS: an advisory pass never escalates to HITL
+            code, out, _ = run_cli(["review", "--set", "critique", "--ref", "design", "--doc", str(doc),
+                                    "--project", str(project)])
+            self.assertEqual(code, 0, out)
+        self.assertIn("WARNING design.md:2 — caches never expire", out)  # no anchors, so no BLOCKER survives
+        self.assertIn("WARNING design.md:1 — no owner named", out)
+        self.assertIn("NIT — title case", out)
+        self.assertNotIn("BLOCKER", out)
+        self.assertFalse((project / "wow/reviews/design.json").exists())
+        self.assertFalse((project / "wow/reviews/design.critique.json").exists())
+        self.assertEqual(len(list((project / ".wow/reviews/design.critique").glob("pass-*.md"))), 4)
+
+    def test_critique_without_reviewer_exits_2(self):
+        project, _ = _review_project("NIT — x\n")
+        write(project, ".wow/config.json", _json.dumps({"reviewers": ["no-such-reviewer"]}))
+        doc = write(project, "design.md", "# Design\n")
+        code, _, err = run_cli(["review", "--set", "critique", "--ref", "design", "--doc", str(doc),
+                                "--project", str(project)])
+        self.assertEqual(code, 2)
+        self.assertIn("no reviewer available", err)
+
     def test_readiness_approved_updates_manifest(self):
         project, _ = _review_project("VERDICT: APPROVED\n")
         code, out, _ = run_cli(["review", "--set", "readiness", "--ref", "plan", "--project", str(project)])
@@ -263,7 +288,7 @@ class ReviewCommandTest(unittest.TestCase):
 
     def test_no_reviewer_exits_2(self):
         project, _ = _review_project("VERDICT: APPROVED\n")
-        write(project, ".wow/config.json", _json.dumps({"reviewers": ["claude"]}))
+        write(project, ".wow/config.json", _json.dumps({"reviewers": ["no-such-reviewer"]}))
         code, _, err = run_cli(["review", "--set", "readiness", "--ref", "plan", "--project", str(project)])
         self.assertEqual(code, 2)
         self.assertIn("no reviewer available", err)
@@ -412,7 +437,7 @@ class PbchatDeepAuditCommandTest(unittest.TestCase):
 
     def test_deep_audit_without_reviewer_exits_2(self):
         project, _ = _review_project("VERDICT: APPROVED\n")
-        write(project, ".wow/config.json", _json.dumps({"reviewers": ["claude"]}))
+        write(project, ".wow/config.json", _json.dumps({"reviewers": ["no-such-reviewer"]}))
         write(project, "wow/pb/chats/prd.md", "llega al 100%\n")
         self.assertEqual(run_cli(["pbchat", "audit", "prd", "--deep", "--project", str(project)])[0], 2)
         self.assertFalse((project / "wow/pb/chats/prd.audit.json").exists())

@@ -17,6 +17,9 @@ if str(WOW_DIR) not in sys.path:
 # The suite never talks to a real Jira: drop the developer's credentials before any test resolves them.
 for _name in [n for n in os.environ if n.startswith(("IC_JIRA_", "JIRA_"))]:
     del os.environ[_name]
+# Nor does it depend on the agent running it: the host markers decide who may not review.
+for _name in ("CLAUDECODE", "CODEX_THREAD_ID", "CURSOR_AGENT", "GEMINI_CLI", "WOW_HOST"):
+    os.environ.pop(_name, None)
 
 _TEMP_DIRS = []
 

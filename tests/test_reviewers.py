@@ -46,12 +46,30 @@ class PickTest(unittest.TestCase):
         name, _ = reviewers.pick_reviewer(fake_cfg(project), project)
         self.assertEqual(name, "codex")
 
-    def test_excluded_names_are_never_used(self):
+    def test_the_host_that_wrote_never_reviews_itself(self):
         project = make_project()
-        cfg = fake_cfg(project, names=("claude", "cursor"))
+        cfg = fake_cfg(project, names=("claude", "codex"))
         cfg["reviewer_commands"]["claude"] = cfg["reviewer_commands"]["codex"]
-        with self.assertRaises(reviewers.NoReviewer):
-            reviewers.pick_reviewer(cfg, project)
+        name, _ = reviewers.pick_reviewer(cfg, project, env={"CLAUDECODE": "1"})
+        self.assertEqual(name, "codex")
+        name, _ = reviewers.pick_reviewer(cfg, project, env={"CODEX_THREAD_ID": "t1"})
+        self.assertEqual(name, "claude")
+
+    def test_nested_hosts_are_all_skipped(self):
+        # Environment variables are inherited: codex launched from Claude Code sees both markers, and the env alone
+        # cannot tell which one wrote, so neither reviews.
+        project = make_project()
+        cfg = fake_cfg(project, names=("claude", "codex"))
+        cfg["reviewer_commands"]["claude"] = cfg["reviewer_commands"]["codex"]
+        with self.assertRaises(reviewers.NoReviewer) as ctx:
+            reviewers.pick_reviewer(cfg, project, env={"CLAUDECODE": "1", "CODEX_THREAD_ID": "t1"})
+        self.assertIn("skipped as author: claude, codex", str(ctx.exception))
+
+    def test_author_hosts_from_markers_and_wow_host(self):
+        self.assertEqual(reviewers.author_hosts({}), set())
+        self.assertEqual(reviewers.author_hosts({"CURSOR_AGENT": "1"}), {"cursor-agent"})
+        self.assertEqual(reviewers.author_hosts({"GEMINI_CLI": "1"}), {"gemini"})
+        self.assertEqual(reviewers.author_hosts({"WOW_HOST": "copilot, gemini"}), {"copilot", "gemini"})
 
     def test_no_reviewer_lists_tried_names(self):
         cfg = {"reviewers": ["codex"], "reviewer_commands": {
@@ -64,6 +82,18 @@ class PickTest(unittest.TestCase):
         self.assertIn("{out}", reviewers.command_spec({}, "codex")["argv"])
         self.assertIn("{prompt}", reviewers.command_spec({}, "copilot")["argv"])
         self.assertIsNone(reviewers.command_spec({}, "unknown"))
+
+    def test_new_defaults_run_read_only_and_headless(self):
+        claude = reviewers.command_spec({}, "claude")
+        self.assertEqual(claude["argv"][:2], ["claude", "--print"])
+        self.assertIn("plan", claude["argv"])
+        self.assertTrue(claude["stdin"])
+        cursor = reviewers.command_spec({}, "cursor-agent")
+        self.assertIn("ask", cursor["argv"])
+        self.assertIn("{prompt}", cursor["argv"])
+        gemini = reviewers.command_spec({}, "gemini")
+        self.assertIn("--approval-mode", gemini["argv"])
+        self.assertIn("{prompt}", gemini["argv"])
 
 
 CODEX_JSON = """import sys

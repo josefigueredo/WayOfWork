@@ -26,7 +26,7 @@
 | Python 3.9+ y git | todo `wow`; no instala dependencias | no corre |
 | Spec-Kit y Cursor | fases 4 a 6 | la guía se queda en la fase 3 |
 | Skill `run-in-cursor`, `cursor-agent` y tmux | `wow sk run` | `wow sk run` sale con 2 y dice que no encuentra `run-in-cursor` |
-| CLI de Codex (o Copilot) logueado | `wow review` y `wow pbchat audit --deep` | `wow review` sale con 2 (no pude evaluar) |
+| Un CLI revisor logueado (Codex, Copilot, Gemini, `cursor-agent` o Claude) distinto del que escribe | `wow review` y `wow pbchat audit --deep` | `wow review` sale con 2 (no pude evaluar) |
 | `gh` logueado | links a PRs en el snapshot y el dashboard | el snapshot marca GitHub como no disponible |
 | Token de Jira sin alcance | estado de las épicas y `wow close` | Jira figura como no configurado |
 
@@ -171,7 +171,7 @@ wow sk start DEMO-1                                  # seguir una épica hecha f
 ### Revisión y cierre: `wow-review` y `wow close`
 
 ```bash
-wow review --set readiness --ref plan    # necesita Codex o Copilot
+wow review --set readiness --ref plan    # necesita un revisor distinto del autor (Codex, Copilot, Gemini, cursor-agent o Claude)
 wow close --epic E1                      # en seco; --apply escribe en Jira
 ```
 

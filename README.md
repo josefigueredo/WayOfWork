@@ -12,7 +12,7 @@ distinto que le pedís al agente:
 | *«Generá los paquetes para Product Brain»* | genera el PRD, el RFC y un paquete por épica, y comprueba en local que Product Brain los marque al 100% |
 | *«Auditá el chat de Product Brain»* | compara lo que escribió Product Brain contra el paquete y el context pack, y arma las correcciones para pegarle |
 | *«Preparame el paso de Spec-Kit»* | deja listos los borradores y manda el comando a Cursor, para que Cursor solo ratifique |
-| *«Revisá esto con otro modelo»* | corre una revisión independiente (Codex, o Copilot) del plan, de una historia, de una épica o de un documento |
+| *«Revisá esto con otro modelo»* | corre una revisión independiente (Codex, Copilot, Gemini, Cursor o Claude; nunca el que escribió) del plan, de una historia, de una épica o de un documento |
 
 **La única escritura hacia Jira es `wow close --apply` (y `wow jira fix-fields --apply`), y ambos corren en seco salvo
 que los pidas con `--apply`.** Todo lo demás escribe archivos locales en `wow/` y `harness/`. Las skills no se encadenan:
@@ -34,6 +34,10 @@ están en la referencia.
 Además de las skills, el CLI hace tres cosas por su cuenta: [cerrar en Jira lo que Spec-Kit deja abierto](docs/showcase.md#8-cerrar-lo-que-spec-kit-deja-abierto)
 (`wow close`, `wow jira fix-fields`), [medir el consumo de Cursor y frenar comandos de shell destructivos](docs/showcase.md#9-consumo-de-cursor-y-baranda-de-shell)
 (`wow hook`, `wow usage`) y [armar un tablero que abre sin red](docs/showcase.md#10-un-tablero-que-abre-sin-red) (`wow dashboard`).
+
+Para medir a los revisores, `wow eval run evals/review-basics.json [--reviewer codex]` corre un dataset de casos con
+defectos plantados contra un revisor real y dice, por caso, si pasó, si falló o si no se pudo correr; un caso que no
+se pudo correr nunca cuenta como pasado. Se corre a mano (llama a un modelo) y el resultado queda en `harness/evals/`.
 
 ## Un ejemplo: ¿qué sigue?
 
@@ -68,7 +72,7 @@ Después, `wow --version` comprueba que el CLI está en el PATH (si falla, agreg
 | Python 3.9+ y git | todo `wow`; no instala dependencias | no corre |
 | Spec-Kit (`uv tool install git+ssh://git@github.com/josefigueredo/spec-kit.git`) y Cursor | fases 4 a 6 | la guía se queda en la fase 3 |
 | Skill `run-in-cursor`, `cursor-agent` y tmux | `wow sk run` | `wow sk run` sale con 2 y dice que no encuentra `run-in-cursor` |
-| CLI de Codex (o Copilot) logueado | revisor independiente de `wow review` y `wow pbchat audit --deep` | `wow review` sale con 2 (no pude evaluar) |
+| Un CLI revisor logueado (Codex, Copilot, Gemini, `cursor-agent` o Claude) distinto del que escribe | revisor independiente de `wow review` y `wow pbchat audit --deep` | `wow review` sale con 2 (no pude evaluar) |
 | `gh` logueado | links a PRs en el snapshot y el dashboard | el snapshot marca GitHub como no disponible |
 | Token de Jira **sin scopes** (variables `JIRA_*`) | estado de las épicas y `wow close` | Jira figura como no configurado |
 
