@@ -34,6 +34,26 @@ class ArgvTest(unittest.TestCase):
             self.assertEqual(skrun.argv("quit", ["ric-plan-1"], p),
                              [sys.executable, str(ric), "quit", "--workspace", str(p), "--", "ric-plan-1"])
 
+    def test_run_passes_the_cursor_model_to_ric_before_the_positionals(self):
+        p, ric = make_project(), make_project() / "ric.py"
+        ric.write_text("", encoding="utf-8")
+        with mock.patch.dict(os.environ, {"WOW_RIC": str(ric)}):
+            deny = ["--deny", r"spec-kit\.sync-status"]
+            self.assertEqual(skrun.argv("run", ["/spec-kit.implement WU-1"], p, model="claude-sonnet-5-5-high"),
+                             [sys.executable, str(ric), "run", "--workspace", str(p), *deny,
+                              "--model", "claude-sonnet-5-5-high", "--", "/spec-kit.implement WU-1"])
+
+    def test_sk_run_takes_a_model_option(self):
+        p, ric = make_project(), make_project() / "ric.py"
+        ric.write_text("", encoding="utf-8")
+        seen = []
+        with mock.patch.dict(os.environ, {"WOW_RIC": str(ric)}), \
+                mock.patch("subprocess.run", side_effect=lambda cmd, *a, **k: seen.append(cmd) or mock.Mock(returncode=0)):
+            code, _, _ = run_cli(["sk", "run", "/spec-kit.implement WU-1", "--model", "claude-sonnet-5-5-high",
+                                  "--project", str(p)])
+        self.assertEqual(code, 0)
+        self.assertIn(["--model", "claude-sonnet-5-5-high"], [seen[0][i:i + 2] for i in range(len(seen[0]) - 1)])
+
     def test_without_run_in_cursor_it_says_how_to_install_it(self):
         with mock.patch.dict(os.environ, {"WOW_RIC": str(make_project() / "missing" / "ric.py")}):
             code, _, err = run_cli(["sk", "run", "/spec-kit.plan", "--project", str(make_project())])

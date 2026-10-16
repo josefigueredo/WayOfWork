@@ -55,7 +55,7 @@ wow review --set standards --ref E1 --repo ../backend-api   # segundo eje: golde
 wow usage                                                   # consumo por marca y modelo
 wow sk status | wow sk cmd plan --feature specs/001-x       # preparar pasos de Spec-Kit
 wow sk start PLATE-553                                      # seguir en el flujo SK una épica hecha fuera de PB
-wow sk run "/spec-kit.plan …" | wow sk send <sesión> "…" | wow sk quit <sesión>   # mandar el comando a Cursor
+wow sk run "/spec-kit.plan …" [--model <modelo de Cursor>] | wow sk send <sesión> "…" | wow sk quit <sesión>   # mandar el comando a Cursor
 wow context scan | wow context check                        # context pack con afirmaciones etiquetadas
 wow context restore                                         # reponer el discovery verificado si Spec-Kit lo pisó
 wow cite check doc.md --root ../repo [--sha SHA] [--alias X=ruta]   # cada `archivo:línea` citado existe y está en rango

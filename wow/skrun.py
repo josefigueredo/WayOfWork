@@ -35,7 +35,9 @@ def refuse(command: str) -> Optional[str]:
     return None
 
 
-def argv(action: str, args: List[str], project: Path) -> List[str]:
-    """Options first and `--` before the positionals: a reply such as "-1" must not read as an option."""
+def argv(action: str, args: List[str], project: Path, model: Optional[str] = None) -> List[str]:
+    """Options first and `--` before the positionals: a reply such as "-1" must not read as an option.
+    `model` picks the Cursor model for a new session (`run` only); without it Cursor uses its default."""
     deny = ["--deny", DENY] if action in ("run", "send") else []
-    return [sys.executable, str(ric_path()), action, "--workspace", str(project), *deny, "--", *args]
+    chosen = ["--model", model] if model and action == "run" else []
+    return [sys.executable, str(ric_path()), action, "--workspace", str(project), *deny, *chosen, "--", *args]
