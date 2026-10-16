@@ -392,7 +392,8 @@ def _cmd_sk_ric(args) -> int:
         return exitcodes.CANNOT_EVALUATE
     rest = {"run": lambda: [args.command], "send": lambda: [args.session, args.text],
             "quit": lambda: [args.session]}[action]()
-    return subprocess.run(skrun.argv(action, rest, _project(args))).returncode  # the user sees ric's screen as is
+    model = getattr(args, "model", None)
+    return subprocess.run(skrun.argv(action, rest, _project(args), model=model)).returncode  # the user sees ric's screen as is
 
 
 def _cmd_sk_start(args) -> int:
@@ -1057,6 +1058,7 @@ def build_parser() -> argparse.ArgumentParser:
     skc.set_defaults(handler=_cmd_sk_cmd)
     skr = with_project(sksub.add_parser("run", help="send a /spec-kit.* command to Cursor (interactive, recorded)"))
     skr.add_argument("command")
+    skr.add_argument("--model", default=None, help="Cursor model for the session (cursor-agent --list-models); default: Cursor's")
     skr.set_defaults(handler=_cmd_sk_ric)
     skn = with_project(sksub.add_parser("send", help="answer in a running Cursor session"))
     skn.add_argument("session")

@@ -20,7 +20,8 @@ Goal: spend the scarce Cursor pool only on ratifying and generating, never on th
    - `wow/sk/<feature-name>/plan-draft.md`: the design decisions, alternatives and contracts.
 3. Get the exact command with `wow sk cmd <sync|clarify|plan|tasks|sync-status> --epic <KEY> | --feature specs/<dir>`.
    Then either:
-   - **send it from here:** `wow sk run "<command>"`. It drives an interactive `cursor-agent` through the
+   - **send it from here:** `wow sk run "<command>" --model <cursor-model>` (pick a capable model, e.g.
+     `claude-sonnet-5-5-high`; without `--model` Cursor uses its default). It drives an interactive `cursor-agent` through the
      run-in-cursor skill, so the command's start/end and every Cursor hook (model, tokens) are recorded as if typed.
      It returns when the turn ends and prints Cursor's screen: show it. If Cursor asks something (clarify does),
      answer with `wow sk send <session> "<reply>"`, asking the user when the answer is theirs. Always finish with

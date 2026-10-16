@@ -162,7 +162,7 @@ wow pbchat audit prd --decide approved --reason "<por qué>"   # lo corrés vos,
 ```bash
 wow sk status                                        # qué falta en cada feature
 wow sk cmd plan --feature specs/001-cobro-tarjeta    # el comando exacto
-wow sk run "/spec-kit.plan …"                      # lo manda a Cursor (necesita run-in-cursor)
+wow sk run "/spec-kit.plan …" --model claude-sonnet-5-5-high   # lo manda a Cursor con ese modelo (necesita run-in-cursor)
 wow sk start DEMO-1                                  # seguir una épica hecha fuera de Product Brain
 ```
 
