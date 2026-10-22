@@ -53,6 +53,7 @@ antes de proponer el próximo paso. El recorrido completo está en el [showcase]
 | **Instalarlo y probarlo, hablándole al agente** | [Instalación y primer uso](docs/instalacion.md) | Todo con prompts: instalar, hooks de Cursor, credenciales de Jira, tu primera consulta de estado, Spec-Kit y actualizar, con maquetas de la sesión |
 | **Instalarlo comando por comando** | [Instalación detallada](docs/instalacion-detallada.md) | Requisitos, `./install.sh`, credenciales, y el recorrido corriendo cada comando de `wow`, con capturas de la terminal |
 | **Ver todo lo que hace** | [Showcase](docs/showcase.md) | Cada skill en un escenario: qué le decís al agente, qué comandos corre, qué ves, qué pasa si falla |
+| **Verla en el taller de skills** | [Episodio del taller](https://reimagined-adventure-7zvnw5k.pages.github.io/) | El episodio que se dio en el taller de team, publicado en GitHub Pages (sitio privado: entrás con tu cuenta de la organización). El guion vive en [`workshop/`](workshop/) |
 | **Consultar un comando o un flag** | [Referencia](docs/referencia.md) | El README anterior completo: todos los comandos, el dashboard, el consumo de Cursor, las estimaciones y las revisiones |
 
 ## En tres comandos
