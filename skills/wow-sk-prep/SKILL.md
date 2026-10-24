@@ -1,6 +1,6 @@
 ---
 name: wow-sk-prep
-description: Prepare each Spec-Kit step so Cursor only ratifies: pre-chew clarify answers and a plan draft with the host model, then send the Spec-Kit command to Cursor with `wow sk run` (an interactive cursor-agent, recorded like a typed command) or hand it to the user for Cursor. Use before /spec-kit.sync, clarify, plan, tasks or implement, or when wow-guide recommends `wow sk cmd`.
+description: Prepare each Spec-Kit step so Cursor only ratifies — pre-chew clarify answers and a plan draft with the host model, then send the Spec-Kit command to Cursor with `wow sk run` (an interactive cursor-agent, recorded like a typed command) or hand it to the user for Cursor. Use before /spec-kit.sync, clarify, plan, tasks or implement, or when wow-guide recommends `wow sk cmd`.
 compatibility: Requires the `wow` CLI on PATH (Python 3.9+ and git). `wow sk run` also needs the run-in-cursor skill, cursor-agent and tmux; Spec-Kit and Cursor for the later phases.
 ---
 
